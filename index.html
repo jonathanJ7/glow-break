@@ -503,8 +503,8 @@
                 startingBalls: 1,
                 hpVariationMin: 0.3,
                 hpVariationMax: 1.0,
-                forestChance: 0.15,  // 15% chance per row
-                forestStartTurn: 5    // Forests start appearing at turn 5
+                forestChance: 0.35,  // 35% chance per row
+                forestStartTurn: 1    // Forests start appearing at turn 1
             },
             medium: {
                 name: 'MEDIO',
@@ -522,8 +522,8 @@
                 startingBalls: 1,
                 hpVariationMin: 0.5,
                 hpVariationMax: 1.5,
-                forestChance: 0.22,  // 22% chance per row
-                forestStartTurn: 4    // Forests start appearing at turn 4
+                forestChance: 0.45,  // 45% chance per row
+                forestStartTurn: 1    // Forests start appearing at turn 1
             },
             hard: {
                 name: 'DIFÍCIL',
@@ -544,8 +544,8 @@
                 // Extra hard features
                 poisonBrickChance: 0.06,  // Bricks that spawn more bricks
                 reinforcedRows: true,       // Every 10 turns, extra tough row
-                forestChance: 0.30,  // 30% chance per row
-                forestStartTurn: 3    // Forests start appearing at turn 3
+                forestChance: 0.55,  // 55% chance per row
+                forestStartTurn: 1    // Forests start appearing at turn 1
             }
         };
         
@@ -842,6 +842,9 @@
                     }
                     for (let bonus of gameState.bonuses) {
                         bonus.y += cellSize;
+                    }
+                    for (let forest of gameState.forestRows) {
+                        forest.y += cellSize;
                     }
                 }
             }
@@ -1957,7 +1960,17 @@
                     ctx.textAlign = 'center';
                     ctx.fillText('👾', brick.x + 2 + brick.width / 2, brick.y + 15 * getScale());
                 }
-                
+
+                // Forest type indicator (small icon in corner)
+                if (brick.forestType) {
+                    const forest = FOREST_TYPES[brick.forestType];
+                    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+                    ctx.font = `${getFontSize(8)}px Arial`;
+                    ctx.textAlign = 'left';
+                    ctx.textBaseline = 'top';
+                    ctx.fillText(forest.emoji, brick.x + 4, brick.y + 4);
+                }
+
                 // HP text
                 ctx.fillStyle = 'white';
                 const hpFontSize = getFontSize(brick.hp > 999 ? 10 : brick.hp > 99 ? 12 : 14);
