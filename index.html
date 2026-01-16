@@ -814,29 +814,16 @@
                     const hpVariation = config.hpVariationMin + Math.random() * (config.hpVariationMax - config.hpVariationMin);
                     const hp = Math.max(1, Math.floor(baseHP * hpVariation * rowHpMultiplier));
                     
-                    // Chance for special brick types (7 types)
+                    // Chance for special brick types
                     let type = 'normal';
                     const specialRoll = Math.random();
-                    const specialChance = Math.min(0.35 + turn * 0.01, 0.60); // Increases with turns
-
-                    if (turn > 3 && specialRoll < specialChance) {
-                        // Equal chance for each of the 7 special types
-                        const typeRoll = Math.random();
-                        if (typeRoll < 0.143) {
-                            type = 'shield';        // 🛡️ Protects adjacent blocks
-                        } else if (typeRoll < 0.286) {
-                            type = 'regenerator';   // 💚 Regenerates HP each turn
-                        } else if (typeRoll < 0.429) {
-                            type = 'splitter';      // ✨ Distributes HP to neighbors on death
-                        } else if (typeRoll < 0.572) {
-                            type = 'gravity';       // 🌀 Attracts and deflects balls
-                        } else if (typeRoll < 0.715) {
-                            type = 'teleporter';    // 🌐 Teleports ball on hit
-                        } else if (typeRoll < 0.858) {
-                            type = 'mirror';        // 💎 Reflects with random angle
-                        } else {
-                            type = 'curse';         // ☠️ Reduces ball damage
-                        }
+                    
+                    if (turn > 3 && specialRoll < config.explosiveChance) {
+                        type = 'explosive';
+                    } else if (turn > 5 && specialRoll < config.explosiveChance + config.armoredChance) {
+                        type = 'armored';
+                    } else if (config.poisonBrickChance && turn > 8 && specialRoll < config.explosiveChance + config.armoredChance + config.poisonBrickChance) {
+                        type = 'spawner';
                     }
                     
                     gameState.bricks.push({
@@ -972,9 +959,7 @@
                 hasGoneUp: false,
                 fireball: isFireball,
                 damage: isSuperDamage ? 3 : 1,
-                hitBricks: isFireball ? new Set() : null,  // Track bricks hit by fireball
-                cursed: false,
-                curseHitsLeft: 0
+                hitBricks: isFireball ? new Set() : null  // Track bricks hit by fireball
             });
             
             gameState.ballsToShoot--;
@@ -1020,80 +1005,72 @@
             }
         }
         
-        // SPLITTER: Distributes HP to adjacent blocks when destroyed
-        function splitBrickHP(brick) {
+        // Explosion for explosive bricks
+        function explodeBrick(brick) {
             const cellSize = getCellSize();
             const centerX = brick.x + brick.width / 2;
             const centerY = brick.y + brick.height / 2;
-
-            createParticles(centerX, centerY, '#fbbf24', 16);
-
-            // Find adjacent blocks (up, down, left, right)
-            const adjacentBlocks = gameState.bricks.filter(other => {
-                if (other === brick || other.hp <= 0) return false;
+            
+            createParticles(centerX, centerY, '#ff6b6b', 16);
+            
+            const explosionRadius = cellSize * 1.5;
+            for (let other of gameState.bricks) {
+                if (other === brick) continue;
                 const otherCenterX = other.x + other.width / 2;
                 const otherCenterY = other.y + other.height / 2;
                 const dist = Math.hypot(centerX - otherCenterX, centerY - otherCenterY);
-                return dist < cellSize * 1.5;
-            });
-
-            if (adjacentBlocks.length > 0) {
-                const hpToDistribute = Math.floor(brick.maxHp * 0.8);
-                const hpPerBlock = Math.floor(hpToDistribute / adjacentBlocks.length);
-
-                for (let other of adjacentBlocks) {
-                    other.hp += hpPerBlock;
-                    other.maxHp += hpPerBlock;
-                    createParticles(other.x + other.width/2, other.y + other.height/2, '#fbbf24', 4);
+                
+                if (dist < explosionRadius) {
+                    const damage = Math.floor(brick.maxHp * 0.5);
+                    other.hp -= damage;
                 }
             }
         }
-
-        // TELEPORTER: Teleports ball to random location
-        function teleportBall(ball) {
+        
+        // Spawner brick creates new bricks when destroyed
+        function spawnBricks(brick) {
+            const cellSize = getCellSize();
             const leftBorder = getLeftBorder();
-            const rightBorder = getRightBorder();
-            const topOffset = getTopOffset();
-            const bottomLine = getBottomLine();
-
-            createParticles(ball.x, ball.y, '#06b6d4', 12);
-
-            // Teleport to random location in play area
-            ball.x = leftBorder + Math.random() * (rightBorder - leftBorder);
-            ball.y = topOffset + Math.random() * (bottomLine - topOffset) * 0.6; // Upper 60% of play area
-
-            createParticles(ball.x, ball.y, '#06b6d4', 12);
-        }
-
-        // Get adjacent bricks for shield effect
-        function getAdjacentBricks(brick) {
-            const cellSize = getCellSize();
-            const centerX = brick.x + brick.width / 2;
-            const centerY = brick.y + brick.height / 2;
-
-            return gameState.bricks.filter(other => {
-                if (other === brick || other.hp <= 0) return false;
-                const otherCenterX = other.x + other.width / 2;
-                const otherCenterY = other.y + other.height / 2;
-                const dist = Math.hypot(centerX - otherCenterX, centerY - otherCenterY);
-                return dist < cellSize * 1.2; // Adjacent blocks
-            });
-        }
-
-        // Check if brick is protected by adjacent shield
-        function isProtectedByShield(brick) {
-            const cellSize = getCellSize();
-            const centerX = brick.x + brick.width / 2;
-            const centerY = brick.y + brick.height / 2;
-
-            for (let other of gameState.bricks) {
-                if (other === brick || other.hp <= 0 || other.type !== 'shield') continue;
-                const otherCenterX = other.x + other.width / 2;
-                const otherCenterY = other.y + other.height / 2;
-                const dist = Math.hypot(centerX - otherCenterX, centerY - otherCenterY);
-                if (dist < cellSize * 1.2) return true;
+            
+            createParticles(brick.x + brick.width/2, brick.y + brick.height/2, '#a855f7', 12);
+            
+            // Spawn 1-2 small bricks nearby
+            const spawnCount = 1 + Math.floor(Math.random() * 2);
+            const nearbyPositions = [];
+            
+            for (let dc = -1; dc <= 1; dc++) {
+                const newCol = brick.col + dc;
+                if (newCol >= 0 && newCol < COLS) {
+                    const newX = leftBorder + newCol * cellSize;
+                    const newY = brick.y;
+                    
+                    // Check if position is empty
+                    const occupied = gameState.bricks.some(b => 
+                        Math.abs(b.x - newX) < cellSize * 0.5 && Math.abs(b.y - newY) < cellSize * 0.5
+                    );
+                    
+                    if (!occupied) {
+                        nearbyPositions.push({col: newCol, x: newX, y: newY});
+                    }
+                }
             }
-            return false;
+            
+            for (let i = 0; i < Math.min(spawnCount, nearbyPositions.length); i++) {
+                const pos = nearbyPositions[Math.floor(Math.random() * nearbyPositions.length)];
+                nearbyPositions.splice(nearbyPositions.indexOf(pos), 1);
+                
+                const hp = Math.floor(brick.maxHp * 0.3);
+                gameState.bricks.push({
+                    x: pos.x,
+                    y: pos.y,
+                    width: cellSize - 4,
+                    height: cellSize - 4,
+                    hp: hp,
+                    maxHp: hp,
+                    col: pos.col,
+                    type: 'normal'
+                });
+            }
         }
         
         // Horizontal laser - finds nearest row with bricks and destroys them
@@ -1156,34 +1133,7 @@
             for (let iter = 0; iter < iterations; iter++) {
                 for (let ball of gameState.balls) {
                     if (!ball.active) continue;
-
-                    // Apply GRAVITY effect from nearby gravity blocks
-                    for (let brick of gameState.bricks) {
-                        if (brick.type === 'gravity' && brick.hp > 0) {
-                            const brickCenterX = brick.x + brick.width / 2;
-                            const brickCenterY = brick.y + brick.height / 2;
-                            const dist = Math.hypot(ball.x - brickCenterX, ball.y - brickCenterY);
-                            const gravityRadius = getCellSize() * 2.5;
-
-                            if (dist < gravityRadius && dist > 10) {
-                                // Attract ball towards gravity block
-                                const strength = 0.3 * (1 - dist / gravityRadius);
-                                const dx = brickCenterX - ball.x;
-                                const dy = brickCenterY - ball.y;
-                                const angle = Math.atan2(dy, dx);
-                                ball.vx += Math.cos(angle) * strength;
-                                ball.vy += Math.sin(angle) * strength;
-
-                                // Normalize speed to prevent excessive acceleration
-                                const speed = Math.hypot(ball.vx, ball.vy);
-                                if (speed > BALL_SPEED * 1.5) {
-                                    ball.vx = (ball.vx / speed) * BALL_SPEED * 1.5;
-                                    ball.vy = (ball.vy / speed) * BALL_SPEED * 1.5;
-                                }
-                            }
-                        }
-                    }
-
+                    
                     ball.x += ball.vx;
                     ball.y += ball.vy;
                     
@@ -1245,8 +1195,10 @@
                 // Handle destroyed bricks
                 const destroyedBricks = gameState.bricks.filter(b => b.hp <= 0);
                 for (let brick of destroyedBricks) {
-                    if (brick.type === 'splitter') {
-                        splitBrickHP(brick);
+                    if (brick.type === 'explosive') {
+                        explodeBrick(brick);
+                    } else if (brick.type === 'spawner') {
+                        spawnBricks(brick);
                     }
                 }
                 gameState.bricks = gameState.bricks.filter(b => b.hp > 0);
@@ -1302,29 +1254,6 @@
                 if (circleRectCollision(ball.x, ball.y, getBallRadius(),
                     brick.x + 2, brick.y + 2, brick.width, brick.height)) {
 
-                    // Apply special brick effects BEFORE damage
-                    if (brick.type === 'teleporter' && !ball.fireball) {
-                        teleportBall(ball);
-                        return; // Ball teleported, stop checking collisions this frame
-                    }
-
-                    if (brick.type === 'curse' && !ball.cursed) {
-                        ball.cursed = true;
-                        ball.curseHitsLeft = 3;
-                        createParticles(ball.x, ball.y, '#8b5cf6', 8);
-                    }
-
-                    if (brick.type === 'mirror' && !ball.fireball) {
-                        // Reflect with random angle modification
-                        const randomAngle = (Math.random() - 0.5) * Math.PI * 0.4;
-                        const currentAngle = Math.atan2(ball.vy, ball.vx);
-                        const newAngle = currentAngle + Math.PI + randomAngle;
-                        const speed = Math.hypot(ball.vx, ball.vy);
-                        ball.vx = Math.cos(newAngle) * speed;
-                        ball.vy = Math.sin(newAngle) * speed;
-                        createParticles(ball.x, ball.y, '#a78bfa', 6);
-                    }
-
                     if (!ball.fireball) {
                         // Normal ball: bounce and deal damage
                         const ballCenterX = ball.x;
@@ -1338,34 +1267,15 @@
                         const overlapX = brick.width / 2 + getBallRadius() - Math.abs(dx);
                         const overlapY = brick.height / 2 + getBallRadius() - Math.abs(dy);
 
-                        // Skip bounce for mirror/teleporter (already handled above)
-                        if (brick.type !== 'mirror' && brick.type !== 'teleporter') {
-                            if (overlapX < overlapY) {
-                                ball.vx *= -1;
-                                ball.x += dx > 0 ? overlapX : -overlapX;
-                            } else {
-                                ball.vy *= -1;
-                                ball.y += dy > 0 ? overlapY : -overlapY;
-                            }
+                        if (overlapX < overlapY) {
+                            ball.vx *= -1;
+                            ball.x += dx > 0 ? overlapX : -overlapX;
+                        } else {
+                            ball.vy *= -1;
+                            ball.y += dy > 0 ? overlapY : -overlapY;
                         }
 
-                        // Calculate damage with all modifiers
-                        let damage = ball.damage;
-
-                        // Curse reduces damage
-                        if (ball.cursed) {
-                            damage *= 0.5;
-                            ball.curseHitsLeft--;
-                            if (ball.curseHitsLeft <= 0) {
-                                ball.cursed = false;
-                            }
-                        }
-
-                        // Shield protects adjacent blocks
-                        if (isProtectedByShield(brick)) {
-                            damage *= 0.6;
-                        }
-
+                        const damage = ball.damage * (brick.type === 'armored' ? 0.5 : 1);
                         brick.hp -= damage;
 
                         if (gameState.speedMultiplier === 1) {
@@ -1378,22 +1288,7 @@
                         if (!ball.hitBricks.has(brickId)) {
                             ball.hitBricks.add(brickId);
 
-                            let damage = ball.damage;
-
-                            // Curse affects fireball too
-                            if (ball.cursed) {
-                                damage *= 0.5;
-                                ball.curseHitsLeft--;
-                                if (ball.curseHitsLeft <= 0) {
-                                    ball.cursed = false;
-                                }
-                            }
-
-                            // Shield protects adjacent blocks
-                            if (isProtectedByShield(brick)) {
-                                damage *= 0.6;
-                            }
-
+                            const damage = ball.damage * (brick.type === 'armored' ? 0.5 : 1);
                             brick.hp -= damage;
 
                             if (gameState.speedMultiplier === 1) {
@@ -1447,25 +1342,14 @@
             gameState.speedMultiplier = 1;
             document.getElementById('speedIndicator').style.display = 'none';
             document.getElementById('skipBtn').style.display = 'none';
-
+            
             if (shootTimeout) {
                 clearTimeout(shootTimeout);
                 shootTimeout = null;
             }
-
-            // REGENERATOR: Regenerate HP for regenerator blocks
-            for (let brick of gameState.bricks) {
-                if (brick.type === 'regenerator' && brick.hp > 0) {
-                    const regenAmount = Math.floor(brick.maxHp * 0.15);
-                    brick.hp = Math.min(brick.hp + regenAmount, brick.maxHp);
-                    if (gameState.speedMultiplier === 1) {
-                        createParticles(brick.x + brick.width/2, brick.y + brick.height/2, '#10b981', 4);
-                    }
-                }
-            }
-
+            
             moveBricksDown();
-
+            
             if (!gameState.gameOver) {
                 generateNewRow();
                 updateUI();
@@ -1696,124 +1580,37 @@
                     ctx.stroke();
                 }
                 
-                // Special brick indicators with unique visuals
-                if (brick.type === 'shield') {
-                    // Blue glow for shield
-                    ctx.strokeStyle = 'rgba(59, 130, 246, 0.6)';
+                // Special brick indicators
+                if (brick.type === 'explosive') {
+                    ctx.fillStyle = 'rgba(255,100,100,0.3)';
+                    ctx.beginPath();
+                    ctx.roundRect(brick.x + 2, brick.y + 2, brick.width, brick.height, 6);
+                    ctx.fill();
+
+                    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+                    ctx.font = `${getFontSize(12)}px Arial`;
+                    ctx.textAlign = 'center';
+                    ctx.fillText('💥', brick.x + 2 + brick.width / 2, brick.y + 15 * getScale());
+                }
+                
+                if (brick.type === 'armored') {
+                    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
                     ctx.lineWidth = 3;
-                    ctx.shadowColor = 'rgba(59, 130, 246, 0.5)';
-                    ctx.shadowBlur = 10;
                     ctx.beginPath();
-                    ctx.roundRect(brick.x + 2, brick.y + 2, brick.width, brick.height, 6);
+                    ctx.roundRect(brick.x + 5, brick.y + 5, brick.width - 6, brick.height - 6, 4);
                     ctx.stroke();
-                    ctx.shadowBlur = 0;
-
-                    ctx.fillStyle = 'rgba(255,255,255,0.9)';
-                    ctx.font = `${getFontSize(14)}px Arial`;
-                    ctx.textAlign = 'center';
-                    ctx.fillText('🛡️', brick.x + 2 + brick.width / 2, brick.y + 15 * getScale());
                 }
-
-                if (brick.type === 'regenerator') {
-                    // Green pulsing overlay
-                    const pulse = Math.sin(Date.now() / 300) * 0.15 + 0.15;
-                    ctx.fillStyle = `rgba(16, 185, 129, ${pulse})`;
+                
+                if (brick.type === 'spawner') {
+                    ctx.fillStyle = 'rgba(168, 85, 247, 0.3)';
                     ctx.beginPath();
                     ctx.roundRect(brick.x + 2, brick.y + 2, brick.width, brick.height, 6);
                     ctx.fill();
 
-                    ctx.fillStyle = 'rgba(255,255,255,0.9)';
-                    ctx.font = `${getFontSize(14)}px Arial`;
+                    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+                    ctx.font = `${getFontSize(12)}px Arial`;
                     ctx.textAlign = 'center';
-                    ctx.fillText('💚', brick.x + 2 + brick.width / 2, brick.y + 15 * getScale());
-                }
-
-                if (brick.type === 'splitter') {
-                    // Golden sparkle effect
-                    ctx.fillStyle = 'rgba(251, 191, 36, 0.2)';
-                    ctx.beginPath();
-                    ctx.roundRect(brick.x + 2, brick.y + 2, brick.width, brick.height, 6);
-                    ctx.fill();
-
-                    ctx.fillStyle = 'rgba(255,255,255,0.9)';
-                    ctx.font = `${getFontSize(14)}px Arial`;
-                    ctx.textAlign = 'center';
-                    ctx.fillText('✨', brick.x + 2 + brick.width / 2, brick.y + 15 * getScale());
-                }
-
-                if (brick.type === 'gravity') {
-                    // Swirling distortion effect
-                    const rotation = (Date.now() / 500) % (Math.PI * 2);
-                    ctx.save();
-                    ctx.translate(brick.x + 2 + brick.width / 2, brick.y + 2 + brick.height / 2);
-
-                    // Draw gravity field circles
-                    for (let i = 0; i < 3; i++) {
-                        const offset = (rotation + i * Math.PI * 2 / 3) % (Math.PI * 2);
-                        const radius = brick.width * 0.15 + Math.sin(offset) * brick.width * 0.1;
-                        ctx.fillStyle = `rgba(139, 92, 246, ${0.3 - i * 0.1})`;
-                        ctx.beginPath();
-                        ctx.arc(0, 0, radius, 0, Math.PI * 2);
-                        ctx.fill();
-                    }
-
-                    ctx.restore();
-
-                    ctx.fillStyle = 'rgba(255,255,255,0.9)';
-                    ctx.font = `${getFontSize(14)}px Arial`;
-                    ctx.textAlign = 'center';
-                    ctx.fillText('🌀', brick.x + 2 + brick.width / 2, brick.y + 15 * getScale());
-                }
-
-                if (brick.type === 'teleporter') {
-                    // Cyan portal effect
-                    const pulse = Math.sin(Date.now() / 200) * 0.2 + 0.3;
-                    ctx.fillStyle = `rgba(6, 182, 212, ${pulse})`;
-                    ctx.beginPath();
-                    ctx.roundRect(brick.x + 2, brick.y + 2, brick.width, brick.height, 6);
-                    ctx.fill();
-
-                    ctx.fillStyle = 'rgba(255,255,255,0.9)';
-                    ctx.font = `${getFontSize(14)}px Arial`;
-                    ctx.textAlign = 'center';
-                    ctx.fillText('🌐', brick.x + 2 + brick.width / 2, brick.y + 15 * getScale());
-                }
-
-                if (brick.type === 'mirror') {
-                    // Reflective diamond pattern
-                    ctx.strokeStyle = 'rgba(167, 139, 250, 0.6)';
-                    ctx.lineWidth = 2;
-                    ctx.beginPath();
-                    const cx = brick.x + 2 + brick.width / 2;
-                    const cy = brick.y + 2 + brick.height / 2;
-                    const size = brick.width * 0.25;
-                    ctx.moveTo(cx, cy - size);
-                    ctx.lineTo(cx + size, cy);
-                    ctx.lineTo(cx, cy + size);
-                    ctx.lineTo(cx - size, cy);
-                    ctx.closePath();
-                    ctx.stroke();
-
-                    ctx.fillStyle = 'rgba(255,255,255,0.9)';
-                    ctx.font = `${getFontSize(14)}px Arial`;
-                    ctx.textAlign = 'center';
-                    ctx.fillText('💎', brick.x + 2 + brick.width / 2, brick.y + 15 * getScale());
-                }
-
-                if (brick.type === 'curse') {
-                    // Dark purple aura
-                    ctx.fillStyle = 'rgba(139, 92, 246, 0.3)';
-                    ctx.shadowColor = 'rgba(139, 92, 246, 0.6)';
-                    ctx.shadowBlur = 15;
-                    ctx.beginPath();
-                    ctx.roundRect(brick.x + 2, brick.y + 2, brick.width, brick.height, 6);
-                    ctx.fill();
-                    ctx.shadowBlur = 0;
-
-                    ctx.fillStyle = 'rgba(255,255,255,0.9)';
-                    ctx.font = `${getFontSize(14)}px Arial`;
-                    ctx.textAlign = 'center';
-                    ctx.fillText('☠️', brick.x + 2 + brick.width / 2, brick.y + 15 * getScale());
+                    ctx.fillText('👾', brick.x + 2 + brick.width / 2, brick.y + 15 * getScale());
                 }
                 
                 // HP text
@@ -1822,13 +1619,9 @@
                 ctx.font = `bold ${hpFontSize}px Arial`;
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
-
-                // Adjust text position for special blocks with emoji
-                const hasEmoji = ['shield', 'regenerator', 'splitter', 'gravity', 'teleporter', 'mirror', 'curse'].includes(brick.type);
-                const textY = hasEmoji
+                const textY = (brick.type === 'explosive' || brick.type === 'spawner')
                     ? brick.y + 2 + brick.height / 2 + 8 * getScale()
                     : brick.y + 2 + brick.height / 2;
-
                 ctx.fillText(Math.ceil(brick.hp), brick.x + 2 + brick.width / 2, textY);
             }
             
@@ -1911,20 +1704,8 @@
             // Draw balls
             for (let ball of gameState.balls) {
                 if (!ball.active) continue;
-
-                // Cursed ball effect
-                if (ball.cursed) {
-                    ctx.shadowColor = '#8b5cf6';
-                    ctx.shadowBlur = 12;
-                    ctx.fillStyle = '#8b5cf6';
-
-                    // Draw curse aura
-                    ctx.globalAlpha = 0.3;
-                    ctx.beginPath();
-                    ctx.arc(ball.x, ball.y, getBallRadius() * 1.8, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.globalAlpha = 1;
-                } else if (ball.fireball) {
+                
+                if (ball.fireball) {
                     ctx.shadowColor = '#ff6b6b';
                     ctx.shadowBlur = 8;
                     ctx.fillStyle = '#ff6b6b';
@@ -1935,7 +1716,7 @@
                 } else {
                     ctx.fillStyle = '#fff';
                 }
-
+                
                 ctx.beginPath();
                 ctx.arc(ball.x, ball.y, getBallRadius(), 0, Math.PI * 2);
                 ctx.fill();
