@@ -818,32 +818,57 @@
                     let type = 'normal';
                     const specialRoll = Math.random();
 
-                    // Calculate cumulative probabilities for all 8 types
-                    const explosiveThreshold = config.explosiveChance;
-                    const armoredThreshold = explosiveThreshold + config.armoredChance;
-                    const spawnerThreshold = armoredThreshold + (config.poisonBrickChance || 0.04);
-                    const regeneratorThreshold = spawnerThreshold + 0.05;
-                    const splitterThreshold = regeneratorThreshold + 0.06;
-                    const teleporterThreshold = splitterThreshold + 0.04;
-                    const gravityThreshold = teleporterThreshold + 0.05;
-                    const multiplierThreshold = gravityThreshold + 0.04;
+                    // Individual probabilities for each type (not cumulative)
+                    const baseChances = {
+                        explosive: config.explosiveChance || 0.08,
+                        armored: config.armoredChance || 0.10,
+                        spawner: config.poisonBrickChance || 0.04,
+                        regenerator: 0.08,
+                        splitter: 0.09,
+                        teleporter: 0.06,
+                        gravity: 0.08,
+                        multiplier: 0.06
+                    };
 
-                    if (turn > 3 && specialRoll < explosiveThreshold) {
-                        type = 'explosive';
-                    } else if (turn > 3 && specialRoll < armoredThreshold) {
-                        type = 'armored';
-                    } else if (turn > 5 && specialRoll < spawnerThreshold) {
-                        type = 'spawner';
-                    } else if (turn > 5 && specialRoll < regeneratorThreshold) {
-                        type = 'regenerator';
-                    } else if (turn > 7 && specialRoll < splitterThreshold) {
-                        type = 'splitter';
-                    } else if (turn > 10 && specialRoll < teleporterThreshold) {
-                        type = 'teleporter';
-                    } else if (turn > 8 && specialRoll < gravityThreshold) {
-                        type = 'gravity';
-                    } else if (turn > 12 && specialRoll < multiplierThreshold) {
-                        type = 'multiplier';
+                    // Build cumulative thresholds only for types available at current turn
+                    let cumulative = 0;
+                    const thresholds = [];
+
+                    if (turn > 3) {
+                        cumulative += baseChances.explosive;
+                        thresholds.push({ type: 'explosive', threshold: cumulative });
+                        cumulative += baseChances.armored;
+                        thresholds.push({ type: 'armored', threshold: cumulative });
+                    }
+                    if (turn > 5) {
+                        cumulative += baseChances.spawner;
+                        thresholds.push({ type: 'spawner', threshold: cumulative });
+                        cumulative += baseChances.regenerator;
+                        thresholds.push({ type: 'regenerator', threshold: cumulative });
+                    }
+                    if (turn > 7) {
+                        cumulative += baseChances.splitter;
+                        thresholds.push({ type: 'splitter', threshold: cumulative });
+                    }
+                    if (turn > 8) {
+                        cumulative += baseChances.gravity;
+                        thresholds.push({ type: 'gravity', threshold: cumulative });
+                    }
+                    if (turn > 10) {
+                        cumulative += baseChances.teleporter;
+                        thresholds.push({ type: 'teleporter', threshold: cumulative });
+                    }
+                    if (turn > 12) {
+                        cumulative += baseChances.multiplier;
+                        thresholds.push({ type: 'multiplier', threshold: cumulative });
+                    }
+
+                    // Determine brick type based on random roll
+                    for (let i = 0; i < thresholds.length; i++) {
+                        if (specialRoll < thresholds[i].threshold) {
+                            type = thresholds[i].type;
+                            break;
+                        }
                     }
                     
                     gameState.bricks.push({
