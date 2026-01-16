@@ -27,25 +27,27 @@
             user-select: none;
         }
         
+        html, body {
+            height: 100%;
+            width: 100%;
+        }
+
         body {
             background: #0a0a12;
             display: flex;
             justify-content: center;
             align-items: center;
-            min-height: 100vh;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             overflow: hidden;
         }
-        
+
         #gameContainer {
             position: relative;
             width: 100%;
-            max-width: 420px;
-            aspect-ratio: 9/16;
+            height: 100%;
+            max-width: 500px;
             background: #12121f;
-            border-radius: 12px;
             overflow: hidden;
-            box-shadow: 0 0 40px rgba(0,0,0,0.5);
         }
         
         #gameCanvas {
@@ -56,50 +58,50 @@
         
         #ui {
             position: absolute;
-            top: 10px;
-            left: 10px;
-            right: 10px;
+            top: 5px;
+            left: 5px;
+            right: 5px;
             display: none;
             justify-content: space-between;
             align-items: center;
             color: white;
-            font-size: 14px;
+            font-size: clamp(10px, 3vmin, 14px);
             pointer-events: none;
             z-index: 10;
         }
-        
+
         #ui span {
             background: rgba(0,0,0,0.6);
-            padding: 6px 12px;
+            padding: clamp(4px, 1.2vmin, 6px) clamp(8px, 2vmin, 12px);
             border-radius: 15px;
             border: 1px solid rgba(255,255,255,0.1);
         }
-        
+
         #difficultyBadge {
-            font-size: 11px;
+            font-size: clamp(9px, 2.5vmin, 11px);
         }
-        
+
         #speedIndicator {
             background: rgba(233, 69, 96, 0.8) !important;
             display: none;
         }
-        
+
         #skipBtn {
             position: absolute;
-            bottom: 15px;
-            right: 15px;
+            bottom: 10px;
+            right: 10px;
             background: rgba(255,255,255,0.2);
             color: white;
             border: 1px solid rgba(255,255,255,0.3);
-            padding: 8px 16px;
+            padding: clamp(6px, 1.5vmin, 8px) clamp(12px, 3vmin, 16px);
             border-radius: 20px;
-            font-size: 12px;
+            font-size: clamp(10px, 2.5vmin, 12px);
             cursor: pointer;
             display: none;
             z-index: 50;
             transition: background 0.2s;
         }
-        
+
         #skipBtn:hover {
             background: rgba(255,255,255,0.3);
         }
@@ -120,69 +122,71 @@
         }
         
         #mainMenu h1 {
-            font-size: 52px;
+            font-size: clamp(32px, 10vmin, 52px);
             color: #fff;
-            margin-bottom: 10px;
+            margin-bottom: 5px;
             text-shadow: 0 0 30px rgba(78, 204, 163, 0.5);
             letter-spacing: 4px;
         }
-        
+
         #mainMenu .subtitle {
             color: rgba(255,255,255,0.5);
-            font-size: 14px;
-            margin-bottom: 30px;
+            font-size: clamp(11px, 3vmin, 14px);
+            margin-bottom: clamp(10px, 3vmin, 30px);
         }
-        
+
         #mainMenu h2 {
             color: rgba(255,255,255,0.8);
-            font-size: 18px;
-            margin-bottom: 20px;
+            font-size: clamp(14px, 4vmin, 18px);
+            margin-bottom: clamp(10px, 2vmin, 20px);
             font-weight: normal;
         }
-        
+
         .turn-selector {
             display: flex;
             align-items: center;
-            gap: 12px;
-            margin-bottom: 30px;
+            gap: 8px;
+            margin-bottom: clamp(15px, 3vmin, 30px);
             background: rgba(255,255,255,0.1);
-            padding: 12px 20px;
+            padding: clamp(8px, 2vmin, 12px) clamp(12px, 3vmin, 20px);
             border-radius: 25px;
+            flex-wrap: wrap;
+            justify-content: center;
         }
-        
+
         .turn-selector label {
             color: rgba(255,255,255,0.8);
-            font-size: 14px;
+            font-size: clamp(11px, 3vmin, 14px);
         }
-        
+
         .turn-selector input {
-            width: 70px;
-            padding: 8px 12px;
+            width: 60px;
+            padding: 6px 10px;
             border: none;
             border-radius: 15px;
             background: rgba(255,255,255,0.2);
             color: white;
-            font-size: 16px;
+            font-size: clamp(14px, 3.5vmin, 16px);
             text-align: center;
             outline: none;
         }
-        
+
         .turn-selector input:focus {
             background: rgba(255,255,255,0.3);
         }
-        
+
         .turn-selector .balls-preview {
             color: #4ecca3;
-            font-size: 13px;
+            font-size: clamp(10px, 2.5vmin, 13px);
         }
-        
+
         .difficulty-btn {
-            width: 220px;
-            padding: 18px 30px;
-            margin: 8px 0;
+            width: clamp(180px, 50vmin, 220px);
+            padding: clamp(12px, 3vmin, 18px) clamp(20px, 5vmin, 30px);
+            margin: clamp(4px, 1vmin, 8px) 0;
             border: none;
             border-radius: 30px;
-            font-size: 18px;
+            font-size: clamp(14px, 4vmin, 18px);
             font-weight: bold;
             cursor: pointer;
             transition: transform 0.2s, box-shadow 0.2s;
@@ -255,46 +259,46 @@
         }
         
         #gameOver h1 {
-            font-size: 36px;
-            margin-bottom: 20px;
+            font-size: clamp(28px, 8vmin, 36px);
+            margin-bottom: clamp(10px, 3vmin, 20px);
             color: #e94560;
         }
-        
+
         #gameOver p {
-            font-size: 16px;
-            margin-bottom: 8px;
+            font-size: clamp(12px, 3.5vmin, 16px);
+            margin-bottom: 6px;
             color: #aaa;
         }
-        
+
         #gameOver .stat {
-            font-size: 28px;
+            font-size: clamp(22px, 6vmin, 28px);
             color: #4ecca3;
-            margin-bottom: 20px;
+            margin-bottom: clamp(10px, 3vmin, 20px);
         }
-        
+
         #gameOver .difficulty-label {
-            font-size: 14px;
-            padding: 6px 16px;
+            font-size: clamp(11px, 3vmin, 14px);
+            padding: 5px 14px;
             border-radius: 15px;
-            margin-bottom: 25px;
+            margin-bottom: clamp(15px, 4vmin, 25px);
         }
-        
+
         .game-over-buttons {
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: clamp(6px, 2vmin, 10px);
         }
-        
+
         #restartBtn, #menuBtn {
             background: linear-gradient(135deg, #e94560, #0f3460);
             color: white;
             border: none;
-            padding: 15px 40px;
-            font-size: 16px;
+            padding: clamp(10px, 3vmin, 15px) clamp(25px, 7vmin, 40px);
+            font-size: clamp(13px, 3.5vmin, 16px);
             border-radius: 30px;
             cursor: pointer;
             transition: transform 0.2s, box-shadow 0.2s;
-            min-width: 200px;
+            min-width: clamp(160px, 45vmin, 200px);
         }
         
         #menuBtn {
@@ -307,15 +311,16 @@
         
         #instructions {
             position: absolute;
-            bottom: 70px;
+            bottom: 12%;
             left: 0;
             right: 0;
             text-align: center;
             color: rgba(255,255,255,0.4);
-            font-size: 13px;
+            font-size: clamp(10px, 2.8vmin, 13px);
             pointer-events: none;
             transition: opacity 0.5s;
             display: none;
+            padding: 0 10px;
         }
     </style>
 </head>
@@ -394,8 +399,17 @@
         
         // Game constants
         const COLS = 7;
-        const BALL_RADIUS = 6;
+        const BASE_BALL_RADIUS = 6;
         const BALL_SPEED = 10;
+
+        function getBallRadius() {
+            return Math.max(4, BASE_BALL_RADIUS * getScale());
+        }
+
+        function getFontSize(baseSize) {
+            return Math.max(8, Math.round(baseSize * getScale()));
+        }
+
         const FAST_SPEED_MULTIPLIER = 5;
         const SHOOT_DELAY = 45;
         const MAX_BALLS_ON_SCREEN = 200;
@@ -552,24 +566,33 @@
             return container.getBoundingClientRect().height;
         }
         
+        function getScale() {
+            // Base height reference is 700px
+            return Math.min(getHeight() / 700, getWidth() / 400);
+        }
+
         function getCellSize() {
-            return (getWidth() - 20) / COLS;
+            const maxCellWidth = (getWidth() - 20) / COLS;
+            const maxCellHeight = (getHeight() - getTopOffset() - 80) / 8; // Leave room for ~8 rows
+            return Math.min(maxCellWidth, maxCellHeight);
         }
-        
+
         function getLeftBorder() {
-            return 10;
+            const cellSize = getCellSize();
+            const gridWidth = cellSize * COLS;
+            return (getWidth() - gridWidth) / 2;
         }
-        
+
         function getRightBorder() {
-            return getWidth() - 10;
+            return getWidth() - getLeftBorder();
         }
-        
+
         function getTopOffset() {
-            return 70;
+            return Math.max(50, getHeight() * 0.08);
         }
-        
+
         function getBottomLine() {
-            return getHeight() - 60;
+            return getHeight() - Math.max(50, getHeight() * 0.08);
         }
         
         function getBrickColor(hp, maxHp) {
@@ -746,7 +769,7 @@
                     gameState.bonuses.push({
                         x: leftBorder + col * cellSize + cellSize / 2,
                         y: topOffset + cellSize / 2,
-                        radius: 12,
+                        radius: Math.max(8, 12 * getScale()),
                         type: 'ball',
                         value: bonusCount
                     });
@@ -758,7 +781,7 @@
                     gameState.bonuses.push({
                         x: leftBorder + col * cellSize + cellSize / 2,
                         y: topOffset + cellSize / 2,
-                        radius: 14,
+                        radius: Math.max(10, 14 * getScale()),
                         type: ptype
                     });
                     powerupPlaced = true;
@@ -773,7 +796,7 @@
                     gameState.bonuses.push({
                         x: leftBorder + emptyCol * cellSize + cellSize / 2,
                         y: topOffset + cellSize / 2,
-                        radius: 12,
+                        radius: Math.max(8, 12 * getScale()),
                         type: 'ball',
                         value: 1
                     });
@@ -855,7 +878,7 @@
             
             gameState.balls.push({
                 x: gameState.launchX,
-                y: gameState.launchY - BALL_RADIUS - 1,
+                y: gameState.launchY - getBallRadius() - 1,
                 vx: vx,
                 vy: vy,
                 active: true,
@@ -1043,21 +1066,21 @@
                     }
                     
                     // Wall collisions
-                    if (ball.x - BALL_RADIUS < leftBorder) {
-                        ball.x = leftBorder + BALL_RADIUS;
+                    if (ball.x - getBallRadius() < leftBorder) {
+                        ball.x = leftBorder + getBallRadius();
                         ball.vx *= -1;
                     }
-                    if (ball.x + BALL_RADIUS > rightBorder) {
-                        ball.x = rightBorder - BALL_RADIUS;
+                    if (ball.x + getBallRadius() > rightBorder) {
+                        ball.x = rightBorder - getBallRadius();
                         ball.vx *= -1;
                     }
-                    if (ball.y - BALL_RADIUS < topLimit) {
-                        ball.y = topLimit + BALL_RADIUS;
+                    if (ball.y - getBallRadius() < topLimit) {
+                        ball.y = topLimit + getBallRadius();
                         ball.vy *= -1;
                     }
                     
                     // Bottom - ball lands (only if it has gone up first)
-                    if (ball.hasGoneUp && ball.y + BALL_RADIUS > bottomLine) {
+                    if (ball.hasGoneUp && ball.y + getBallRadius() > bottomLine) {
                         ball.y = bottomLine;
                         ball.active = false;
                         gameState.ballsLanded++;
@@ -1149,7 +1172,7 @@
             for (let brick of gameState.bricks) {
                 if (brick.hp <= 0) continue;
                 
-                if (circleRectCollision(ball.x, ball.y, BALL_RADIUS, 
+                if (circleRectCollision(ball.x, ball.y, getBallRadius(), 
                     brick.x + 2, brick.y + 2, brick.width, brick.height)) {
                     
                     if (!ball.fireball) {
@@ -1161,8 +1184,8 @@
                         const dx = ballCenterX - brickCenterX;
                         const dy = ballCenterY - brickCenterY;
                         
-                        const overlapX = brick.width / 2 + BALL_RADIUS - Math.abs(dx);
-                        const overlapY = brick.height / 2 + BALL_RADIUS - Math.abs(dy);
+                        const overlapX = brick.width / 2 + getBallRadius() - Math.abs(dx);
+                        const overlapY = brick.height / 2 + getBallRadius() - Math.abs(dy);
                         
                         if (overlapX < overlapY) {
                             ball.vx *= -1;
@@ -1189,7 +1212,7 @@
             for (let bonus of gameState.bonuses) {
                 const dist = Math.hypot(ball.x - bonus.x, ball.y - bonus.y);
                 
-                if (dist < BALL_RADIUS + bonus.radius) {
+                if (dist < getBallRadius() + bonus.radius) {
                     if (bonus.type === 'ball') {
                         gameState.ballCount += bonus.value || 1;
                     } else if (bonus.type === 'fireball') {
@@ -1279,21 +1302,21 @@
                 let hitSide = null;
                 
                 if (vx < 0) {
-                    const dist = (leftBorder + BALL_RADIUS - x) / vx;
+                    const dist = (leftBorder + getBallRadius() - x) / vx;
                     if (dist > 0 && dist < minDist) {
                         minDist = dist;
                         hitType = 'left';
                     }
                 }
                 if (vx > 0) {
-                    const dist = (rightBorder - BALL_RADIUS - x) / vx;
+                    const dist = (rightBorder - getBallRadius() - x) / vx;
                     if (dist > 0 && dist < minDist) {
                         minDist = dist;
                         hitType = 'right';
                     }
                 }
                 if (vy < 0) {
-                    const dist = (topLimit + BALL_RADIUS - y) / vy;
+                    const dist = (topLimit + getBallRadius() - y) / vy;
                     if (dist > 0 && dist < minDist) {
                         minDist = dist;
                         hitType = 'top';
@@ -1348,10 +1371,10 @@
             const brickTop = brick.y + 2;
             const brickBottom = brick.y + 2 + brick.height;
             
-            const left = brickLeft - BALL_RADIUS;
-            const right = brickRight + BALL_RADIUS;
-            const top = brickTop - BALL_RADIUS;
-            const bottom = brickBottom + BALL_RADIUS;
+            const left = brickLeft - getBallRadius();
+            const right = brickRight + getBallRadius();
+            const top = brickTop - getBallRadius();
+            const bottom = brickBottom + getBallRadius();
             
             let minDist = Infinity;
             let hitSide = null;
@@ -1464,11 +1487,11 @@
                     ctx.beginPath();
                     ctx.roundRect(brick.x + 2, brick.y + 2, brick.width, brick.height, 6);
                     ctx.fill();
-                    
+
                     ctx.fillStyle = 'rgba(255,255,255,0.8)';
-                    ctx.font = '12px Arial';
+                    ctx.font = `${getFontSize(12)}px Arial`;
                     ctx.textAlign = 'center';
-                    ctx.fillText('💥', brick.x + 2 + brick.width / 2, brick.y + 15);
+                    ctx.fillText('💥', brick.x + 2 + brick.width / 2, brick.y + 15 * getScale());
                 }
                 
                 if (brick.type === 'armored') {
@@ -1484,20 +1507,21 @@
                     ctx.beginPath();
                     ctx.roundRect(brick.x + 2, brick.y + 2, brick.width, brick.height, 6);
                     ctx.fill();
-                    
+
                     ctx.fillStyle = 'rgba(255,255,255,0.8)';
-                    ctx.font = '12px Arial';
+                    ctx.font = `${getFontSize(12)}px Arial`;
                     ctx.textAlign = 'center';
-                    ctx.fillText('👾', brick.x + 2 + brick.width / 2, brick.y + 15);
+                    ctx.fillText('👾', brick.x + 2 + brick.width / 2, brick.y + 15 * getScale());
                 }
                 
                 // HP text
                 ctx.fillStyle = 'white';
-                ctx.font = `bold ${brick.hp > 999 ? 10 : brick.hp > 99 ? 12 : 14}px Arial`;
+                const hpFontSize = getFontSize(brick.hp > 999 ? 10 : brick.hp > 99 ? 12 : 14);
+                ctx.font = `bold ${hpFontSize}px Arial`;
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
-                const textY = (brick.type === 'explosive' || brick.type === 'spawner') 
-                    ? brick.y + 2 + brick.height / 2 + 8 
+                const textY = (brick.type === 'explosive' || brick.type === 'spawner')
+                    ? brick.y + 2 + brick.height / 2 + 8 * getScale()
                     : brick.y + 2 + brick.height / 2;
                 ctx.fillText(Math.ceil(brick.hp), brick.x + 2 + brick.width / 2, textY);
             }
@@ -1531,9 +1555,9 @@
                 ctx.fill();
                 
                 ctx.shadowBlur = 0;
-                
+
                 ctx.fillStyle = 'white';
-                ctx.font = icon ? '14px Arial' : 'bold 12px Arial';
+                ctx.font = icon ? `${getFontSize(14)}px Arial` : `bold ${getFontSize(12)}px Arial`;
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 ctx.fillText(icon || text, bonus.x, bonus.y + (icon ? 1 : 0));
@@ -1595,7 +1619,7 @@
                 }
                 
                 ctx.beginPath();
-                ctx.arc(ball.x, ball.y, BALL_RADIUS, 0, Math.PI * 2);
+                ctx.arc(ball.x, ball.y, getBallRadius(), 0, Math.PI * 2);
                 ctx.fill();
                 ctx.shadowBlur = 0;
             }
@@ -1604,14 +1628,14 @@
             if (!gameState.isShooting) {
                 ctx.fillStyle = 'rgba(255,255,255,0.9)';
                 ctx.beginPath();
-                ctx.arc(gameState.launchX, gameState.launchY, BALL_RADIUS + 2, 0, Math.PI * 2);
+                ctx.arc(gameState.launchX, gameState.launchY, getBallRadius() + 2, 0, Math.PI * 2);
                 ctx.fill();
                 
                 if (gameState.ballCount > 1) {
                     ctx.fillStyle = 'rgba(255,255,255,0.6)';
-                    ctx.font = 'bold 11px Arial';
+                    ctx.font = `bold ${getFontSize(11)}px Arial`;
                     ctx.textAlign = 'center';
-                    ctx.fillText('x' + gameState.ballCount, gameState.launchX, gameState.launchY + 22);
+                    ctx.fillText('x' + gameState.ballCount, gameState.launchX, gameState.launchY + 22 * getScale());
                 }
             }
             
@@ -1660,30 +1684,33 @@
             
             // Draw powerup indicators
             if (gameState.activePowerups.fireball > 0 || gameState.activePowerups.superDamage > 0) {
-                let indicatorX = leftBorder + 10;
-                const indicatorY = getBottomLine() + 25;
-                
+                const scale = getScale();
+                let indicatorX = leftBorder + 10 * scale;
+                const indicatorY = getBottomLine() + 20 * scale;
+                const indicatorW = 50 * scale;
+                const indicatorH = 20 * scale;
+
                 if (gameState.activePowerups.fireball > 0) {
                     ctx.fillStyle = 'rgba(255, 107, 107, 0.8)';
                     ctx.beginPath();
-                    ctx.roundRect(indicatorX, indicatorY, 50, 20, 10);
+                    ctx.roundRect(indicatorX, indicatorY, indicatorW, indicatorH, 10 * scale);
                     ctx.fill();
                     ctx.fillStyle = 'white';
-                    ctx.font = '11px Arial';
+                    ctx.font = `${getFontSize(11)}px Arial`;
                     ctx.textAlign = 'center';
-                    ctx.fillText('🔥 ' + gameState.activePowerups.fireball, indicatorX + 25, indicatorY + 14);
-                    indicatorX += 60;
+                    ctx.fillText('🔥 ' + gameState.activePowerups.fireball, indicatorX + indicatorW / 2, indicatorY + indicatorH * 0.7);
+                    indicatorX += indicatorW + 10 * scale;
                 }
-                
+
                 if (gameState.activePowerups.superDamage > 0) {
                     ctx.fillStyle = 'rgba(168, 85, 247, 0.8)';
                     ctx.beginPath();
-                    ctx.roundRect(indicatorX, indicatorY, 50, 20, 10);
+                    ctx.roundRect(indicatorX, indicatorY, indicatorW, indicatorH, 10 * scale);
                     ctx.fill();
                     ctx.fillStyle = 'white';
-                    ctx.font = '11px Arial';
+                    ctx.font = `${getFontSize(11)}px Arial`;
                     ctx.textAlign = 'center';
-                    ctx.fillText('💪 ' + gameState.activePowerups.superDamage, indicatorX + 25, indicatorY + 14);
+                    ctx.fillText('💪 ' + gameState.activePowerups.superDamage, indicatorX + indicatorW / 2, indicatorY + indicatorH * 0.7);
                 }
             }
         }
