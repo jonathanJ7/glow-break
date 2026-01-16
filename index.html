@@ -395,7 +395,78 @@
             ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
         }
         resizeCanvas();
-        window.addEventListener('resize', resizeCanvas);
+
+        // Guardar dimensiones anteriores para calcular proporciones
+        let prevCellSize = null;
+        let prevTopOffset = null;
+        let prevLeftBorder = null;
+
+        function handleResize() {
+            // Guardar valores anteriores antes de resize
+            const oldCellSize = prevCellSize || getCellSize();
+            const oldTopOffset = prevTopOffset || getTopOffset();
+            const oldLeftBorder = prevLeftBorder || getLeftBorder();
+
+            resizeCanvas();
+
+            // Actualizar posiciones del juego si está activo
+            if (gameState && gameState.gameStarted && !gameState.gameOver) {
+                const newBottomLine = getBottomLine();
+                const newLeftBorder = getLeftBorder();
+                const newRightBorder = getRightBorder();
+                const newCellSize = getCellSize();
+                const newTopOffset = getTopOffset();
+
+                // Actualizar posición Y de lanzamiento
+                gameState.launchY = newBottomLine;
+
+                // Mantener X dentro de los límites (proporcional)
+                const xRatio = (gameState.launchX - oldLeftBorder) / (getWidth() - 2 * oldLeftBorder);
+                gameState.launchX = newLeftBorder + xRatio * (newRightBorder - newLeftBorder);
+                gameState.launchX = Math.max(newLeftBorder + 20, Math.min(newRightBorder - 20, gameState.launchX));
+
+                const nextXRatio = (gameState.nextLaunchX - oldLeftBorder) / (getWidth() - 2 * oldLeftBorder);
+                gameState.nextLaunchX = newLeftBorder + nextXRatio * (newRightBorder - newLeftBorder);
+                gameState.nextLaunchX = Math.max(newLeftBorder + 20, Math.min(newRightBorder - 20, gameState.nextLaunchX));
+
+                // Reposicionar ladrillos
+                for (let brick of gameState.bricks) {
+                    // Calcular fila basada en posición Y anterior
+                    const oldRow = Math.round((brick.y - oldTopOffset) / oldCellSize);
+                    brick.x = newLeftBorder + brick.col * newCellSize;
+                    brick.y = newTopOffset + oldRow * newCellSize;
+                    brick.width = newCellSize - 4;
+                    brick.height = newCellSize - 4;
+                }
+
+                // Reposicionar bonuses
+                for (let bonus of gameState.bonuses) {
+                    const oldCol = Math.round((bonus.x - oldLeftBorder - oldCellSize / 2) / oldCellSize);
+                    const oldRow = Math.round((bonus.y - oldTopOffset - oldCellSize / 2) / oldCellSize);
+                    bonus.x = newLeftBorder + oldCol * newCellSize + newCellSize / 2;
+                    bonus.y = newTopOffset + oldRow * newCellSize + newCellSize / 2;
+                    bonus.radius = Math.max(8, 12 * getScale());
+                }
+
+                // Reposicionar pelotas activas
+                for (let ball of gameState.balls) {
+                    if (ball.active) {
+                        // Escalar posición proporcionalmente
+                        const xRatio = (ball.x - oldLeftBorder) / (getWidth() - 2 * oldLeftBorder);
+                        const yRatio = (ball.y - oldTopOffset) / (newBottomLine - oldTopOffset);
+                        ball.x = newLeftBorder + xRatio * (newRightBorder - newLeftBorder);
+                        ball.y = newTopOffset + yRatio * (newBottomLine - newTopOffset);
+                    }
+                }
+            }
+
+            // Guardar nuevas dimensiones
+            prevCellSize = getCellSize();
+            prevTopOffset = getTopOffset();
+            prevLeftBorder = getLeftBorder();
+        }
+
+        window.addEventListener('resize', handleResize);
         
         // Game constants
         const COLS = 7;
@@ -573,7 +644,9 @@
 
         function getCellSize() {
             const maxCellWidth = (getWidth() - 20) / COLS;
-            const maxCellHeight = (getHeight() - getTopOffset() - 80) / 8; // Leave room for ~8 rows
+            // Usar el espacio real disponible entre topOffset y bottomLine
+            const availableHeight = getBottomLine() - getTopOffset() - 40; // 40px para la pelota
+            const maxCellHeight = availableHeight / 7; // Espacio para ~7 filas de ladrillos
             return Math.min(maxCellWidth, maxCellHeight);
         }
 
@@ -588,11 +661,12 @@
         }
 
         function getTopOffset() {
-            return Math.max(50, getHeight() * 0.08);
+            return Math.max(40, getHeight() * 0.07);
         }
 
         function getBottomLine() {
-            return getHeight() - Math.max(50, getHeight() * 0.08);
+            // Espacio mínimo para la pelota y el contador
+            return getHeight() - Math.max(35, getHeight() * 0.06);
         }
         
         function getBrickColor(hp, maxHp) {
@@ -1049,7 +1123,8 @@
             const leftBorder = getLeftBorder();
             const rightBorder = getRightBorder();
             const bottomLine = getBottomLine();
-            const minY = getHeight() * 0.7;
+            // La pelota debe subir al menos hasta la mitad del área de juego antes de poder aterrizar
+            const minY = getTopOffset() + (getBottomLine() - getTopOffset()) * 0.6;
             const topLimit = getTopOffset() - 15;
             
             const iterations = gameState.speedMultiplier > 1 ? FAST_SPEED_MULTIPLIER : 1;
@@ -1429,13 +1504,16 @@
             if (!gameState.gameStarted) return;
             
             // Draw play area border
+            const topY = getTopOffset() - 15;
+            const areaHeight = getBottomLine() - topY + 10;
+
             ctx.strokeStyle = '#2a2a45';
             ctx.lineWidth = 3;
-            ctx.strokeRect(leftBorder, getTopOffset() - 20, rightBorder - leftBorder, getBottomLine() - getTopOffset() + 25);
-            
+            ctx.strokeRect(leftBorder, topY, rightBorder - leftBorder, areaHeight);
+
             ctx.strokeStyle = `${difficultyConfig.color}40`;
             ctx.lineWidth = 1;
-            ctx.strokeRect(leftBorder - 1, getTopOffset() - 21, rightBorder - leftBorder + 2, getBottomLine() - getTopOffset() + 27);
+            ctx.strokeRect(leftBorder - 1, topY - 1, rightBorder - leftBorder + 2, areaHeight + 2);
             
             // Draw bottom line
             ctx.strokeStyle = 'rgba(233, 69, 96, 0.5)';
