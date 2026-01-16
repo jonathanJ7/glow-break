@@ -502,7 +502,9 @@
                 multiBallChance: 0.2,
                 startingBalls: 1,
                 hpVariationMin: 0.3,
-                hpVariationMax: 1.0
+                hpVariationMax: 1.0,
+                forestChance: 0.15,  // 15% chance per row
+                forestStartTurn: 5    // Forests start appearing at turn 5
             },
             medium: {
                 name: 'MEDIO',
@@ -519,7 +521,9 @@
                 multiBallChance: 0.1,
                 startingBalls: 1,
                 hpVariationMin: 0.5,
-                hpVariationMax: 1.5
+                hpVariationMax: 1.5,
+                forestChance: 0.22,  // 22% chance per row
+                forestStartTurn: 4    // Forests start appearing at turn 4
             },
             hard: {
                 name: 'DIFÍCIL',
@@ -539,10 +543,65 @@
                 hpVariationMax: 2.0,
                 // Extra hard features
                 poisonBrickChance: 0.06,  // Bricks that spawn more bricks
-                reinforcedRows: true       // Every 10 turns, extra tough row
+                reinforcedRows: true,       // Every 10 turns, extra tough row
+                forestChance: 0.30,  // 30% chance per row
+                forestStartTurn: 3    // Forests start appearing at turn 3
             }
         };
         
+        // Forest types with hostile abilities
+        const FOREST_TYPES = {
+            thorn: {
+                name: 'Espinas',
+                emoji: '🌿',
+                color: '#2d5016',
+                glowColor: 'rgba(76, 175, 80, 0.3)',
+                damageMultiplier: 0.5,  // Balls do only 50% damage
+                description: 'Reduce el daño de las bolas'
+            },
+            poison: {
+                name: 'Venenoso',
+                emoji: '☠️',
+                color: '#4a1a4a',
+                glowColor: 'rgba(156, 39, 176, 0.3)',
+                velocityDecay: 0.98,  // Balls lose 2% velocity per frame
+                description: 'Las bolas pierden velocidad'
+            },
+            fog: {
+                name: 'Niebla',
+                emoji: '🌫️',
+                color: '#3a3a4a',
+                glowColor: 'rgba(158, 158, 158, 0.3)',
+                deflectionChance: 0.15,  // 15% chance to deflect on bounce
+                description: 'Las bolas se desvían aleatoriamente'
+            },
+            frozen: {
+                name: 'Congelado',
+                emoji: '❄️',
+                color: '#1a3a5a',
+                glowColor: 'rgba(33, 150, 243, 0.3)',
+                speedMultiplier: 0.65,  // Balls move at 65% speed
+                description: 'Reduce la velocidad de las bolas'
+            },
+            healing: {
+                name: 'Regenerativo',
+                emoji: '💚',
+                color: '#1a4a2a',
+                glowColor: 'rgba(76, 175, 80, 0.3)',
+                healRate: 0.005,  // Heal 0.5% max HP per frame
+                description: 'Los bloques se regeneran lentamente'
+            },
+            dense: {
+                name: 'Denso',
+                emoji: '🌲',
+                color: '#2a3a1a',
+                glowColor: 'rgba(139, 195, 74, 0.3)',
+                densityMultiplier: 1.5,  // 50% more blocks
+                hpMultiplier: 0.6,  // But 40% less HP
+                description: 'Más bloques pero con menos vida'
+            }
+        };
+
         let currentDifficulty = 'easy';
         let difficultyConfig = DIFFICULTY_SETTINGS.easy;
         let startingTurn = 1;
@@ -617,7 +676,8 @@
                 fireball: 0,
                 superDamage: 0
             },
-            speedMultiplier: 1
+            speedMultiplier: 1,
+            forestRows: []  // Track which rows have forests: {y, type, duration}
         };
         
         // Colors
@@ -732,7 +792,8 @@
                     fireball: 0,
                     superDamage: 0
                 },
-                speedMultiplier: 1
+                speedMultiplier: 1,
+                forestRows: []
             };
             
             // Hide menu, show game UI
@@ -791,13 +852,42 @@
             const leftBorder = getLeftBorder();
             const turn = gameState.turn;
             const config = difficultyConfig;
-            
+
+            // Determine if this row has a forest
+            let forestType = null;
+            if (turn >= config.forestStartTurn && Math.random() < config.forestChance) {
+                const forestTypes = Object.keys(FOREST_TYPES);
+                forestType = forestTypes[Math.floor(Math.random() * forestTypes.length)];
+
+                // Add forest to tracking
+                gameState.forestRows.push({
+                    y: topOffset,
+                    type: forestType,
+                    startTurn: turn
+                });
+            }
+
             // Calculate base HP with difficulty multiplier
-            const baseHP = Math.floor(turn * (1 + Math.log(turn + 1) * 0.25) * config.hpMultiplier);
-            
+            let baseHP = Math.floor(turn * (1 + Math.log(turn + 1) * 0.25) * config.hpMultiplier);
+
+            // Apply forest HP modifier (dense forest has less HP, compensated by increased difficulty)
+            if (forestType) {
+                const forest = FOREST_TYPES[forestType];
+                // Reduce base HP by 30% when forest is present (forests add difficulty through abilities)
+                baseHP = Math.floor(baseHP * 0.7);
+                if (forest.hpMultiplier) {
+                    baseHP = Math.floor(baseHP * forest.hpMultiplier);
+                }
+            }
+
             // Density increases with turns
-            const density = Math.min(config.densityBase + turn * config.densityGrowth, config.maxDensity);
-            
+            let density = Math.min(config.densityBase + turn * config.densityGrowth, config.maxDensity);
+
+            // Apply forest density modifier
+            if (forestType && FOREST_TYPES[forestType].densityMultiplier) {
+                density = Math.min(density * FOREST_TYPES[forestType].densityMultiplier, 1.0);
+            }
+
             // Check for reinforced row (hard mode)
             const isReinforcedRow = config.reinforcedRows && turn % 10 === 0;
             const rowHpMultiplier = isReinforcedRow ? 2.0 : 1.0;
@@ -835,7 +925,8 @@
                         maxHp: hp,
                         col: col,
                         type: type,
-                        isReinforced: isReinforcedRow
+                        isReinforced: isReinforcedRow,
+                        forestType: forestType  // Track which forest this brick belongs to
                     });
                 } else if (rand < density + config.bonusChance && !bonusPlaced) {
                     // Create bonus ball
@@ -900,26 +991,46 @@
         // Move bricks down
         function moveBricksDown() {
             const cellSize = getCellSize();
-            
+
             for (let brick of gameState.bricks) {
                 brick.y += cellSize;
-                
+
                 // Check game over
                 if (brick.y + brick.height > getBottomLine() - 10) {
                     endGame();
                     return;
                 }
             }
-            
+
             for (let bonus of gameState.bonuses) {
                 bonus.y += cellSize;
-                
+
                 if (bonus.y > getBottomLine() - 20) {
                     gameState.bonuses = gameState.bonuses.filter(b => b !== bonus);
                 }
             }
+
+            // Move forest rows down
+            for (let forest of gameState.forestRows) {
+                forest.y += cellSize;
+            }
+
+            // Remove forests that moved off screen
+            gameState.forestRows = gameState.forestRows.filter(f => f.y < getBottomLine());
         }
         
+        // Get active forest at a given Y position
+        function getForestAtPosition(y) {
+            const cellSize = getCellSize();
+            for (let forest of gameState.forestRows) {
+                // Check if position is within this forest row (with some tolerance)
+                if (Math.abs(y - forest.y) < cellSize) {
+                    return FOREST_TYPES[forest.type];
+                }
+            }
+            return null;
+        }
+
         // Shooting mechanics
         function startShooting() {
             if (gameState.isShooting || gameState.gameOver) return;
@@ -1133,10 +1244,31 @@
             for (let iter = 0; iter < iterations; iter++) {
                 for (let ball of gameState.balls) {
                     if (!ball.active) continue;
-                    
+
+                    // Apply forest effects
+                    const forest = getForestAtPosition(ball.y);
+                    if (forest) {
+                        // Poison forest: reduce velocity over time
+                        if (forest.velocityDecay) {
+                            ball.vx *= forest.velocityDecay;
+                            ball.vy *= forest.velocityDecay;
+                        }
+
+                        // Frozen forest: reduce speed
+                        if (forest.speedMultiplier) {
+                            const currentSpeed = Math.hypot(ball.vx, ball.vy);
+                            const targetSpeed = BALL_SPEED * forest.speedMultiplier;
+                            if (currentSpeed > targetSpeed) {
+                                const ratio = targetSpeed / currentSpeed;
+                                ball.vx *= ratio;
+                                ball.vy *= ratio;
+                            }
+                        }
+                    }
+
                     ball.x += ball.vx;
                     ball.y += ball.vy;
-                    
+
                     if (ball.y < minY) {
                         ball.hasGoneUp = true;
                     }
@@ -1145,14 +1277,29 @@
                     if (ball.x - getBallRadius() < leftBorder) {
                         ball.x = leftBorder + getBallRadius();
                         ball.vx *= -1;
+                        // Fog forest: deflect randomly on bounce
+                        const forest = getForestAtPosition(ball.y);
+                        if (forest && forest.deflectionChance && Math.random() < forest.deflectionChance) {
+                            ball.vy += (Math.random() - 0.5) * 2;
+                        }
                     }
                     if (ball.x + getBallRadius() > rightBorder) {
                         ball.x = rightBorder - getBallRadius();
                         ball.vx *= -1;
+                        // Fog forest: deflect randomly on bounce
+                        const forest = getForestAtPosition(ball.y);
+                        if (forest && forest.deflectionChance && Math.random() < forest.deflectionChance) {
+                            ball.vy += (Math.random() - 0.5) * 2;
+                        }
                     }
                     if (ball.y - getBallRadius() < topLimit) {
                         ball.y = topLimit + getBallRadius();
                         ball.vy *= -1;
+                        // Fog forest: deflect randomly on bounce
+                        const forest = getForestAtPosition(ball.y);
+                        if (forest && forest.deflectionChance && Math.random() < forest.deflectionChance) {
+                            ball.vx += (Math.random() - 0.5) * 2;
+                        }
                     }
                     
                     // Bottom - ball lands (only if it has gone up first)
@@ -1191,7 +1338,17 @@
                     checkBrickCollisions(ball);
                     checkBonusCollisions(ball);
                 }
-                
+
+                // Apply healing forest regeneration
+                for (let brick of gameState.bricks) {
+                    if (brick.forestType) {
+                        const forest = FOREST_TYPES[brick.forestType];
+                        if (forest.healRate && brick.hp < brick.maxHp) {
+                            brick.hp = Math.min(brick.maxHp, brick.hp + brick.maxHp * forest.healRate);
+                        }
+                    }
+                }
+
                 // Handle destroyed bricks
                 const destroyedBricks = gameState.bricks.filter(b => b.hp <= 0);
                 for (let brick of destroyedBricks) {
@@ -1275,7 +1432,16 @@
                             ball.y += dy > 0 ? overlapY : -overlapY;
                         }
 
-                        const damage = ball.damage * (brick.type === 'armored' ? 0.5 : 1);
+                        let damage = ball.damage * (brick.type === 'armored' ? 0.5 : 1);
+
+                        // Apply forest damage modifier (thorn forest reduces damage)
+                        if (brick.forestType) {
+                            const forest = FOREST_TYPES[brick.forestType];
+                            if (forest.damageMultiplier) {
+                                damage *= forest.damageMultiplier;
+                            }
+                        }
+
                         brick.hp -= damage;
 
                         if (gameState.speedMultiplier === 1) {
@@ -1288,7 +1454,16 @@
                         if (!ball.hitBricks.has(brickId)) {
                             ball.hitBricks.add(brickId);
 
-                            const damage = ball.damage * (brick.type === 'armored' ? 0.5 : 1);
+                            let damage = ball.damage * (brick.type === 'armored' ? 0.5 : 1);
+
+                            // Apply forest damage modifier (thorn forest reduces damage)
+                            if (brick.forestType) {
+                                const forest = FOREST_TYPES[brick.forestType];
+                                if (forest.damageMultiplier) {
+                                    damage *= forest.damageMultiplier;
+                                }
+                            }
+
                             brick.hp -= damage;
 
                             if (gameState.speedMultiplier === 1) {
@@ -1556,6 +1731,33 @@
                 ctx.lineTo(leftBorder + i * cellSize, getBottomLine());
                 ctx.stroke();
             }
+
+            // Draw forest backgrounds
+            for (let forest of gameState.forestRows) {
+                const forestType = FOREST_TYPES[forest.type];
+                const forestY = forest.y;
+
+                // Draw forest background row
+                ctx.fillStyle = forestType.color;
+                ctx.globalAlpha = 0.3;
+                ctx.fillRect(leftBorder, forestY - 2, rightBorder - leftBorder, cellSize + 4);
+                ctx.globalAlpha = 1;
+
+                // Draw forest glow border
+                ctx.strokeStyle = forestType.glowColor;
+                ctx.lineWidth = 2;
+                ctx.strokeRect(leftBorder, forestY - 2, rightBorder - leftBorder, cellSize + 4);
+
+                // Draw forest icon at the left
+                ctx.fillStyle = 'white';
+                ctx.font = `${getFontSize(16)}px Arial`;
+                ctx.textAlign = 'right';
+                ctx.textBaseline = 'middle';
+                ctx.shadowColor = forestType.glowColor;
+                ctx.shadowBlur = 5;
+                ctx.fillText(forestType.emoji, leftBorder - 8 * getScale(), forestY + cellSize / 2);
+                ctx.shadowBlur = 0;
+            }
             
             // Draw bricks
             for (let brick of gameState.bricks) {
@@ -1810,6 +2012,44 @@
                     ctx.font = `${getFontSize(11)}px Arial`;
                     ctx.textAlign = 'center';
                     ctx.fillText('💪 ' + gameState.activePowerups.superDamage, indicatorX + indicatorW / 2, indicatorY + indicatorH * 0.7);
+                }
+            }
+
+            // Draw active forest indicators (top of screen)
+            if (gameState.forestRows.length > 0) {
+                const scale = getScale();
+                const topY = getTopOffset();
+                let indicatorX = leftBorder + 5 * scale;
+                const indicatorY = topY - 30 * scale;
+                const indicatorW = 45 * scale;
+                const indicatorH = 18 * scale;
+
+                // Get unique forest types currently active
+                const activeForests = new Set(gameState.forestRows.map(f => f.type));
+
+                for (let forestType of activeForests) {
+                    const forest = FOREST_TYPES[forestType];
+
+                    ctx.fillStyle = forest.color;
+                    ctx.globalAlpha = 0.9;
+                    ctx.beginPath();
+                    ctx.roundRect(indicatorX, indicatorY, indicatorW, indicatorH, 8 * scale);
+                    ctx.fill();
+                    ctx.globalAlpha = 1;
+
+                    ctx.strokeStyle = forest.glowColor;
+                    ctx.lineWidth = 1.5;
+                    ctx.beginPath();
+                    ctx.roundRect(indicatorX, indicatorY, indicatorW, indicatorH, 8 * scale);
+                    ctx.stroke();
+
+                    ctx.fillStyle = 'white';
+                    ctx.font = `${getFontSize(10)}px Arial`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(forest.emoji, indicatorX + indicatorW / 2, indicatorY + indicatorH / 2);
+
+                    indicatorX += indicatorW + 5 * scale;
                 }
             }
         }
