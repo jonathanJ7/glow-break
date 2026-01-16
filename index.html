@@ -559,13 +559,14 @@
                 damageMultiplier: 0.5,  // Balls do only 50% damage
                 description: 'Reduce el daño de las bolas'
             },
-            poison: {
-                name: 'Venenoso',
-                emoji: '☠️',
-                color: '#4a1a4a',
-                glowColor: 'rgba(156, 39, 176, 0.3)',
-                velocityDecay: 0.98,  // Balls lose 2% velocity per frame
-                description: 'Las bolas pierden velocidad'
+            growth: {
+                name: 'Crecimiento',
+                emoji: '🌱',
+                color: '#3a5a1a',
+                glowColor: 'rgba(139, 195, 74, 0.4)',
+                spawnChance: 0.08,  // 8% chance to spawn adjacent brick on hit
+                spawnHpRatio: 0.25,  // New bricks have 25% of original max HP
+                description: 'Genera bloques adyacentes al recibir daño'
             },
             fog: {
                 name: 'Niebla',
@@ -575,13 +576,29 @@
                 deflectionChance: 0.15,  // 15% chance to deflect on bounce
                 description: 'Las bolas se desvían aleatoriamente'
             },
-            frozen: {
-                name: 'Congelado',
-                emoji: '❄️',
-                color: '#1a3a5a',
-                glowColor: 'rgba(33, 150, 243, 0.3)',
-                speedMultiplier: 0.65,  // Balls move at 65% speed
-                description: 'Reduce la velocidad de las bolas'
+            symbiosis: {
+                name: 'Simbiosis',
+                emoji: '🔗',
+                color: '#4a3a1a',
+                glowColor: 'rgba(255, 193, 7, 0.4)',
+                damageShare: 0.3,  // Share 30% of damage with adjacent bricks
+                description: 'Los bloques comparten el daño recibido'
+            },
+            fortress: {
+                name: 'Fortaleza',
+                emoji: '🛡️',
+                color: '#3a3a5a',
+                glowColor: 'rgba(63, 81, 181, 0.4)',
+                defensePerAdjacent: 0.12,  // 12% damage reduction per adjacent brick (max 4 = 48%)
+                description: 'Mayor defensa por cada bloque adyacente'
+            },
+            fusion: {
+                name: 'Fusión',
+                emoji: '🌀',
+                color: '#5a1a4a',
+                glowColor: 'rgba(233, 30, 99, 0.4)',
+                transferRatio: 0.6,  // Transfer 60% of remaining HP to adjacent brick
+                description: 'Transfiere vida a bloques adyacentes al morir'
             },
             healing: {
                 name: 'Regenerativo',
@@ -1031,6 +1048,51 @@
             return null;
         }
 
+        // Find adjacent bricks (left, right, same row)
+        function getAdjacentBricks(brick) {
+            const adjacent = [];
+            const cellSize = getCellSize();
+
+            for (let other of gameState.bricks) {
+                if (other === brick) continue;
+
+                // Check if same row (Y coordinate similar)
+                if (Math.abs(other.y - brick.y) < cellSize * 0.5) {
+                    // Check if adjacent column
+                    if (Math.abs(other.col - brick.col) === 1) {
+                        adjacent.push(other);
+                    }
+                }
+            }
+
+            return adjacent;
+        }
+
+        // Find empty adjacent column for spawning new bricks
+        function findEmptyAdjacentColumn(brick) {
+            const cellSize = getCellSize();
+            const leftBorder = getLeftBorder();
+            const adjacentCols = [];
+
+            // Check left and right columns
+            if (brick.col > 0) adjacentCols.push(brick.col - 1);
+            if (brick.col < COLS - 1) adjacentCols.push(brick.col + 1);
+
+            // Filter out occupied columns
+            for (let col of adjacentCols) {
+                const x = leftBorder + col * cellSize;
+                const occupied = gameState.bricks.some(b =>
+                    Math.abs(b.x - x) < cellSize * 0.5 && Math.abs(b.y - brick.y) < cellSize * 0.5
+                );
+
+                if (!occupied) {
+                    return {col, x, y: brick.y};
+                }
+            }
+
+            return null;
+        }
+
         // Shooting mechanics
         function startShooting() {
             if (gameState.isShooting || gameState.gameOver) return;
@@ -1245,27 +1307,6 @@
                 for (let ball of gameState.balls) {
                     if (!ball.active) continue;
 
-                    // Apply forest effects
-                    const forest = getForestAtPosition(ball.y);
-                    if (forest) {
-                        // Poison forest: reduce velocity over time
-                        if (forest.velocityDecay) {
-                            ball.vx *= forest.velocityDecay;
-                            ball.vy *= forest.velocityDecay;
-                        }
-
-                        // Frozen forest: reduce speed
-                        if (forest.speedMultiplier) {
-                            const currentSpeed = Math.hypot(ball.vx, ball.vy);
-                            const targetSpeed = BALL_SPEED * forest.speedMultiplier;
-                            if (currentSpeed > targetSpeed) {
-                                const ratio = targetSpeed / currentSpeed;
-                                ball.vx *= ratio;
-                                ball.vy *= ratio;
-                            }
-                        }
-                    }
-
                     ball.x += ball.vx;
                     ball.y += ball.vy;
 
@@ -1352,6 +1393,22 @@
                 // Handle destroyed bricks
                 const destroyedBricks = gameState.bricks.filter(b => b.hp <= 0);
                 for (let brick of destroyedBricks) {
+                    // Fusion forest: transfer portion of max HP to adjacent brick on death
+                    if (brick.forestType) {
+                        const forest = FOREST_TYPES[brick.forestType];
+                        if (forest.transferRatio) {
+                            const transferHp = brick.maxHp * forest.transferRatio;
+                            const adjacent = getAdjacentBricks(brick);
+                            if (adjacent.length > 0) {
+                                // Transfer to a random adjacent brick
+                                const target = adjacent[Math.floor(Math.random() * adjacent.length)];
+                                target.hp = Math.min(target.maxHp, target.hp + transferHp);
+                                // Visual feedback
+                                createParticles(brick.x + brick.width / 2, brick.y + brick.height / 2, '#e91e63', 8);
+                            }
+                        }
+                    }
+
                     if (brick.type === 'explosive') {
                         explodeBrick(brick);
                     } else if (brick.type === 'spawner') {
@@ -1434,15 +1491,58 @@
 
                         let damage = ball.damage * (brick.type === 'armored' ? 0.5 : 1);
 
-                        // Apply forest damage modifier (thorn forest reduces damage)
+                        // Apply forest damage modifiers
                         if (brick.forestType) {
                             const forest = FOREST_TYPES[brick.forestType];
+
+                            // Thorn forest: reduces damage
                             if (forest.damageMultiplier) {
                                 damage *= forest.damageMultiplier;
+                            }
+
+                            // Fortress forest: reduces damage based on adjacent bricks
+                            if (forest.defensePerAdjacent) {
+                                const adjacentCount = getAdjacentBricks(brick).length;
+                                const damageReduction = 1 - (adjacentCount * forest.defensePerAdjacent);
+                                damage *= Math.max(0.4, damageReduction); // Min 40% damage
                             }
                         }
 
                         brick.hp -= damage;
+
+                        // Apply forest effects after damage
+                        if (brick.forestType) {
+                            const forest = FOREST_TYPES[brick.forestType];
+
+                            // Growth forest: chance to spawn adjacent brick
+                            if (forest.spawnChance && Math.random() < forest.spawnChance) {
+                                const emptyPos = findEmptyAdjacentColumn(brick);
+                                if (emptyPos) {
+                                    const cellSize = getCellSize();
+                                    const newHp = Math.floor(brick.maxHp * forest.spawnHpRatio);
+                                    gameState.bricks.push({
+                                        x: emptyPos.x,
+                                        y: emptyPos.y,
+                                        width: cellSize - 4,
+                                        height: cellSize - 4,
+                                        hp: newHp,
+                                        maxHp: newHp,
+                                        col: emptyPos.col,
+                                        type: 'normal',
+                                        forestType: brick.forestType
+                                    });
+                                }
+                            }
+
+                            // Symbiosis forest: share damage with adjacent bricks
+                            if (forest.damageShare) {
+                                const adjacent = getAdjacentBricks(brick);
+                                const sharedDamage = damage * forest.damageShare / adjacent.length;
+                                for (let adj of adjacent) {
+                                    adj.hp -= sharedDamage;
+                                }
+                            }
+                        }
 
                         if (gameState.speedMultiplier === 1) {
                             createParticles(ball.x, ball.y, getBrickColor(brick.hp, brick.maxHp), 3);
@@ -1456,15 +1556,58 @@
 
                             let damage = ball.damage * (brick.type === 'armored' ? 0.5 : 1);
 
-                            // Apply forest damage modifier (thorn forest reduces damage)
+                            // Apply forest damage modifiers
                             if (brick.forestType) {
                                 const forest = FOREST_TYPES[brick.forestType];
+
+                                // Thorn forest: reduces damage
                                 if (forest.damageMultiplier) {
                                     damage *= forest.damageMultiplier;
+                                }
+
+                                // Fortress forest: reduces damage based on adjacent bricks
+                                if (forest.defensePerAdjacent) {
+                                    const adjacentCount = getAdjacentBricks(brick).length;
+                                    const damageReduction = 1 - (adjacentCount * forest.defensePerAdjacent);
+                                    damage *= Math.max(0.4, damageReduction);
                                 }
                             }
 
                             brick.hp -= damage;
+
+                            // Apply forest effects after damage
+                            if (brick.forestType) {
+                                const forest = FOREST_TYPES[brick.forestType];
+
+                                // Growth forest: chance to spawn adjacent brick
+                                if (forest.spawnChance && Math.random() < forest.spawnChance) {
+                                    const emptyPos = findEmptyAdjacentColumn(brick);
+                                    if (emptyPos) {
+                                        const cellSize = getCellSize();
+                                        const newHp = Math.floor(brick.maxHp * forest.spawnHpRatio);
+                                        gameState.bricks.push({
+                                            x: emptyPos.x,
+                                            y: emptyPos.y,
+                                            width: cellSize - 4,
+                                            height: cellSize - 4,
+                                            hp: newHp,
+                                            maxHp: newHp,
+                                            col: emptyPos.col,
+                                            type: 'normal',
+                                            forestType: brick.forestType
+                                        });
+                                    }
+                                }
+
+                                // Symbiosis forest: share damage with adjacent bricks
+                                if (forest.damageShare) {
+                                    const adjacent = getAdjacentBricks(brick);
+                                    const sharedDamage = damage * forest.damageShare / adjacent.length;
+                                    for (let adj of adjacent) {
+                                        adj.hp -= sharedDamage;
+                                    }
+                                }
+                            }
 
                             if (gameState.speedMultiplier === 1) {
                                 createParticles(ball.x, ball.y, getBrickColor(brick.hp, brick.maxHp), 3);
