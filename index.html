@@ -1961,24 +1961,14 @@
                     ctx.fillText('👾', brick.x + 2 + brick.width / 2, brick.y + 15 * getScale());
                 }
 
-                // Forest type indicator (icon in top-right corner)
+                // Forest type indicator (small icon in corner)
                 if (brick.forestType) {
                     const forest = FOREST_TYPES[brick.forestType];
-
-                    // Draw semi-transparent background circle
-                    ctx.fillStyle = forest.color;
-                    ctx.globalAlpha = 0.7;
-                    ctx.beginPath();
-                    ctx.arc(brick.x + brick.width - 8 * getScale(), brick.y + 8 * getScale(), 7 * getScale(), 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.globalAlpha = 1;
-
-                    // Draw emoji
-                    ctx.fillStyle = 'white';
-                    ctx.font = `${getFontSize(10)}px Arial`;
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillText(forest.emoji, brick.x + brick.width - 8 * getScale(), brick.y + 8 * getScale());
+                    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+                    ctx.font = `${getFontSize(8)}px Arial`;
+                    ctx.textAlign = 'left';
+                    ctx.textBaseline = 'top';
+                    ctx.fillText(forest.emoji, brick.x + 4, brick.y + 4);
                 }
 
                 // HP text
