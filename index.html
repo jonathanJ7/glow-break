@@ -958,7 +958,8 @@
                 active: true,
                 hasGoneUp: false,
                 fireball: isFireball,
-                damage: isSuperDamage ? 3 : 1
+                damage: isSuperDamage ? 3 : 1,
+                hitBricks: isFireball ? new Set() : null  // Track bricks hit by fireball
             });
             
             gameState.ballsToShoot--;
@@ -1246,22 +1247,26 @@
         function checkBrickCollisions(ball) {
             for (let brick of gameState.bricks) {
                 if (brick.hp <= 0) continue;
-                
-                if (circleRectCollision(ball.x, ball.y, getBallRadius(), 
+
+                // Create a unique ID for this brick based on its position
+                const brickId = `${brick.x},${brick.y}`;
+
+                if (circleRectCollision(ball.x, ball.y, getBallRadius(),
                     brick.x + 2, brick.y + 2, brick.width, brick.height)) {
-                    
+
                     if (!ball.fireball) {
+                        // Normal ball: bounce and deal damage
                         const ballCenterX = ball.x;
                         const ballCenterY = ball.y;
                         const brickCenterX = brick.x + 2 + brick.width / 2;
                         const brickCenterY = brick.y + 2 + brick.height / 2;
-                        
+
                         const dx = ballCenterX - brickCenterX;
                         const dy = ballCenterY - brickCenterY;
-                        
+
                         const overlapX = brick.width / 2 + getBallRadius() - Math.abs(dx);
                         const overlapY = brick.height / 2 + getBallRadius() - Math.abs(dy);
-                        
+
                         if (overlapX < overlapY) {
                             ball.vx *= -1;
                             ball.x += dx > 0 ? overlapX : -overlapX;
@@ -1269,16 +1274,32 @@
                             ball.vy *= -1;
                             ball.y += dy > 0 ? overlapY : -overlapY;
                         }
+
+                        const damage = ball.damage * (brick.type === 'armored' ? 0.5 : 1);
+                        brick.hp -= damage;
+
+                        if (gameState.speedMultiplier === 1) {
+                            createParticles(ball.x, ball.y, getBrickColor(brick.hp, brick.maxHp), 3);
+                        }
+
+                        return; // Normal ball stops checking after first hit
+                    } else {
+                        // Fireball: pass through but only hit each brick once
+                        if (!ball.hitBricks.has(brickId)) {
+                            ball.hitBricks.add(brickId);
+
+                            const damage = ball.damage * (brick.type === 'armored' ? 0.5 : 1);
+                            brick.hp -= damage;
+
+                            if (gameState.speedMultiplier === 1) {
+                                createParticles(ball.x, ball.y, getBrickColor(brick.hp, brick.maxHp), 3);
+                            }
+                        }
+                        // Fireball continues checking other bricks (no return)
                     }
-                    
-                    const damage = ball.damage * (brick.type === 'armored' ? 0.5 : 1);
-                    brick.hp -= damage;
-                    
-                    if (gameState.speedMultiplier === 1) {
-                        createParticles(ball.x, ball.y, getBrickColor(brick.hp, brick.maxHp), 3);
-                    }
-                    
-                    if (!ball.fireball) return;
+                } else if (ball.fireball && ball.hitBricks && ball.hitBricks.has(brickId)) {
+                    // Fireball has exited this brick, allow it to be hit again if it re-enters
+                    ball.hitBricks.delete(brickId);
                 }
             }
         }
