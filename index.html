@@ -814,16 +814,36 @@
                     const hpVariation = config.hpVariationMin + Math.random() * (config.hpVariationMax - config.hpVariationMin);
                     const hp = Math.max(1, Math.floor(baseHP * hpVariation * rowHpMultiplier));
                     
-                    // Chance for special brick types
+                    // Chance for special brick types - 8 different types
                     let type = 'normal';
                     const specialRoll = Math.random();
-                    
-                    if (turn > 3 && specialRoll < config.explosiveChance) {
+
+                    // Calculate cumulative probabilities for all 8 types
+                    const explosiveThreshold = config.explosiveChance;
+                    const armoredThreshold = explosiveThreshold + config.armoredChance;
+                    const spawnerThreshold = armoredThreshold + (config.poisonBrickChance || 0.04);
+                    const regeneratorThreshold = spawnerThreshold + 0.05;
+                    const splitterThreshold = regeneratorThreshold + 0.06;
+                    const teleporterThreshold = splitterThreshold + 0.04;
+                    const gravityThreshold = teleporterThreshold + 0.05;
+                    const multiplierThreshold = gravityThreshold + 0.04;
+
+                    if (turn > 3 && specialRoll < explosiveThreshold) {
                         type = 'explosive';
-                    } else if (turn > 5 && specialRoll < config.explosiveChance + config.armoredChance) {
+                    } else if (turn > 3 && specialRoll < armoredThreshold) {
                         type = 'armored';
-                    } else if (config.poisonBrickChance && turn > 8 && specialRoll < config.explosiveChance + config.armoredChance + config.poisonBrickChance) {
+                    } else if (turn > 5 && specialRoll < spawnerThreshold) {
                         type = 'spawner';
+                    } else if (turn > 5 && specialRoll < regeneratorThreshold) {
+                        type = 'regenerator';
+                    } else if (turn > 7 && specialRoll < splitterThreshold) {
+                        type = 'splitter';
+                    } else if (turn > 10 && specialRoll < teleporterThreshold) {
+                        type = 'teleporter';
+                    } else if (turn > 8 && specialRoll < gravityThreshold) {
+                        type = 'gravity';
+                    } else if (turn > 12 && specialRoll < multiplierThreshold) {
+                        type = 'multiplier';
                     }
                     
                     gameState.bricks.push({
@@ -1031,34 +1051,34 @@
         function spawnBricks(brick) {
             const cellSize = getCellSize();
             const leftBorder = getLeftBorder();
-            
+
             createParticles(brick.x + brick.width/2, brick.y + brick.height/2, '#a855f7', 12);
-            
+
             // Spawn 1-2 small bricks nearby
             const spawnCount = 1 + Math.floor(Math.random() * 2);
             const nearbyPositions = [];
-            
+
             for (let dc = -1; dc <= 1; dc++) {
                 const newCol = brick.col + dc;
                 if (newCol >= 0 && newCol < COLS) {
                     const newX = leftBorder + newCol * cellSize;
                     const newY = brick.y;
-                    
+
                     // Check if position is empty
-                    const occupied = gameState.bricks.some(b => 
+                    const occupied = gameState.bricks.some(b =>
                         Math.abs(b.x - newX) < cellSize * 0.5 && Math.abs(b.y - newY) < cellSize * 0.5
                     );
-                    
+
                     if (!occupied) {
                         nearbyPositions.push({col: newCol, x: newX, y: newY});
                     }
                 }
             }
-            
+
             for (let i = 0; i < Math.min(spawnCount, nearbyPositions.length); i++) {
                 const pos = nearbyPositions[Math.floor(Math.random() * nearbyPositions.length)];
                 nearbyPositions.splice(nearbyPositions.indexOf(pos), 1);
-                
+
                 const hp = Math.floor(brick.maxHp * 0.3);
                 gameState.bricks.push({
                     x: pos.x,
@@ -1071,6 +1091,65 @@
                     type: 'normal'
                 });
             }
+        }
+
+        // Multiplier brick increases HP of nearby bricks when destroyed
+        function multiplyNearbyBricks(brick) {
+            const cellSize = getCellSize();
+            const centerX = brick.x + brick.width / 2;
+            const centerY = brick.y + brick.height / 2;
+
+            createParticles(centerX, centerY, '#f9ed69', 16);
+
+            const boostRadius = cellSize * 1.8;
+            for (let other of gameState.bricks) {
+                if (other === brick) continue;
+                const otherCenterX = other.x + other.width / 2;
+                const otherCenterY = other.y + other.height / 2;
+                const dist = Math.hypot(centerX - otherCenterX, centerY - otherCenterY);
+
+                if (dist < boostRadius) {
+                    const boost = Math.floor(other.maxHp * 0.25);
+                    other.hp += boost;
+                    other.maxHp += boost;
+                    createParticles(otherCenterX, otherCenterY, '#f9ed69', 8);
+                }
+            }
+        }
+
+        // Teleporter brick teleports the ball to a random position
+        function teleportBall(ball) {
+            const leftBorder = getLeftBorder();
+            const rightBorder = getRightBorder();
+            const topOffset = getTopOffset();
+
+            createParticles(ball.x, ball.y, '#00ffff', 12);
+
+            // Teleport to random position in upper half of play area
+            ball.x = leftBorder + Math.random() * (rightBorder - leftBorder);
+            ball.y = topOffset + Math.random() * 100;
+
+            // Randomize direction slightly
+            const angle = Math.random() * Math.PI;
+            const speed = Math.hypot(ball.vx, ball.vy);
+            ball.vx = Math.cos(angle) * speed;
+            ball.vy = Math.sin(angle) * speed;
+
+            createParticles(ball.x, ball.y, '#00ffff', 12);
+        }
+
+        // Splitter brick deflects ball in random direction
+        function splitBallDirection(ball, brick) {
+            createParticles(ball.x, ball.y, '#ff8c00', 8);
+
+            // Random deflection angle (-90 to 90 degrees from current direction)
+            const currentAngle = Math.atan2(ball.vy, ball.vx);
+            const deflection = (Math.random() - 0.5) * Math.PI;
+            const newAngle = currentAngle + deflection;
+
+            const speed = Math.hypot(ball.vx, ball.vy);
+            ball.vx = Math.cos(newAngle) * speed;
+            ball.vy = Math.sin(newAngle) * speed;
         }
         
         // Horizontal laser - finds nearest row with bricks and destroys them
@@ -1127,13 +1206,47 @@
             // La pelota debe subir al menos hasta la mitad del área de juego antes de poder aterrizar
             const minY = getTopOffset() + (getBottomLine() - getTopOffset()) * 0.6;
             const topLimit = getTopOffset() - 15;
-            
+
             const iterations = gameState.speedMultiplier > 1 ? FAST_SPEED_MULTIPLIER : 1;
-            
+
+            // Update regenerator bricks (heal over time)
+            for (let brick of gameState.bricks) {
+                if (brick.type === 'regenerator' && brick.hp < brick.maxHp) {
+                    brick.hp = Math.min(brick.maxHp, brick.hp + 0.1 * iterations);
+                }
+            }
+
             for (let iter = 0; iter < iterations; iter++) {
                 for (let ball of gameState.balls) {
                     if (!ball.active) continue;
-                    
+
+                    // Apply gravity effect from gravity bricks
+                    const cellSize = getCellSize();
+                    for (let brick of gameState.bricks) {
+                        if (brick.type === 'gravity') {
+                            const brickCenterX = brick.x + brick.width / 2;
+                            const brickCenterY = brick.y + brick.height / 2;
+                            const dx = brickCenterX - ball.x;
+                            const dy = brickCenterY - ball.y;
+                            const dist = Math.hypot(dx, dy);
+
+                            // Pull balls within range
+                            const pullRadius = cellSize * 3;
+                            if (dist < pullRadius && dist > 10) {
+                                const pullStrength = 0.3 * (1 - dist / pullRadius);
+                                ball.vx += (dx / dist) * pullStrength;
+                                ball.vy += (dy / dist) * pullStrength;
+
+                                // Normalize speed to prevent excessive acceleration
+                                const speed = Math.hypot(ball.vx, ball.vy);
+                                if (speed > BALL_SPEED * 1.5) {
+                                    ball.vx = (ball.vx / speed) * BALL_SPEED * 1.5;
+                                    ball.vy = (ball.vy / speed) * BALL_SPEED * 1.5;
+                                }
+                            }
+                        }
+                    }
+
                     ball.x += ball.vx;
                     ball.y += ball.vy;
                     
@@ -1199,6 +1312,8 @@
                         explodeBrick(brick);
                     } else if (brick.type === 'spawner') {
                         spawnBricks(brick);
+                    } else if (brick.type === 'multiplier') {
+                        multiplyNearbyBricks(brick);
                     }
                 }
                 gameState.bricks = gameState.bricks.filter(b => b.hp > 0);
@@ -1255,6 +1370,19 @@
                     brick.x + 2, brick.y + 2, brick.width, brick.height)) {
 
                     if (!ball.fireball) {
+                        // Handle special brick effects BEFORE bounce
+                        if (brick.type === 'teleporter' && Math.random() < 0.7) {
+                            teleportBall(ball);
+                            const damage = ball.damage * (brick.type === 'armored' ? 0.5 : 1);
+                            brick.hp -= damage;
+                            return; // Ball is teleported, no normal bounce
+                        } else if (brick.type === 'splitter' && Math.random() < 0.8) {
+                            splitBallDirection(ball, brick);
+                            const damage = ball.damage * (brick.type === 'armored' ? 0.5 : 1);
+                            brick.hp -= damage;
+                            return; // Ball is deflected, no normal bounce
+                        }
+
                         // Normal ball: bounce and deal damage
                         const ballCenterX = ball.x;
                         const ballCenterY = ball.y;
@@ -1287,6 +1415,13 @@
                         // Fireball: pass through but only hit each brick once
                         if (!ball.hitBricks.has(brickId)) {
                             ball.hitBricks.add(brickId);
+
+                            // Special brick effects for fireball
+                            if (brick.type === 'teleporter' && Math.random() < 0.5) {
+                                teleportBall(ball);
+                            } else if (brick.type === 'splitter' && Math.random() < 0.5) {
+                                splitBallDirection(ball, brick);
+                            }
 
                             const damage = ball.damage * (brick.type === 'armored' ? 0.5 : 1);
                             brick.hp -= damage;
@@ -1592,7 +1727,7 @@
                     ctx.textAlign = 'center';
                     ctx.fillText('💥', brick.x + 2 + brick.width / 2, brick.y + 15 * getScale());
                 }
-                
+
                 if (brick.type === 'armored') {
                     ctx.strokeStyle = 'rgba(255,255,255,0.5)';
                     ctx.lineWidth = 3;
@@ -1600,7 +1735,7 @@
                     ctx.roundRect(brick.x + 5, brick.y + 5, brick.width - 6, brick.height - 6, 4);
                     ctx.stroke();
                 }
-                
+
                 if (brick.type === 'spawner') {
                     ctx.fillStyle = 'rgba(168, 85, 247, 0.3)';
                     ctx.beginPath();
@@ -1612,6 +1747,82 @@
                     ctx.textAlign = 'center';
                     ctx.fillText('👾', brick.x + 2 + brick.width / 2, brick.y + 15 * getScale());
                 }
+
+                if (brick.type === 'regenerator') {
+                    // Pulsating green overlay
+                    const pulse = Math.sin(Date.now() / 300) * 0.15 + 0.3;
+                    ctx.fillStyle = `rgba(50,205,50,${pulse})`;
+                    ctx.beginPath();
+                    ctx.roundRect(brick.x + 2, brick.y + 2, brick.width, brick.height, 6);
+                    ctx.fill();
+
+                    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+                    ctx.font = `${getFontSize(12)}px Arial`;
+                    ctx.textAlign = 'center';
+                    ctx.fillText('❤️', brick.x + 2 + brick.width / 2, brick.y + 15 * getScale());
+                }
+
+                if (brick.type === 'splitter') {
+                    ctx.fillStyle = 'rgba(255,140,0,0.3)';
+                    ctx.beginPath();
+                    ctx.roundRect(brick.x + 2, brick.y + 2, brick.width, brick.height, 6);
+                    ctx.fill();
+
+                    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+                    ctx.font = `${getFontSize(12)}px Arial`;
+                    ctx.textAlign = 'center';
+                    ctx.fillText('🔀', brick.x + 2 + brick.width / 2, brick.y + 15 * getScale());
+                }
+
+                if (brick.type === 'teleporter') {
+                    // Pulsating cyan overlay
+                    const pulse = Math.sin(Date.now() / 400) * 0.2 + 0.35;
+                    ctx.fillStyle = `rgba(0,255,255,${pulse})`;
+                    ctx.beginPath();
+                    ctx.roundRect(brick.x + 2, brick.y + 2, brick.width, brick.height, 6);
+                    ctx.fill();
+
+                    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+                    ctx.font = `${getFontSize(12)}px Arial`;
+                    ctx.textAlign = 'center';
+                    ctx.fillText('🌀', brick.x + 2 + brick.width / 2, brick.y + 15 * getScale());
+                }
+
+                if (brick.type === 'gravity') {
+                    // Magnetic field effect
+                    const pulse = Math.sin(Date.now() / 350) * 0.15 + 0.25;
+                    ctx.fillStyle = `rgba(138,43,226,${pulse})`;
+                    ctx.beginPath();
+                    ctx.roundRect(brick.x + 2, brick.y + 2, brick.width, brick.height, 6);
+                    ctx.fill();
+
+                    // Draw pulling lines
+                    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+                    ctx.lineWidth = 1;
+                    for (let i = 0; i < 3; i++) {
+                        ctx.beginPath();
+                        ctx.arc(brick.x + brick.width / 2, brick.y + brick.height / 2,
+                                (i + 1) * 8 * getScale(), 0, Math.PI * 2);
+                        ctx.stroke();
+                    }
+
+                    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+                    ctx.font = `${getFontSize(12)}px Arial`;
+                    ctx.textAlign = 'center';
+                    ctx.fillText('🧲', brick.x + 2 + brick.width / 2, brick.y + 15 * getScale());
+                }
+
+                if (brick.type === 'multiplier') {
+                    ctx.fillStyle = 'rgba(249,237,105,0.35)';
+                    ctx.beginPath();
+                    ctx.roundRect(brick.x + 2, brick.y + 2, brick.width, brick.height, 6);
+                    ctx.fill();
+
+                    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+                    ctx.font = `${getFontSize(12)}px Arial`;
+                    ctx.textAlign = 'center';
+                    ctx.fillText('⚡', brick.x + 2 + brick.width / 2, brick.y + 15 * getScale());
+                }
                 
                 // HP text
                 ctx.fillStyle = 'white';
@@ -1619,7 +1830,10 @@
                 ctx.font = `bold ${hpFontSize}px Arial`;
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
-                const textY = (brick.type === 'explosive' || brick.type === 'spawner')
+
+                // Types with emoji icons need HP text offset down
+                const hasIcon = ['explosive', 'spawner', 'regenerator', 'splitter', 'teleporter', 'gravity', 'multiplier'].includes(brick.type);
+                const textY = hasIcon
                     ? brick.y + 2 + brick.height / 2 + 8 * getScale()
                     : brick.y + 2 + brick.height / 2;
                 ctx.fillText(Math.ceil(brick.hp), brick.x + 2 + brick.width / 2, textY);
