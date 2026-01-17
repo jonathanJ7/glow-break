@@ -383,9 +383,6 @@
     </div>
 
     <script>
-        // ====================================
-        // INICIALIZACIÓN DEL CANVAS
-        // ====================================
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const container = document.getElementById('gameContainer');
@@ -471,9 +468,7 @@
 
         window.addEventListener('resize', handleResize);
         
-        // ====================================
-        // CONSTANTES DEL JUEGO
-        // ====================================
+        // Game constants
         const COLS = 7;
         const BASE_BALL_RADIUS = 6;
         const BALL_SPEED = 10;
@@ -490,9 +485,7 @@
         const SHOOT_DELAY = 45;
         const MAX_BALLS_ON_SCREEN = 200;
         
-        // ====================================
-        // CONFIGURACIÓN DE DIFICULTADES
-        // ====================================
+        // Difficulty settings
         const DIFFICULTY_SETTINGS = {
             easy: {
                 name: 'FÁCIL',
@@ -600,9 +593,7 @@
             }
         }
         
-        // ====================================
-        // ESTADO DEL JUEGO
-        // ====================================
+        // Game state
         let gameState = {
             turn: 1,
             ballCount: 1,
@@ -631,9 +622,7 @@
             speedMultiplier: 1
         };
         
-        // ====================================
-        // COLORES Y ESTILOS
-        // ====================================
+        // Colors
         const BRICK_COLORS = [
             '#4ecca3', '#3db892', '#2ea37f', '#1f8e6c',
             '#f9ed69', '#f5e150', '#e6cf3a', '#d4bd25',
@@ -642,17 +631,14 @@
             '#3b82f6', '#2563eb', '#1d4ed8', '#1e40af'
         ];
         
-        // ====================================
-        // UTILIDADES DE CANVAS Y DIMENSIONES
-        // ====================================
         function getWidth() {
             return container.getBoundingClientRect().width;
         }
-
+        
         function getHeight() {
             return container.getBoundingClientRect().height;
         }
-
+        
         function getScale() {
             // Base height reference is 700px
             return Math.min(getHeight() / 700, getWidth() / 400);
@@ -801,9 +787,6 @@
         }
         
         // Generate a new row of bricks
-        // ====================================
-        // GENERACIÓN DE BLOQUES Y BONUS
-        // ====================================
         function generateNewRow() {
             const cellSize = getCellSize();
             const topOffset = getTopOffset();
@@ -834,37 +817,15 @@
                     const hp = Math.max(1, Math.floor(baseHP * hpVariation * rowHpMultiplier));
                     
                     // Chance for special brick types
-                    // FIX: Corregida la lógica para que spawners aparezcan en TODAS las dificultades
-                    // Los rangos de probabilidad ahora NO se superponen
                     let type = 'normal';
                     const specialRoll = Math.random();
-                    let cumulativeProbability = 0;
-
-                    // Explosive: [0, explosiveChance)
-                    if (turn > 3) {
-                        const explosiveThreshold = cumulativeProbability + config.explosiveChance;
-                        if (specialRoll >= cumulativeProbability && specialRoll < explosiveThreshold) {
-                            type = 'explosive';
-                        }
-                        cumulativeProbability = explosiveThreshold;
-                    }
-
-                    // Armored: [explosiveChance, explosiveChance + armoredChance)
-                    if (type === 'normal' && turn > 5) {
-                        const armoredThreshold = cumulativeProbability + config.armoredChance;
-                        if (specialRoll >= cumulativeProbability && specialRoll < armoredThreshold) {
-                            type = 'armored';
-                        }
-                        cumulativeProbability = armoredThreshold;
-                    }
-
-                    // Spawner: [explosiveChance + armoredChance, explosiveChance + armoredChance + spawnerChance)
-                    // ESTE ES EL FIX CRÍTICO: Ahora los spawners se generarán en easy, medium y hard
-                    if (type === 'normal' && config.poisonBrickChance && turn > 8) {
-                        const spawnerThreshold = cumulativeProbability + config.poisonBrickChance;
-                        if (specialRoll >= cumulativeProbability && specialRoll < spawnerThreshold) {
-                            type = 'spawner';
-                        }
+                    
+                    if (turn > 3 && specialRoll < config.explosiveChance) {
+                        type = 'explosive';
+                    } else if (turn > 5 && specialRoll < config.explosiveChance + config.armoredChance) {
+                        type = 'armored';
+                    } else if (config.poisonBrickChance && turn > 8 && specialRoll < config.explosiveChance + config.armoredChance + config.poisonBrickChance) {
+                        type = 'spawner';
                     }
                     
                     gameState.bricks.push({
