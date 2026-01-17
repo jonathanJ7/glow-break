@@ -502,7 +502,8 @@
                 multiBallChance: 0.2,
                 startingBalls: 1,
                 hpVariationMin: 0.3,
-                hpVariationMax: 1.0
+                hpVariationMax: 1.0,
+                poisonBrickChance: 0.04  // Bricks that spawn more bricks
             },
             medium: {
                 name: 'MEDIO',
@@ -519,7 +520,8 @@
                 multiBallChance: 0.1,
                 startingBalls: 1,
                 hpVariationMin: 0.5,
-                hpVariationMax: 1.5
+                hpVariationMax: 1.5,
+                poisonBrickChance: 0.05  // Bricks that spawn more bricks
             },
             hard: {
                 name: 'DIFÍCIL',
@@ -1058,8 +1060,8 @@
             for (let i = 0; i < Math.min(spawnCount, nearbyPositions.length); i++) {
                 const pos = nearbyPositions[Math.floor(Math.random() * nearbyPositions.length)];
                 nearbyPositions.splice(nearbyPositions.indexOf(pos), 1);
-                
-                const hp = Math.floor(brick.maxHp * 0.3);
+
+                const hp = Math.floor(brick.maxHp * 0.5);
                 gameState.bricks.push({
                     x: pos.x,
                     y: pos.y,
@@ -1068,7 +1070,7 @@
                     hp: hp,
                     maxHp: hp,
                     col: pos.col,
-                    type: 'normal'
+                    type: 'spawner'
                 });
             }
         }
