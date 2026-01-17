@@ -10,55 +10,59 @@ export const DIFFICULTY_SETTINGS = {
         emoji: '😊',
         color: '#4ecca3',
         hpMultiplier: 0.8,
-        densityBase: 0.28,
-        densityGrowth: 0.005,
+        densityBase: 0.45,           // Aumentado para compensar menor crecimiento
+        densityGrowth: 0.001,        // Reducido drásticamente (antes 0.005)
         maxDensity: 0.55,
         bonusChance: 0.12,
         powerupChance: 0.05,
-        explosiveChance: 0.06,
-        armoredChance: 0.03,
+        explosiveChance: 0.03,       // Base reducida, aumentará con turnos
+        armoredChance: 0.02,         // Base reducida, aumentará con turnos
         multiBallChance: 0.2,
         startingBalls: 1,
         hpVariationMin: 0.3,
         hpVariationMax: 1.0,
-        poisonBrickChance: 0.04  // Bloques que generan más bloques
+        poisonBrickChance: 0.02,     // Base reducida, aumentará con turnos
+        // Nueva configuración: Crecimiento de bloques especiales
+        specialGrowthRate: 0.003     // 0.3% por turno
     },
     medium: {
         name: 'MEDIO',
         emoji: '😤',
         color: '#f5b942',
         hpMultiplier: 1.5,
-        densityBase: 0.38,
-        densityGrowth: 0.008,
+        densityBase: 0.55,           // Aumentado para compensar menor crecimiento
+        densityGrowth: 0.002,        // Reducido drásticamente (antes 0.008)
         maxDensity: 0.70,
         bonusChance: 0.08,
         powerupChance: 0.035,
-        explosiveChance: 0.08,
-        armoredChance: 0.10,
+        explosiveChance: 0.04,       // Base reducida, aumentará con turnos
+        armoredChance: 0.05,         // Base reducida, aumentará con turnos
         multiBallChance: 0.1,
         startingBalls: 1,
         hpVariationMin: 0.5,
         hpVariationMax: 1.5,
-        poisonBrickChance: 0.05  // Bloques que generan más bloques
+        poisonBrickChance: 0.03,     // Base reducida, aumentará con turnos
+        specialGrowthRate: 0.004     // 0.4% por turno
     },
     hard: {
         name: 'DIFÍCIL',
         emoji: '💀',
         color: '#e94560',
         hpMultiplier: 2.8,
-        densityBase: 0.50,
-        densityGrowth: 0.012,
+        densityBase: 0.65,           // Aumentado para compensar menor crecimiento
+        densityGrowth: 0.003,        // Reducido drásticamente (antes 0.012)
         maxDensity: 0.85,
         bonusChance: 0.05,
         powerupChance: 0.025,
-        explosiveChance: 0.04,
-        armoredChance: 0.20,
+        explosiveChance: 0.02,       // Base reducida, aumentará con turnos
+        armoredChance: 0.08,         // Base reducida, aumentará con turnos
         multiBallChance: 0.05,
         startingBalls: 1,
         hpVariationMin: 0.7,
         hpVariationMax: 2.0,
-        poisonBrickChance: 0.06,  // Bloques que generan más bloques
-        reinforcedRows: true       // Cada 10 turnos, fila extra resistente
+        poisonBrickChance: 0.03,     // Base reducida, aumentará con turnos
+        reinforcedRows: true,        // Cada 10 turnos, fila extra resistente
+        specialGrowthRate: 0.005     // 0.5% por turno
     }
 };
 

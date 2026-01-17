@@ -101,31 +101,43 @@ export class BrickGenerator {
     }
 
     /**
+     * Calcula las probabilidades de bloques especiales basadas en el turno
+     * Las probabilidades aumentan progresivamente para hacer el juego más desafiante
+     */
+    _calculateSpecialProbabilities(config, turn) {
+        const growthRate = config.specialGrowthRate || 0.003;
+
+        // Calcula el incremento basado en el turno
+        const turnBonus = Math.min(turn * growthRate, 0.25); // Max 25% adicional
+
+        return {
+            explosive: Math.min(config.explosiveChance + turnBonus, 0.35),      // Max 35%
+            armored: Math.min(config.armoredChance + turnBonus, 0.45),          // Max 45%
+            spawner: Math.min(config.poisonBrickChance + turnBonus * 0.8, 0.25) // Max 25%
+        };
+    }
+
+    /**
      * Determina el tipo de bloque basado en probabilidades
-     * FIX CRÍTICO: Esta es la función que corrige el bug de spawners
+     * NUEVO: Las probabilidades de bloques especiales aumentan con los turnos
      *
-     * ANTES (BUGGY):
-     * - if (specialRoll < explosiveChance) → explosive
-     * - else if (specialRoll < explosiveChance + armoredChance) → armored
-     * - else if (specialRoll < explosiveChance + armoredChance + spawnerChance) → spawner
-     *
-     * El problema: Los rangos se superponen! Si specialRoll = 0.03:
-     * - En easy: explosiveChance = 0.06, entonces < 0.06 → explosive ✓
-     * - Nunca verifica spawner!
-     *
-     * AHORA (CORRECTO):
-     * - Verificamos que specialRoll esté en el rango exacto para cada tipo
-     * - Los rangos NO se superponen
+     * Cómo funciona:
+     * - Las probabilidades BASE están en Config.js (reducidas)
+     * - Con cada turno, las probabilidades aumentan según specialGrowthRate
+     * - Esto hace que la dificultad aumente por más bloques especiales, no por más densidad
      */
     _determineBrickType(config, turn) {
         const { BRICK_TYPES, BRICK_GENERATION_TURNS } = GAME_CONSTANTS;
         const specialRoll = Math.random();
 
+        // Calcula probabilidades dinámicas basadas en el turno
+        const probabilities = this._calculateSpecialProbabilities(config, turn);
+
         let cumulativeProbability = 0;
 
         // Explosive: [0, explosiveChance)
         if (turn > BRICK_GENERATION_TURNS.EXPLOSIVE_MIN_TURN) {
-            const explosiveThreshold = cumulativeProbability + config.explosiveChance;
+            const explosiveThreshold = cumulativeProbability + probabilities.explosive;
             if (specialRoll >= cumulativeProbability && specialRoll < explosiveThreshold) {
                 return BRICK_TYPES.EXPLOSIVE;
             }
@@ -134,7 +146,7 @@ export class BrickGenerator {
 
         // Armored: [explosiveChance, explosiveChance + armoredChance)
         if (turn > BRICK_GENERATION_TURNS.ARMORED_MIN_TURN) {
-            const armoredThreshold = cumulativeProbability + config.armoredChance;
+            const armoredThreshold = cumulativeProbability + probabilities.armored;
             if (specialRoll >= cumulativeProbability && specialRoll < armoredThreshold) {
                 return BRICK_TYPES.ARMORED;
             }
@@ -142,9 +154,8 @@ export class BrickGenerator {
         }
 
         // Spawner: [explosiveChance + armoredChance, explosiveChance + armoredChance + spawnerChance)
-        // FIX: Ahora los spawners se generarán correctamente en TODAS las dificultades
         if (config.poisonBrickChance && turn > BRICK_GENERATION_TURNS.SPAWNER_MIN_TURN) {
-            const spawnerThreshold = cumulativeProbability + config.poisonBrickChance;
+            const spawnerThreshold = cumulativeProbability + probabilities.spawner;
             if (specialRoll >= cumulativeProbability && specialRoll < spawnerThreshold) {
                 return BRICK_TYPES.SPAWNER;
             }
