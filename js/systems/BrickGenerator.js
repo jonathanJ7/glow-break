@@ -101,55 +101,67 @@ export class BrickGenerator {
     }
 
     /**
-     * Determina el tipo de bloque basado en probabilidades
-     * FIX CRÍTICO: Esta es la función que corrige el bug de spawners
+     * Determina el tipo de bloque usando sistema de DOS PASOS
      *
-     * ANTES (BUGGY):
-     * - if (specialRoll < explosiveChance) → explosive
-     * - else if (specialRoll < explosiveChance + armoredChance) → armored
-     * - else if (specialRoll < explosiveChance + armoredChance + spawnerChance) → spawner
+     * PASO 1: ¿Es un bloque especial?
+     *   - Probabilidad base (specialBlockChance) + crecimiento por turno
+     *   - Ejemplo: 5% inicial + (turno × 0.4%) = crece con el tiempo
      *
-     * El problema: Los rangos se superponen! Si specialRoll = 0.03:
-     * - En easy: explosiveChance = 0.06, entonces < 0.06 → explosive ✓
-     * - Nunca verifica spawner!
+     * PASO 2: Si es especial, ¿de qué tipo?
+     *   - Distribución relativa entre explosive/armored/spawner
+     *   - Ejemplo: 35% explosive, 30% armored, 35% spawner
      *
-     * AHORA (CORRECTO):
-     * - Verificamos que specialRoll esté en el rango exacto para cada tipo
-     * - Los rangos NO se superponen
+     * Ventajas:
+     *   - Fácil controlar % total de bloques especiales
+     *   - Dificultad escala de forma predecible
+     *   - Se puede ajustar la distribución sin afectar el total
      */
     _determineBrickType(config, turn) {
         const { BRICK_TYPES, BRICK_GENERATION_TURNS } = GAME_CONSTANTS;
-        const specialRoll = Math.random();
 
+        // PASO 1: ¿Es un bloque especial?
+        const specialChance = Math.min(
+            config.specialBlockChance + turn * config.specialGrowthRate,
+            config.maxSpecialChance
+        );
+
+        const isSpecial = Math.random() < specialChance;
+
+        if (!isSpecial) {
+            return BRICK_TYPES.NORMAL;
+        }
+
+        // PASO 2: Si es especial, ¿de qué tipo?
+        const distribution = config.specialDistribution;
+        const typeRoll = Math.random();
         let cumulativeProbability = 0;
 
-        // Explosive: [0, explosiveChance)
+        // Explosive
         if (turn > BRICK_GENERATION_TURNS.EXPLOSIVE_MIN_TURN) {
-            const explosiveThreshold = cumulativeProbability + config.explosiveChance;
-            if (specialRoll >= cumulativeProbability && specialRoll < explosiveThreshold) {
+            cumulativeProbability += distribution.explosive;
+            if (typeRoll < cumulativeProbability) {
                 return BRICK_TYPES.EXPLOSIVE;
             }
-            cumulativeProbability = explosiveThreshold;
         }
 
-        // Armored: [explosiveChance, explosiveChance + armoredChance)
+        // Armored
         if (turn > BRICK_GENERATION_TURNS.ARMORED_MIN_TURN) {
-            const armoredThreshold = cumulativeProbability + config.armoredChance;
-            if (specialRoll >= cumulativeProbability && specialRoll < armoredThreshold) {
+            cumulativeProbability += distribution.armored;
+            if (typeRoll < cumulativeProbability) {
                 return BRICK_TYPES.ARMORED;
             }
-            cumulativeProbability = armoredThreshold;
         }
 
-        // Spawner: [explosiveChance + armoredChance, explosiveChance + armoredChance + spawnerChance)
-        // FIX: Ahora los spawners se generarán correctamente en TODAS las dificultades
-        if (config.poisonBrickChance && turn > BRICK_GENERATION_TURNS.SPAWNER_MIN_TURN) {
-            const spawnerThreshold = cumulativeProbability + config.poisonBrickChance;
-            if (specialRoll >= cumulativeProbability && specialRoll < spawnerThreshold) {
+        // Spawner
+        if (turn > BRICK_GENERATION_TURNS.SPAWNER_MIN_TURN) {
+            cumulativeProbability += distribution.spawner;
+            if (typeRoll < cumulativeProbability) {
                 return BRICK_TYPES.SPAWNER;
             }
         }
 
+        // Si el turno es muy temprano y ningún tipo está disponible aún,
+        // devuelve normal en lugar de especial
         return BRICK_TYPES.NORMAL;
     }
 
