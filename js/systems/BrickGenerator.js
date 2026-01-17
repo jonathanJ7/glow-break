@@ -101,66 +101,67 @@ export class BrickGenerator {
     }
 
     /**
-     * Calcula las probabilidades de bloques especiales basadas en el turno
-     * Las probabilidades aumentan progresivamente para hacer el juego más desafiante
-     */
-    _calculateSpecialProbabilities(config, turn) {
-        const growthRate = config.specialGrowthRate || 0.003;
-
-        // Calcula el incremento basado en el turno
-        const turnBonus = Math.min(turn * growthRate, 0.25); // Max 25% adicional
-
-        return {
-            explosive: Math.min(config.explosiveChance + turnBonus, 0.35),      // Max 35%
-            armored: Math.min(config.armoredChance + turnBonus, 0.45),          // Max 45%
-            spawner: Math.min(config.poisonBrickChance + turnBonus * 0.8, 0.25) // Max 25%
-        };
-    }
-
-    /**
-     * Determina el tipo de bloque basado en probabilidades
-     * NUEVO: Las probabilidades de bloques especiales aumentan con los turnos
+     * Determina el tipo de bloque usando sistema de DOS PASOS
      *
-     * Cómo funciona:
-     * - Las probabilidades BASE están en Config.js (reducidas)
-     * - Con cada turno, las probabilidades aumentan según specialGrowthRate
-     * - Esto hace que la dificultad aumente por más bloques especiales, no por más densidad
+     * PASO 1: ¿Es un bloque especial?
+     *   - Probabilidad base (specialBlockChance) + crecimiento por turno
+     *   - Ejemplo: 5% inicial + (turno × 0.4%) = crece con el tiempo
+     *
+     * PASO 2: Si es especial, ¿de qué tipo?
+     *   - Distribución relativa entre explosive/armored/spawner
+     *   - Ejemplo: 35% explosive, 30% armored, 35% spawner
+     *
+     * Ventajas:
+     *   - Fácil controlar % total de bloques especiales
+     *   - Dificultad escala de forma predecible
+     *   - Se puede ajustar la distribución sin afectar el total
      */
     _determineBrickType(config, turn) {
         const { BRICK_TYPES, BRICK_GENERATION_TURNS } = GAME_CONSTANTS;
-        const specialRoll = Math.random();
 
-        // Calcula probabilidades dinámicas basadas en el turno
-        const probabilities = this._calculateSpecialProbabilities(config, turn);
+        // PASO 1: ¿Es un bloque especial?
+        const specialChance = Math.min(
+            config.specialBlockChance + turn * config.specialGrowthRate,
+            config.maxSpecialChance
+        );
 
+        const isSpecial = Math.random() < specialChance;
+
+        if (!isSpecial) {
+            return BRICK_TYPES.NORMAL;
+        }
+
+        // PASO 2: Si es especial, ¿de qué tipo?
+        const distribution = config.specialDistribution;
+        const typeRoll = Math.random();
         let cumulativeProbability = 0;
 
-        // Explosive: [0, explosiveChance)
+        // Explosive
         if (turn > BRICK_GENERATION_TURNS.EXPLOSIVE_MIN_TURN) {
-            const explosiveThreshold = cumulativeProbability + probabilities.explosive;
-            if (specialRoll >= cumulativeProbability && specialRoll < explosiveThreshold) {
+            cumulativeProbability += distribution.explosive;
+            if (typeRoll < cumulativeProbability) {
                 return BRICK_TYPES.EXPLOSIVE;
             }
-            cumulativeProbability = explosiveThreshold;
         }
 
-        // Armored: [explosiveChance, explosiveChance + armoredChance)
+        // Armored
         if (turn > BRICK_GENERATION_TURNS.ARMORED_MIN_TURN) {
-            const armoredThreshold = cumulativeProbability + probabilities.armored;
-            if (specialRoll >= cumulativeProbability && specialRoll < armoredThreshold) {
+            cumulativeProbability += distribution.armored;
+            if (typeRoll < cumulativeProbability) {
                 return BRICK_TYPES.ARMORED;
             }
-            cumulativeProbability = armoredThreshold;
         }
 
-        // Spawner: [explosiveChance + armoredChance, explosiveChance + armoredChance + spawnerChance)
-        if (config.poisonBrickChance && turn > BRICK_GENERATION_TURNS.SPAWNER_MIN_TURN) {
-            const spawnerThreshold = cumulativeProbability + probabilities.spawner;
-            if (specialRoll >= cumulativeProbability && specialRoll < spawnerThreshold) {
+        // Spawner
+        if (turn > BRICK_GENERATION_TURNS.SPAWNER_MIN_TURN) {
+            cumulativeProbability += distribution.spawner;
+            if (typeRoll < cumulativeProbability) {
                 return BRICK_TYPES.SPAWNER;
             }
         }
 
+        // Si el turno es muy temprano y ningún tipo está disponible aún,
+        // devuelve normal en lugar de especial
         return BRICK_TYPES.NORMAL;
     }
 

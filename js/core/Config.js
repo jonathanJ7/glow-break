@@ -10,59 +10,73 @@ export const DIFFICULTY_SETTINGS = {
         emoji: '😊',
         color: '#4ecca3',
         hpMultiplier: 0.8,
-        densityBase: 0.45,           // Aumentado para compensar menor crecimiento
-        densityGrowth: 0.001,        // Reducido drásticamente (antes 0.005)
+        densityBase: 0.45,
+        densityGrowth: 0.001,
         maxDensity: 0.55,
         bonusChance: 0.12,
         powerupChance: 0.05,
-        explosiveChance: 0.03,       // Base reducida, aumentará con turnos
-        armoredChance: 0.02,         // Base reducida, aumentará con turnos
         multiBallChance: 0.2,
         startingBalls: 1,
         hpVariationMin: 0.3,
         hpVariationMax: 1.0,
-        poisonBrickChance: 0.02,     // Base reducida, aumentará con turnos
-        // Nueva configuración: Crecimiento de bloques especiales
-        specialGrowthRate: 0.003     // 0.3% por turno
+        // Sistema de bloques especiales en DOS PASOS:
+        // Paso 1: ¿Es un bloque especial?
+        specialBlockChance: 0.05,    // 5% inicial de que sea especial
+        specialGrowthRate: 0.004,    // Crece 0.4% por turno
+        maxSpecialChance: 0.50,      // Máximo 50% de bloques especiales
+        // Paso 2: Si es especial, ¿de qué tipo? (distribución relativa)
+        specialDistribution: {
+            explosive: 0.35,         // 35% de los especiales son explosivos
+            armored: 0.30,           // 30% de los especiales son armored
+            spawner: 0.35            // 35% de los especiales son spawner
+        }
     },
     medium: {
         name: 'MEDIO',
         emoji: '😤',
         color: '#f5b942',
         hpMultiplier: 1.5,
-        densityBase: 0.55,           // Aumentado para compensar menor crecimiento
-        densityGrowth: 0.002,        // Reducido drásticamente (antes 0.008)
+        densityBase: 0.55,
+        densityGrowth: 0.002,
         maxDensity: 0.70,
         bonusChance: 0.08,
         powerupChance: 0.035,
-        explosiveChance: 0.04,       // Base reducida, aumentará con turnos
-        armoredChance: 0.05,         // Base reducida, aumentará con turnos
         multiBallChance: 0.1,
         startingBalls: 1,
         hpVariationMin: 0.5,
         hpVariationMax: 1.5,
-        poisonBrickChance: 0.03,     // Base reducida, aumentará con turnos
-        specialGrowthRate: 0.004     // 0.4% por turno
+        specialBlockChance: 0.08,    // 8% inicial
+        specialGrowthRate: 0.005,    // Crece 0.5% por turno
+        maxSpecialChance: 0.60,      // Máximo 60%
+        specialDistribution: {
+            explosive: 0.30,
+            armored: 0.40,           // Más armored en medio
+            spawner: 0.30
+        }
     },
     hard: {
         name: 'DIFÍCIL',
         emoji: '💀',
         color: '#e94560',
         hpMultiplier: 2.8,
-        densityBase: 0.65,           // Aumentado para compensar menor crecimiento
-        densityGrowth: 0.003,        // Reducido drásticamente (antes 0.012)
+        densityBase: 0.65,
+        densityGrowth: 0.003,
         maxDensity: 0.85,
         bonusChance: 0.05,
         powerupChance: 0.025,
-        explosiveChance: 0.02,       // Base reducida, aumentará con turnos
-        armoredChance: 0.08,         // Base reducida, aumentará con turnos
         multiBallChance: 0.05,
         startingBalls: 1,
         hpVariationMin: 0.7,
         hpVariationMax: 2.0,
-        poisonBrickChance: 0.03,     // Base reducida, aumentará con turnos
-        reinforcedRows: true,        // Cada 10 turnos, fila extra resistente
-        specialGrowthRate: 0.005     // 0.5% por turno
+        reinforcedRows: true,
+        specialBlockChance: 0.10,    // 10% inicial
+        specialGrowthRate: 0.006,    // Crece 0.6% por turno
+        maxSpecialChance: 0.70,      // Máximo 70%
+        specialDistribution: {
+            explosive: 0.20,         // Menos explosivos en difícil
+            armored: 0.50,           // Muchos armored
+            spawner: 0.30
+        }
     }
 };
 
