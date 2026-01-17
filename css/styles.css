@@ -1,0 +1,303 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    touch-action: none;
+    user-select: none;
+}
+
+html, body {
+    height: 100%;
+    width: 100%;
+}
+
+body {
+    background: #0a0a12;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    overflow: hidden;
+}
+
+#gameContainer {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    max-width: 500px;
+    background: #12121f;
+    overflow: hidden;
+}
+
+#gameCanvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+#ui {
+    position: absolute;
+    top: 5px;
+    left: 5px;
+    right: 5px;
+    display: none;
+    justify-content: space-between;
+    align-items: center;
+    color: white;
+    font-size: clamp(10px, 3vmin, 14px);
+    pointer-events: none;
+    z-index: 10;
+}
+
+#ui span {
+    background: rgba(0,0,0,0.6);
+    padding: clamp(4px, 1.2vmin, 6px) clamp(8px, 2vmin, 12px);
+    border-radius: 15px;
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+#difficultyBadge {
+    font-size: clamp(9px, 2.5vmin, 11px);
+}
+
+#speedIndicator {
+    background: rgba(233, 69, 96, 0.8) !important;
+    display: none;
+}
+
+#skipBtn {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    background: rgba(255,255,255,0.2);
+    color: white;
+    border: 1px solid rgba(255,255,255,0.3);
+    padding: clamp(6px, 1.5vmin, 8px) clamp(12px, 3vmin, 16px);
+    border-radius: 20px;
+    font-size: clamp(10px, 2.5vmin, 12px);
+    cursor: pointer;
+    display: none;
+    z-index: 50;
+    transition: background 0.2s;
+}
+
+#skipBtn:hover {
+    background: rgba(255,255,255,0.3);
+}
+
+/* Main Menu */
+#mainMenu {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(180deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 200;
+}
+
+#mainMenu h1 {
+    font-size: clamp(32px, 10vmin, 52px);
+    color: #fff;
+    margin-bottom: 5px;
+    text-shadow: 0 0 30px rgba(78, 204, 163, 0.5);
+    letter-spacing: 4px;
+}
+
+#mainMenu .subtitle {
+    color: rgba(255,255,255,0.5);
+    font-size: clamp(11px, 3vmin, 14px);
+    margin-bottom: clamp(10px, 3vmin, 30px);
+}
+
+#mainMenu h2 {
+    color: rgba(255,255,255,0.8);
+    font-size: clamp(14px, 4vmin, 18px);
+    margin-bottom: clamp(10px, 2vmin, 20px);
+    font-weight: normal;
+}
+
+.turn-selector {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: clamp(15px, 3vmin, 30px);
+    background: rgba(255,255,255,0.1);
+    padding: clamp(8px, 2vmin, 12px) clamp(12px, 3vmin, 20px);
+    border-radius: 25px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.turn-selector label {
+    color: rgba(255,255,255,0.8);
+    font-size: clamp(11px, 3vmin, 14px);
+}
+
+.turn-selector input {
+    width: 60px;
+    padding: 6px 10px;
+    border: none;
+    border-radius: 15px;
+    background: rgba(255,255,255,0.2);
+    color: white;
+    font-size: clamp(14px, 3.5vmin, 16px);
+    text-align: center;
+    outline: none;
+}
+
+.turn-selector input:focus {
+    background: rgba(255,255,255,0.3);
+}
+
+.turn-selector .balls-preview {
+    color: #4ecca3;
+    font-size: clamp(10px, 2.5vmin, 13px);
+}
+
+.difficulty-btn {
+    width: clamp(180px, 50vmin, 220px);
+    padding: clamp(12px, 3vmin, 18px) clamp(20px, 5vmin, 30px);
+    margin: clamp(4px, 1vmin, 8px) 0;
+    border: none;
+    border-radius: 30px;
+    font-size: clamp(14px, 4vmin, 18px);
+    font-weight: bold;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    position: relative;
+    overflow: hidden;
+}
+
+.difficulty-btn:hover {
+    transform: scale(1.05);
+}
+
+.difficulty-btn:active {
+    transform: scale(0.98);
+}
+
+.difficulty-btn .desc {
+    display: block;
+    font-size: 11px;
+    font-weight: normal;
+    opacity: 0.8;
+    margin-top: 4px;
+}
+
+#easyBtn {
+    background: linear-gradient(135deg, #4ecca3, #38b28a);
+    color: white;
+    box-shadow: 0 5px 20px rgba(78, 204, 163, 0.4);
+}
+
+#mediumBtn {
+    background: linear-gradient(135deg, #f9ed69, #f5b942);
+    color: #333;
+    box-shadow: 0 5px 20px rgba(249, 237, 105, 0.4);
+}
+
+#hardBtn {
+    background: linear-gradient(135deg, #e94560, #c23152);
+    color: white;
+    box-shadow: 0 5px 20px rgba(233, 69, 96, 0.4);
+}
+
+.menu-balls {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+.menu-ball {
+    position: absolute;
+    border-radius: 50%;
+    opacity: 0.1;
+}
+
+/* Game Over */
+#gameOver {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.9);
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    color: white;
+    z-index: 100;
+}
+
+#gameOver h1 {
+    font-size: clamp(28px, 8vmin, 36px);
+    margin-bottom: clamp(10px, 3vmin, 20px);
+    color: #e94560;
+}
+
+#gameOver p {
+    font-size: clamp(12px, 3.5vmin, 16px);
+    margin-bottom: 6px;
+    color: #aaa;
+}
+
+#gameOver .stat {
+    font-size: clamp(22px, 6vmin, 28px);
+    color: #4ecca3;
+    margin-bottom: clamp(10px, 3vmin, 20px);
+}
+
+#gameOver .difficulty-label {
+    font-size: clamp(11px, 3vmin, 14px);
+    padding: 5px 14px;
+    border-radius: 15px;
+    margin-bottom: clamp(15px, 4vmin, 25px);
+}
+
+.game-over-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: clamp(6px, 2vmin, 10px);
+}
+
+#restartBtn, #menuBtn {
+    background: linear-gradient(135deg, #e94560, #0f3460);
+    color: white;
+    border: none;
+    padding: clamp(10px, 3vmin, 15px) clamp(25px, 7vmin, 40px);
+    font-size: clamp(13px, 3.5vmin, 16px);
+    border-radius: 30px;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    min-width: clamp(160px, 45vmin, 200px);
+}
+
+#menuBtn {
+    background: linear-gradient(135deg, #333, #555);
+}
+
+#restartBtn:hover, #menuBtn:hover {
+    transform: scale(1.05);
+}
+
+#instructions {
+    position: absolute;
+    bottom: 12%;
+    left: 0;
+    right: 0;
+    text-align: center;
+    color: rgba(255,255,255,0.4);
+    font-size: clamp(10px, 2.8vmin, 13px);
+    pointer-events: none;
+    transition: opacity 0.5s;
+    display: none;
+    padding: 0 10px;
+}
