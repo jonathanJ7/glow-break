@@ -618,6 +618,7 @@
             isShooting: false,
             isHolding: false,
             aimAngle: -Math.PI / 2,
+            aimHistory: [], // Historial de ángulos para evitar movimientos al levantar el dedo
             ballsToShoot: 0,
             ballsLanded: 0,
             firstBallLanded: false,
@@ -738,6 +739,7 @@
                 isShooting: false,
                 isHolding: false,
                 aimAngle: -Math.PI / 2,
+                aimHistory: [],
                 ballsToShoot: 0,
                 ballsLanded: 0,
                 firstBallLanded: false,
@@ -1882,17 +1884,25 @@
         
         function handlePointerMove(e) {
             if (!gameState.isAiming || gameState.isShooting) return;
-            
+
             const pos = getPointerPos(e);
             const dx = pos.x - gameState.launchX;
             const dy = pos.y - gameState.launchY;
-            
+
             let angle = Math.atan2(dy, dx);
-            
+
             if (angle > -0.2) angle = -0.2;
             if (angle < -Math.PI + 0.2) angle = -Math.PI + 0.2;
-            
+
             gameState.aimAngle = angle;
+
+            // Guardar en historial con timestamp
+            const now = performance.now();
+            gameState.aimHistory.push({ angle: angle, timestamp: now });
+
+            // Limpiar historial antiguo (mantener solo últimos 500ms)
+            const cutoff = now - 500;
+            gameState.aimHistory = gameState.aimHistory.filter(entry => entry.timestamp > cutoff);
         }
         
         function handlePointerUp(e) {
@@ -1902,10 +1912,42 @@
                 document.getElementById('speedIndicator').style.display = 'none';
                 return;
             }
-            
+
             if (!gameState.isAiming) return;
-            
+
             gameState.isAiming = false;
+
+            // Usar ángulo con delay para evitar movimientos al levantar el dedo
+            const POINTER_DELAY_MS = 150; // Delay de 150ms
+            const now = performance.now();
+            const targetTime = now - POINTER_DELAY_MS;
+
+            // Buscar el ángulo más cercano al tiempo objetivo (hace 150ms)
+            let bestAngle = gameState.aimAngle; // Fallback al ángulo actual
+
+            if (gameState.aimHistory.length > 0) {
+                let closestEntry = null;
+                let minTimeDiff = Infinity;
+
+                for (let entry of gameState.aimHistory) {
+                    const timeDiff = Math.abs(entry.timestamp - targetTime);
+                    if (timeDiff < minTimeDiff) {
+                        minTimeDiff = timeDiff;
+                        closestEntry = entry;
+                    }
+                }
+
+                if (closestEntry) {
+                    bestAngle = closestEntry.angle;
+                }
+            }
+
+            // Usar el ángulo con delay
+            gameState.aimAngle = bestAngle;
+
+            // Limpiar historial
+            gameState.aimHistory = [];
+
             startShooting();
         }
         
@@ -1913,8 +1955,9 @@
         canvas.addEventListener('mousedown', handlePointerDown);
         canvas.addEventListener('mousemove', handlePointerMove);
         canvas.addEventListener('mouseup', handlePointerUp);
-        canvas.addEventListener('mouseleave', () => { 
+        canvas.addEventListener('mouseleave', () => {
             gameState.isAiming = false;
+            gameState.aimHistory = []; // Limpiar historial al salir
             if (gameState.isHolding) {
                 gameState.speedMultiplier = 1;
                 gameState.isHolding = false;
