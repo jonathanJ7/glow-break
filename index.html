@@ -1923,7 +1923,8 @@
             const targetTime = now - POINTER_DELAY_MS;
 
             // Buscar el ángulo más cercano al tiempo objetivo (hace 150ms)
-            let bestAngle = gameState.aimAngle; // Fallback al ángulo actual
+            const currentAngle = gameState.aimAngle; // Guardar ángulo actual para comparar
+            let bestAngle = currentAngle; // Fallback al ángulo actual
 
             if (gameState.aimHistory.length > 0) {
                 let closestEntry = null;
@@ -1941,6 +1942,14 @@
                     bestAngle = closestEntry.angle;
                 }
             }
+
+            // DEBUG: Mostrar información del delay
+            const angleDiff = Math.abs(currentAngle - bestAngle) * (180 / Math.PI); // Diferencia en grados
+            console.log(`🎯 Delay del puntero:
+  - Historial: ${gameState.aimHistory.length} entradas
+  - Ángulo actual: ${(currentAngle * 180 / Math.PI).toFixed(1)}°
+  - Ángulo hace ${POINTER_DELAY_MS}ms: ${(bestAngle * 180 / Math.PI).toFixed(1)}°
+  - Diferencia: ${angleDiff.toFixed(1)}° ${angleDiff > 2 ? '✅ DELAY APLICADO' : '⚠️ Sin cambio significativo'}`);
 
             // Usar el ángulo con delay
             gameState.aimAngle = bestAngle;
