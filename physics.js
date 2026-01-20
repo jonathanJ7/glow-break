@@ -432,50 +432,113 @@ export function calculateTrajectory(startX, startY, angle, maxBounces) {
     return points;
 }
 
+// Helper function for ray-circle intersection
+function raycastToCircle(x, y, vx, vy, cx, cy, radius) {
+    // Ray: P(t) = (x,y) + t*(vx,vy)
+    // Circle: (P.x - cx)^2 + (P.y - cy)^2 = radius^2
+
+    const dx = x - cx;
+    const dy = y - cy;
+
+    const a = vx * vx + vy * vy;
+    const b = 2 * (dx * vx + dy * vy);
+    const c = dx * dx + dy * dy - radius * radius;
+
+    const discriminant = b * b - 4 * a * c;
+
+    if (discriminant < 0) return null;
+
+    const t1 = (-b - Math.sqrt(discriminant)) / (2 * a);
+    const t2 = (-b + Math.sqrt(discriminant)) / (2 * a);
+
+    // Return the closest positive t
+    if (t1 > 0) return {dist: t1};
+    if (t2 > 0) return {dist: t2};
+    return null;
+}
+
 function raycastToBrick(x, y, vx, vy, brick) {
     const brickLeft = brick.x + 2;
     const brickRight = brick.x + 2 + brick.width;
     const brickTop = brick.y + 2;
     const brickBottom = brick.y + 2 + brick.height;
 
-    const left = brickLeft - getBallRadius();
-    const right = brickRight + getBallRadius();
-    const top = brickTop - getBallRadius();
-    const bottom = brickBottom + getBallRadius();
+    const radius = getBallRadius();
 
     let minDist = Infinity;
     let hitSide = null;
 
-    if (vx > 0 && x < left) {
-        const t = (left - x) / vx;
+    // Raycast against the four sides of the expanded rectangle
+    // Left side
+    if (vx > 0) {
+        const t = (brickLeft - radius - x) / vx;
         const hitY = y + vy * t;
         if (t > 0 && hitY >= brickTop && hitY <= brickBottom && t < minDist) {
             minDist = t;
             hitSide = 'left';
         }
     }
-    if (vx < 0 && x > right) {
-        const t = (right - x) / vx;
+    // Right side
+    if (vx < 0) {
+        const t = (brickRight + radius - x) / vx;
         const hitY = y + vy * t;
         if (t > 0 && hitY >= brickTop && hitY <= brickBottom && t < minDist) {
             minDist = t;
             hitSide = 'right';
         }
     }
-    if (vy > 0 && y < top) {
-        const t = (top - y) / vy;
+    // Top side
+    if (vy > 0) {
+        const t = (brickTop - radius - y) / vy;
         const hitX = x + vx * t;
         if (t > 0 && hitX >= brickLeft && hitX <= brickRight && t < minDist) {
             minDist = t;
             hitSide = 'top';
         }
     }
-    if (vy < 0 && y > bottom) {
-        const t = (bottom - y) / vy;
+    // Bottom side
+    if (vy < 0) {
+        const t = (brickBottom + radius - y) / vy;
         const hitX = x + vx * t;
         if (t > 0 && hitX >= brickLeft && hitX <= brickRight && t < minDist) {
             minDist = t;
             hitSide = 'bottom';
+        }
+    }
+
+    // Raycast against the four corners (as circles)
+    // This handles cases where the ball hits the rounded corners
+    const corners = [
+        {x: brickLeft, y: brickTop, sideX: 'left', sideY: 'top'},
+        {x: brickRight, y: brickTop, sideX: 'right', sideY: 'top'},
+        {x: brickLeft, y: brickBottom, sideX: 'left', sideY: 'bottom'},
+        {x: brickRight, y: brickBottom, sideX: 'right', sideY: 'bottom'}
+    ];
+
+    for (let corner of corners) {
+        const collision = raycastToCircle(x, y, vx, vy, corner.x, corner.y, radius);
+        if (collision && collision.dist > 0 && collision.dist < minDist) {
+            // Check if this corner hit is outside the main rectangle bounds
+            const hitX = x + vx * collision.dist;
+            const hitY = y + vy * collision.dist;
+
+            // Only count corner hits that are actually in the corner region
+            const inCornerX = (corner.x === brickLeft && hitX < brickLeft) ||
+                            (corner.x === brickRight && hitX > brickRight);
+            const inCornerY = (corner.y === brickTop && hitY < brickTop) ||
+                            (corner.y === brickBottom && hitY > brickBottom);
+
+            if (inCornerX || inCornerY) {
+                minDist = collision.dist;
+                // Determine hit side based on which component has larger deviation
+                const dx = hitX - corner.x;
+                const dy = hitY - corner.y;
+                if (Math.abs(dx) > Math.abs(dy)) {
+                    hitSide = corner.sideX;
+                } else {
+                    hitSide = corner.sideY;
+                }
+            }
         }
     }
 
