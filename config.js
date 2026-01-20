@@ -7,6 +7,7 @@ export const BALL_SPEED = 10;
 export const FAST_SPEED_MULTIPLIER = 5;
 export const SHOOT_DELAY = 45;
 export const MAX_BALLS_ON_SCREEN = 200;
+export const POINTER_DISPLAY_DELAY_MS = 100; // Delay para visualización suave del puntero
 
 // ====================================
 // COLORES Y ESTILOS

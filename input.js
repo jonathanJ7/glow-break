@@ -1,6 +1,6 @@
 import { gameState, startShooting, shootTimeout, shootNextBall, endTurn, initGame, showMainMenu, updateBallsPreview, currentDifficulty } from './game.js';
 import { canvas, getLeftBorder, getRightBorder } from './rendering.js';
-import { FAST_SPEED_MULTIPLIER } from './config.js';
+import { FAST_SPEED_MULTIPLIER, POINTER_DISPLAY_DELAY_MS } from './config.js';
 
 // Input handling
 export function getPointerPos(e) {
@@ -47,8 +47,7 @@ export function handlePointerMove(e) {
     const cutoff = now - 500;
     gameState.aimHistory = gameState.aimHistory.filter(entry => entry.timestamp > cutoff);
 
-    const DISPLAY_DELAY_MS = 200;
-    const targetTime = now - DISPLAY_DELAY_MS;
+    const targetTime = now - POINTER_DISPLAY_DELAY_MS;
 
     let displayAngle = angle;
     if (gameState.aimHistory.length > 1) {
