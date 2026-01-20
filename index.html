@@ -617,8 +617,9 @@
             isAiming: false,
             isShooting: false,
             isHolding: false,
-            aimAngle: -Math.PI / 2,
-            aimHistory: [], // Historial de ángulos para evitar movimientos al levantar el dedo
+            aimAngle: -Math.PI / 2, // Ángulo real para disparar (sin delay)
+            displayAimAngle: -Math.PI / 2, // Ángulo para visualización (con delay)
+            aimHistory: [], // Historial de ángulos con timestamps
             ballsToShoot: 0,
             ballsLanded: 0,
             firstBallLanded: false,
@@ -739,6 +740,7 @@
                 isShooting: false,
                 isHolding: false,
                 aimAngle: -Math.PI / 2,
+                displayAimAngle: -Math.PI / 2,
                 aimHistory: [],
                 ballsToShoot: 0,
                 ballsLanded: 0,
@@ -1784,9 +1786,9 @@
             // Draw aim line
             if (gameState.isAiming && !gameState.isShooting) {
                 const trajectory = calculateTrajectory(
-                    gameState.launchX, 
-                    gameState.launchY, 
-                    gameState.aimAngle,
+                    gameState.launchX,
+                    gameState.launchY,
+                    gameState.displayAimAngle, // Usar ángulo con delay para visualización suave
                     5
                 );
                 
@@ -1894,6 +1896,7 @@
             if (angle > -0.2) angle = -0.2;
             if (angle < -Math.PI + 0.2) angle = -Math.PI + 0.2;
 
+            // Actualizar ángulo real (sin delay, para disparar)
             gameState.aimAngle = angle;
 
             // Guardar en historial con timestamp
@@ -1903,6 +1906,30 @@
             // Limpiar historial antiguo (mantener solo últimos 500ms)
             const cutoff = now - 500;
             gameState.aimHistory = gameState.aimHistory.filter(entry => entry.timestamp > cutoff);
+
+            // Calcular ángulo con delay para visualización
+            const DISPLAY_DELAY_MS = 200;
+            const targetTime = now - DISPLAY_DELAY_MS;
+
+            let displayAngle = angle; // Fallback al ángulo actual
+            if (gameState.aimHistory.length > 1) {
+                let closestEntry = null;
+                let minTimeDiff = Infinity;
+
+                for (let entry of gameState.aimHistory) {
+                    const timeDiff = Math.abs(entry.timestamp - targetTime);
+                    if (timeDiff < minTimeDiff) {
+                        minTimeDiff = timeDiff;
+                        closestEntry = entry;
+                    }
+                }
+
+                if (closestEntry) {
+                    displayAngle = closestEntry.angle;
+                }
+            }
+
+            gameState.displayAimAngle = displayAngle;
         }
         
         function handlePointerUp(e) {
@@ -1917,33 +1944,8 @@
 
             gameState.isAiming = false;
 
-            // Usar ángulo con delay para evitar movimientos al levantar el dedo
-            const POINTER_DELAY_MS = 200; // Delay de 200ms
-            const now = performance.now();
-            const targetTime = now - POINTER_DELAY_MS;
-
-            // Buscar el ángulo más cercano al tiempo objetivo (hace 150ms)
-            let bestAngle = gameState.aimAngle; // Fallback al ángulo actual
-
-            if (gameState.aimHistory.length > 0) {
-                let closestEntry = null;
-                let minTimeDiff = Infinity;
-
-                for (let entry of gameState.aimHistory) {
-                    const timeDiff = Math.abs(entry.timestamp - targetTime);
-                    if (timeDiff < minTimeDiff) {
-                        minTimeDiff = timeDiff;
-                        closestEntry = entry;
-                    }
-                }
-
-                if (closestEntry) {
-                    bestAngle = closestEntry.angle;
-                }
-            }
-
-            // Usar el ángulo con delay
-            gameState.aimAngle = bestAngle;
+            // Usar el ángulo actual (ya está en gameState.aimAngle)
+            // El delay visual ya se aplicó en handlePointerMove para displayAimAngle
 
             // Limpiar historial
             gameState.aimHistory = [];
