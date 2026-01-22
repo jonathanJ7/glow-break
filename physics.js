@@ -318,6 +318,32 @@ function checkBrickCollisions(ball) {
     }
 }
 
+// Multiply ball into multiple balls with different angles
+function multiplyBall(ball) {
+    const speed = Math.hypot(ball.vx, ball.vy);
+    const currentAngle = Math.atan2(ball.vy, ball.vx);
+
+    // Create 2 additional balls at +/- 30 degrees from the original direction
+    const angleOffsets = [-Math.PI / 6, Math.PI / 6]; // -30° and +30°
+
+    for (const offset of angleOffsets) {
+        const newAngle = currentAngle + offset;
+        const newBall = {
+            x: ball.x,
+            y: ball.y,
+            vx: Math.cos(newAngle) * speed,
+            vy: Math.sin(newAngle) * speed,
+            active: true,
+            hasGoneUp: ball.hasGoneUp,
+            fireball: ball.fireball,
+            damage: ball.damage,
+            hitBricks: ball.fireball ? new Set() : null,
+            lifetime: 0
+        };
+        gameState.balls.push(newBall);
+    }
+}
+
 function checkBonusCollisions(ball) {
     for (let bonus of gameState.bonuses) {
         const dist = Math.hypot(ball.x - bonus.x, ball.y - bonus.y);
@@ -331,9 +357,12 @@ function checkBonusCollisions(ball) {
                 gameState.activePowerups.superDamage += 15;
             } else if (bonus.type === 'horizontal') {
                 fireHorizontalLaser(ball.y);
+            } else if (bonus.type === 'ballMultiplier') {
+                // Multiplicar la bola en 3 bolas con diferentes direcciones
+                multiplyBall(ball);
             }
 
-            createParticles(bonus.x, bonus.y, '#4ecca3', 6);
+            createParticles(bonus.x, bonus.y, '#f9ed69', 8);
             gameState.bonuses = gameState.bonuses.filter(b => b !== bonus);
 
             updateUI();
