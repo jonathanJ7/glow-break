@@ -151,7 +151,7 @@ export function generateNewRow() {
             });
             bonusPlaced = true;
         } else if (rand < density + config.bonusChance + config.powerupChance && !powerupPlaced && turn > 3) {
-            const powerupTypes = ['fireball', 'horizontal', 'superDamage'];
+            const powerupTypes = ['fireball', 'horizontal', 'superDamage', 'ballMultiplier'];
             const ptype = powerupTypes[Math.floor(Math.random() * powerupTypes.length)];
             gameState.bonuses.push({
                 x: leftBorder + col * cellSize + cellSize / 2,

@@ -261,6 +261,10 @@ export function draw() {
             color = '#a855f7';
             text = '';
             icon = '💪';
+        } else if (bonus.type === 'ballMultiplier') {
+            color = '#f9ed69';
+            text = '';
+            icon = '✨';
         }
 
         ctx.shadowColor = color;
