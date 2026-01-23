@@ -356,7 +356,7 @@ export function endGame() {
     document.getElementById('speedIndicator').style.display = 'none';
     document.getElementById('skipBtn').style.display = 'none';
     document.getElementById('finalTurn').textContent = gameState.turn;
-    document.getElementById('finalBalls').textContent = gameState.ballCount;
+    document.getElementById('finalBalls').textContent = getTotalBalls();
 
     const diffLabel = document.getElementById('finalDifficulty');
     diffLabel.textContent = difficultyConfig.emoji + ' ' + difficultyConfig.name;

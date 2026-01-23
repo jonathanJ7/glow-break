@@ -357,11 +357,12 @@ export function draw() {
         ctx.arc(gameState.launchX, gameState.launchY, getBallRadius() + 2, 0, Math.PI * 2);
         ctx.fill();
 
-        if (gameState.ballCount > 1) {
+        const totalBalls = gameState.ballInventory.normal + gameState.ballInventory.fireball + gameState.ballInventory.splitter;
+        if (totalBalls > 1) {
             ctx.fillStyle = 'rgba(255,255,255,0.6)';
             ctx.font = `bold ${getFontSize(11)}px Arial`;
             ctx.textAlign = 'center';
-            ctx.fillText('x' + gameState.ballCount, gameState.launchX, gameState.launchY + 22 * getScale());
+            ctx.fillText('x' + totalBalls, gameState.launchX, gameState.launchY + 22 * getScale());
         }
     }
 
