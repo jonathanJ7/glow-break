@@ -1,20 +1,20 @@
-# Instrucciones para Claude
+# Instructions for Claude
 
-## Versionado de la PWA
+## PWA Versioning
 
-**IMPORTANTE**: Cada cambio en el código requiere actualizar la versión en DOS lugares:
+**IMPORTANT**: Every code change requires updating the version in TWO places:
 
-1. **`service-worker.js`** - línea 2:
+1. **`service-worker.js`** - line 2:
    ```javascript
-   const APP_VERSION = '1.2.0';  // Cambiar aquí
+   const APP_VERSION = '1.2.0';  // Change here
    ```
 
-2. **`index.html`** - buscar el div `#versionInfo`:
+2. **`index.html`** - find the `#versionInfo` div:
    ```html
-   <div id="versionInfo">v1.2.0</div>  <!-- Y aquí -->
+   <div id="versionInfo">v1.2.0</div>  <!-- And here -->
    ```
 
-Esto asegura que:
-- El caché se invalide correctamente
-- Los usuarios vean la nueva versión
-- Se muestre el banner de actualización cuando haya cambios
+This ensures that:
+- The cache invalidates correctly
+- Users can see the new version
+- The update banner shows when there are changes
