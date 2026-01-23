@@ -235,7 +235,7 @@ function checkTurnEnd() {
     if (!gameState.isShooting) return;
 
     const activeBalls = gameState.balls.filter(b => b.active).length;
-    const allBallsShot = gameState.ballsToShoot === 0;
+    const allBallsShot = gameState.ballsToShoot.length === 0;
     const noBallsActive = activeBalls === 0;
 
     if (allBallsShot && noBallsActive) {
@@ -269,6 +269,14 @@ function checkBrickCollisions(ball) {
 
         if (circleRectCollision(ball.x, ball.y, getBallRadius(),
             brick.x + 2, brick.y + 2, brick.width, brick.height)) {
+
+            // Si es una bola splitter, dividirse en 5 bolas normales
+            if (ball.splitter && !ball.hasSplit) {
+                const damage = ball.damage * (brick.type === 'armored' ? 0.5 : 1);
+                brick.hp -= damage;
+                splitBall(ball);
+                return;
+            }
 
             if (!ball.fireball) {
                 // Normal ball: bounce
@@ -335,7 +343,10 @@ function multiplyBall(ball) {
             vy: Math.sin(newAngle) * speed,
             active: true,
             hasGoneUp: ball.hasGoneUp,
+            ballType: ball.ballType,
             fireball: ball.fireball,
+            splitter: ball.splitter,
+            hasSplit: ball.hasSplit,
             damage: ball.damage,
             hitBricks: ball.fireball ? new Set() : null,
             lifetime: 0
@@ -344,21 +355,63 @@ function multiplyBall(ball) {
     }
 }
 
+// Split a splitter ball into 5 normal balls
+function splitBall(ball) {
+    if (ball.hasSplit) return;  // Solo dividir una vez
+
+    ball.hasSplit = true;
+    ball.active = false;  // Desactivar la bola original
+    gameState.ballsLanded++;  // Contar como aterrizada
+
+    const speed = Math.hypot(ball.vx, ball.vy);
+    const currentAngle = Math.atan2(ball.vy, ball.vx);
+
+    // Crear 5 bolas normales en abanico
+    const angleOffsets = [-Math.PI / 3, -Math.PI / 6, 0, Math.PI / 6, Math.PI / 3]; // -60°, -30°, 0°, +30°, +60°
+
+    for (const offset of angleOffsets) {
+        const newAngle = currentAngle + offset;
+        const newBall = {
+            x: ball.x,
+            y: ball.y,
+            vx: Math.cos(newAngle) * speed,
+            vy: Math.sin(newAngle) * speed,
+            active: true,
+            hasGoneUp: ball.hasGoneUp,
+            ballType: 'normal',
+            fireball: false,
+            splitter: false,
+            hasSplit: false,
+            damage: 1,
+            hitBricks: null,
+            lifetime: 0
+        };
+        gameState.balls.push(newBall);
+    }
+
+    createParticles(ball.x, ball.y, '#f9ed69', 12);
+}
+
 function checkBonusCollisions(ball) {
     for (let bonus of gameState.bonuses) {
         const dist = Math.hypot(ball.x - bonus.x, ball.y - bonus.y);
 
         if (dist < getBallRadius() + bonus.radius) {
+            const count = bonus.value || 1;
+
             if (bonus.type === 'ball') {
-                gameState.ballCount += bonus.value || 1;
-            } else if (bonus.type === 'fireball') {
-                gameState.activePowerups.fireball += 10;
-            } else if (bonus.type === 'superDamage') {
-                gameState.activePowerups.superDamage += 15;
+                // Bola normal
+                gameState.ballInventory.normal += count;
+            } else if (bonus.type === 'fireballBall') {
+                // Bola de fuego
+                gameState.ballInventory.fireball += count;
+            } else if (bonus.type === 'splitterBall') {
+                // Bola que se divide
+                gameState.ballInventory.splitter += count;
             } else if (bonus.type === 'horizontal') {
                 fireHorizontalLaser(ball.y);
             } else if (bonus.type === 'ballMultiplier') {
-                // Multiplicar la bola en 3 bolas con diferentes direcciones
+                // Multiplicar la bola actual en 3 bolas con diferentes direcciones
                 multiplyBall(ball);
             }
 

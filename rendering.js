@@ -249,20 +249,25 @@ export function draw() {
         let text = '+' + (bonus.value || 1);
         let icon = null;
 
-        if (bonus.type === 'fireball') {
+        if (bonus.type === 'ball') {
+            // Bola normal - verde
+            color = '#4ecca3';
+        } else if (bonus.type === 'fireballBall') {
+            // Bola de fuego - roja
             color = '#ff6b6b';
             text = '';
             icon = '🔥';
+        } else if (bonus.type === 'splitterBall') {
+            // Bola divisora - amarilla
+            color = '#f9ed69';
+            text = '';
+            icon = '💥';
         } else if (bonus.type === 'horizontal') {
             color = '#3b82f6';
             text = '';
             icon = '⚡';
-        } else if (bonus.type === 'superDamage') {
-            color = '#a855f7';
-            text = '';
-            icon = '💪';
         } else if (bonus.type === 'ballMultiplier') {
-            color = '#f9ed69';
+            color = '#a855f7';
             text = '';
             icon = '✨';
         }
@@ -325,14 +330,17 @@ export function draw() {
         if (!ball.active) continue;
 
         if (ball.fireball) {
+            // Bola de fuego - roja con glow
             ctx.shadowColor = '#ff6b6b';
             ctx.shadowBlur = 8;
             ctx.fillStyle = '#ff6b6b';
-        } else if (ball.damage > 1) {
-            ctx.shadowColor = '#a855f7';
-            ctx.shadowBlur = 6;
-            ctx.fillStyle = '#a855f7';
+        } else if (ball.splitter && !ball.hasSplit) {
+            // Bola divisora - amarilla con glow
+            ctx.shadowColor = '#f9ed69';
+            ctx.shadowBlur = 8;
+            ctx.fillStyle = '#f9ed69';
         } else {
+            // Bola normal - blanca
             ctx.fillStyle = '#fff';
         }
 
@@ -400,15 +408,16 @@ export function draw() {
         }
     }
 
-    // Draw powerup indicators
-    if (gameState.activePowerups.fireball > 0 || gameState.activePowerups.superDamage > 0) {
+    // Draw ball inventory indicators (show special balls)
+    const inv = gameState.ballInventory;
+    if (inv.fireball > 0 || inv.splitter > 0) {
         const scale = getScale();
         let indicatorX = leftBorder + 10 * scale;
         const indicatorY = getBottomLine() + 20 * scale;
         const indicatorW = 50 * scale;
         const indicatorH = 20 * scale;
 
-        if (gameState.activePowerups.fireball > 0) {
+        if (inv.fireball > 0) {
             ctx.fillStyle = 'rgba(255, 107, 107, 0.8)';
             ctx.beginPath();
             ctx.roundRect(indicatorX, indicatorY, indicatorW, indicatorH, 10 * scale);
@@ -416,19 +425,19 @@ export function draw() {
             ctx.fillStyle = 'white';
             ctx.font = `${getFontSize(11)}px Arial`;
             ctx.textAlign = 'center';
-            ctx.fillText('🔥 ' + gameState.activePowerups.fireball, indicatorX + indicatorW / 2, indicatorY + indicatorH * 0.7);
+            ctx.fillText('🔥 ' + inv.fireball, indicatorX + indicatorW / 2, indicatorY + indicatorH * 0.7);
             indicatorX += indicatorW + 10 * scale;
         }
 
-        if (gameState.activePowerups.superDamage > 0) {
-            ctx.fillStyle = 'rgba(168, 85, 247, 0.8)';
+        if (inv.splitter > 0) {
+            ctx.fillStyle = 'rgba(249, 237, 105, 0.8)';
             ctx.beginPath();
             ctx.roundRect(indicatorX, indicatorY, indicatorW, indicatorH, 10 * scale);
             ctx.fill();
-            ctx.fillStyle = 'white';
+            ctx.fillStyle = '#333';
             ctx.font = `${getFontSize(11)}px Arial`;
             ctx.textAlign = 'center';
-            ctx.fillText('💪 ' + gameState.activePowerups.superDamage, indicatorX + indicatorW / 2, indicatorY + indicatorH * 0.7);
+            ctx.fillText('💥 ' + inv.splitter, indicatorX + indicatorW / 2, indicatorY + indicatorH * 0.7);
         }
     }
 }
