@@ -131,7 +131,7 @@ export function setupEventListeners() {
     // Skip button
     document.getElementById('skipBtn').addEventListener('click', function() {
         if (gameState.isShooting && !gameState.gameOver) {
-            gameState.ballsToShoot = 0;
+            gameState.ballsToShoot = [];  // Vaciar la cola de bolas
             if (shootTimeout) {
                 clearTimeout(shootTimeout);
                 // Note: shootTimeout is exported from game.js but can't be modified here
