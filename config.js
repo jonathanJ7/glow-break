@@ -40,7 +40,8 @@ export const DIFFICULTY_SETTINGS = {
         startingBalls: 1,
         hpVariationMin: 0.3,
         hpVariationMax: 1.0,
-        poisonBrickChance: 0.04
+        poisonBrickChance: 0.04,
+        regeneratorChance: 0.03
     },
     medium: {
         name: 'MEDIO',
@@ -58,7 +59,8 @@ export const DIFFICULTY_SETTINGS = {
         startingBalls: 1,
         hpVariationMin: 0.5,
         hpVariationMax: 1.5,
-        poisonBrickChance: 0.05
+        poisonBrickChance: 0.05,
+        regeneratorChance: 0.05
     },
     hard: {
         name: 'DIFÍCIL',
@@ -77,6 +79,7 @@ export const DIFFICULTY_SETTINGS = {
         hpVariationMin: 0.7,
         hpVariationMax: 2.0,
         poisonBrickChance: 0.06,
+        regeneratorChance: 0.08,
         reinforcedRows: true
     }
 };
