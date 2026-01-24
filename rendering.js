@@ -1,6 +1,17 @@
+/**
+ * Rendering Module - Refactorizado con patrón Strategy
+ *
+ * Este módulo usa los registries de behaviors para renderizar
+ * entidades de forma extensible (Open/Closed principle).
+ *
+ * Para agregar un nuevo tipo visual, solo necesitas registrar
+ * un nuevo behavior con su método render().
+ */
+
 import { gameState, difficultyConfig } from './game.js';
 import { COLS, BRICK_COLORS, BASE_BALL_RADIUS } from './config.js';
 import { calculateTrajectory } from './physics.js';
+import { BrickRegistry, BallRegistry, BonusRegistry } from './js/behaviors/index.js';
 
 export let canvas;
 export let ctx;
@@ -9,14 +20,16 @@ export let prevCellSize = null;
 export let prevTopOffset = null;
 export let prevLeftBorder = null;
 
-// Initialize canvas
+// ====================================
+// INICIALIZACIÓN
+// ====================================
+
 export function initCanvas() {
     canvas = document.getElementById('gameCanvas');
     ctx = canvas.getContext('2d');
     container = document.getElementById('gameContainer');
 }
 
-// Responsive canvas
 export function resizeCanvas() {
     const rect = container.getBoundingClientRect();
     canvas.width = rect.width * window.devicePixelRatio;
@@ -79,7 +92,10 @@ export function handleResize() {
     prevLeftBorder = getLeftBorder();
 }
 
-// Dimension utilities
+// ====================================
+// UTILIDADES DE DIMENSIONES
+// ====================================
+
 export function getWidth() {
     return container.getBoundingClientRect().width;
 }
@@ -131,19 +147,27 @@ export function getBrickColor(hp, maxHp) {
     return BRICK_COLORS[Math.max(0, index)];
 }
 
-// Drawing
-export function draw() {
-    const width = getWidth();
-    const height = getHeight();
-    const leftBorder = getLeftBorder();
-    const rightBorder = getRightBorder();
+// ====================================
+// HELPERS PARA BEHAVIORS
+// ====================================
 
+const renderHelpers = {
+    getFontSize,
+    getScale,
+    getBallRadius,
+    getBrickColor
+};
+
+// ====================================
+// FUNCIONES DE RENDERIZADO MODULARES
+// ====================================
+
+function drawBackground(width, height) {
     ctx.fillStyle = '#12121f';
     ctx.fillRect(0, 0, width, height);
+}
 
-    if (!gameState.gameStarted) return;
-
-    // Draw play area border
+function drawPlayArea(leftBorder, rightBorder) {
     const topY = getTopOffset() - 15;
     const areaHeight = getBottomLine() - topY + 10;
 
@@ -154,8 +178,9 @@ export function draw() {
     ctx.strokeStyle = `${difficultyConfig.color}40`;
     ctx.lineWidth = 1;
     ctx.strokeRect(leftBorder - 1, topY - 1, rightBorder - leftBorder + 2, areaHeight + 2);
+}
 
-    // Draw bottom line
+function drawBottomLine(leftBorder, rightBorder) {
     ctx.strokeStyle = 'rgba(233, 69, 96, 0.5)';
     ctx.lineWidth = 2;
     ctx.setLineDash([5, 5]);
@@ -164,8 +189,9 @@ export function draw() {
     ctx.lineTo(rightBorder, getBottomLine());
     ctx.stroke();
     ctx.setLineDash([]);
+}
 
-    // Draw grid lines
+function drawGrid(leftBorder) {
     ctx.strokeStyle = 'rgba(255,255,255,0.03)';
     ctx.lineWidth = 1;
     const cellSize = getCellSize();
@@ -175,134 +201,81 @@ export function draw() {
         ctx.lineTo(leftBorder + i * cellSize, getBottomLine());
         ctx.stroke();
     }
+}
 
-    // Draw bricks
-    for (let brick of gameState.bricks) {
-        const color = getBrickColor(brick.hp, brick.maxHp);
+/**
+ * Renderiza un bloque usando su behavior registrado
+ */
+function drawBrick(brick) {
+    const color = getBrickColor(brick.hp, brick.maxHp);
 
-        ctx.fillStyle = 'rgba(0,0,0,0.3)';
-        ctx.beginPath();
-        ctx.roundRect(brick.x + 4, brick.y + 4, brick.width, brick.height, 6);
-        ctx.fill();
+    // Sombra
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath();
+    ctx.roundRect(brick.x + 4, brick.y + 4, brick.width, brick.height, 6);
+    ctx.fill();
 
-        ctx.fillStyle = color;
+    // Bloque base
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.roundRect(brick.x + 2, brick.y + 2, brick.width, brick.height, 6);
+    ctx.fill();
+
+    // Borde reforzado
+    if (brick.isReinforced) {
+        ctx.strokeStyle = 'rgba(233, 69, 96, 0.6)';
+        ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.roundRect(brick.x + 2, brick.y + 2, brick.width, brick.height, 6);
-        ctx.fill();
-
-        if (brick.isReinforced) {
-            ctx.strokeStyle = 'rgba(233, 69, 96, 0.6)';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.roundRect(brick.x + 2, brick.y + 2, brick.width, brick.height, 6);
-            ctx.stroke();
-        }
-
-        // Special brick indicators
-        if (brick.type === 'explosive') {
-            ctx.fillStyle = 'rgba(255,100,100,0.3)';
-            ctx.beginPath();
-            ctx.roundRect(brick.x + 2, brick.y + 2, brick.width, brick.height, 6);
-            ctx.fill();
-
-            ctx.fillStyle = 'rgba(255,255,255,0.8)';
-            ctx.font = `${getFontSize(12)}px Arial`;
-            ctx.textAlign = 'center';
-            ctx.fillText('💥', brick.x + 2 + brick.width / 2, brick.y + 15 * getScale());
-        }
-
-        if (brick.type === 'armored') {
-            ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.roundRect(brick.x + 5, brick.y + 5, brick.width - 6, brick.height - 6, 4);
-            ctx.stroke();
-        }
-
-        if (brick.type === 'spawner') {
-            ctx.fillStyle = 'rgba(168, 85, 247, 0.3)';
-            ctx.beginPath();
-            ctx.roundRect(brick.x + 2, brick.y + 2, brick.width, brick.height, 6);
-            ctx.fill();
-
-            ctx.fillStyle = 'rgba(255,255,255,0.8)';
-            ctx.font = `${getFontSize(12)}px Arial`;
-            ctx.textAlign = 'center';
-            ctx.fillText('👾', brick.x + 2 + brick.width / 2, brick.y + 15 * getScale());
-        }
-
-        if (brick.type === 'regenerator') {
-            ctx.fillStyle = 'rgba(34, 197, 94, 0.3)';
-            ctx.beginPath();
-            ctx.roundRect(brick.x + 2, brick.y + 2, brick.width, brick.height, 6);
-            ctx.fill();
-
-            ctx.fillStyle = 'rgba(255,255,255,0.8)';
-            ctx.font = `${getFontSize(12)}px Arial`;
-            ctx.textAlign = 'center';
-            ctx.fillText('💚', brick.x + 2 + brick.width / 2, brick.y + 15 * getScale());
-        }
-
-        // HP text
-        ctx.fillStyle = 'white';
-        const hpFontSize = getFontSize(brick.hp > 999 ? 10 : brick.hp > 99 ? 12 : 14);
-        ctx.font = `bold ${hpFontSize}px Arial`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        const textY = (brick.type === 'explosive' || brick.type === 'spawner' || brick.type === 'regenerator')
-            ? brick.y + 2 + brick.height / 2 + 8 * getScale()
-            : brick.y + 2 + brick.height / 2;
-        ctx.fillText(Math.ceil(brick.hp), brick.x + 2 + brick.width / 2, textY);
+        ctx.stroke();
     }
 
-    // Draw bonuses
-    for (let bonus of gameState.bonuses) {
-        let color = '#4ecca3';
-        let text = '+' + (bonus.value || 1);
-        let icon = null;
-
-        if (bonus.type === 'ball') {
-            // Bola normal - verde
-            color = '#4ecca3';
-        } else if (bonus.type === 'fireballBall') {
-            // Bola de fuego - roja
-            color = '#ff6b6b';
-            text = '';
-            icon = '🔥';
-        } else if (bonus.type === 'splitterBall') {
-            // Bola divisora - amarilla
-            color = '#f9ed69';
-            text = '';
-            icon = '💥';
-        } else if (bonus.type === 'horizontal') {
-            color = '#3b82f6';
-            text = '';
-            icon = '⚡';
-        } else if (bonus.type === 'strength') {
-            color = '#ff8c00';  // Naranja para fuerza
-            text = '';
-            icon = '💪';
-        }
-
-        ctx.shadowColor = color;
-        ctx.shadowBlur = 10;
-
-        ctx.fillStyle = color;
-        ctx.beginPath();
-        ctx.arc(bonus.x, bonus.y, bonus.radius, 0, Math.PI * 2);
-        ctx.fill();
-
-        ctx.shadowBlur = 0;
-
-        ctx.fillStyle = 'white';
-        ctx.font = icon ? `${getFontSize(14)}px Arial` : `bold ${getFontSize(12)}px Arial`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(icon || text, bonus.x, bonus.y + (icon ? 1 : 0));
+    // Renderizado específico del tipo (usando Strategy pattern)
+    const behavior = BrickRegistry.get(brick.type);
+    if (behavior && behavior.render) {
+        behavior.render(ctx, brick, renderHelpers);
     }
 
-    // Draw particles
-    for (let p of gameState.particles) {
+    // HP text
+    ctx.fillStyle = 'white';
+    const hpFontSize = getFontSize(brick.hp > 999 ? 10 : brick.hp > 99 ? 12 : 14);
+    ctx.font = `bold ${hpFontSize}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    // Ajustar posición del texto si tiene emoji
+    const hasEmoji = behavior && behavior.emoji;
+    const textY = hasEmoji
+        ? brick.y + 2 + brick.height / 2 + 8 * getScale()
+        : brick.y + 2 + brick.height / 2;
+
+    ctx.fillText(Math.ceil(brick.hp), brick.x + 2 + brick.width / 2, textY);
+}
+
+function drawBricks() {
+    for (const brick of gameState.bricks) {
+        drawBrick(brick);
+    }
+}
+
+/**
+ * Renderiza un bonus usando su behavior registrado
+ */
+function drawBonus(bonus) {
+    const behavior = BonusRegistry.get(bonus.type);
+    if (behavior && behavior.render) {
+        behavior.render(ctx, bonus, renderHelpers);
+    }
+}
+
+function drawBonuses() {
+    for (const bonus of gameState.bonuses) {
+        drawBonus(bonus);
+    }
+}
+
+function drawParticles() {
+    for (const p of gameState.particles) {
         ctx.globalAlpha = p.life;
         ctx.fillStyle = p.color;
         ctx.beginPath();
@@ -310,164 +283,179 @@ export function draw() {
         ctx.fill();
     }
     ctx.globalAlpha = 1;
+}
 
-    // Draw laser effect
-    if (gameState.laserEffect) {
-        const laser = gameState.laserEffect;
-        ctx.globalAlpha = laser.alpha;
+function drawLaserEffect(leftBorder, rightBorder) {
+    if (!gameState.laserEffect) return;
 
-        ctx.shadowColor = '#3b82f6';
-        ctx.shadowBlur = 20;
+    const laser = gameState.laserEffect;
+    ctx.globalAlpha = laser.alpha;
 
-        ctx.strokeStyle = '#3b82f6';
-        ctx.lineWidth = 8;
+    ctx.shadowColor = '#3b82f6';
+    ctx.shadowBlur = 20;
+
+    ctx.strokeStyle = '#3b82f6';
+    ctx.lineWidth = 8;
+    ctx.beginPath();
+    ctx.moveTo(leftBorder, laser.y);
+    ctx.lineTo(rightBorder, laser.y);
+    ctx.stroke();
+
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(leftBorder, laser.y);
+    ctx.lineTo(rightBorder, laser.y);
+    ctx.stroke();
+
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
+}
+
+/**
+ * Renderiza una bola usando su behavior registrado
+ */
+function drawBall(ball) {
+    if (!ball.active) return;
+
+    const behavior = BallRegistry.get(ball.ballType);
+    if (behavior && behavior.render) {
+        behavior.render(ctx, ball, renderHelpers);
+    }
+}
+
+function drawBalls() {
+    for (const ball of gameState.balls) {
+        drawBall(ball);
+    }
+}
+
+function drawLaunchIndicator() {
+    if (gameState.isShooting) return;
+
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.beginPath();
+    ctx.arc(gameState.launchX, gameState.launchY, getBallRadius() + 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    const totalBalls = gameState.ballInventory.normal +
+                       gameState.ballInventory.fireball +
+                       gameState.ballInventory.splitter +
+                       gameState.ballInventory.strength;
+
+    if (totalBalls > 1) {
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.font = `bold ${getFontSize(11)}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.fillText('x' + totalBalls, gameState.launchX, gameState.launchY + 22 * getScale());
+    }
+}
+
+function drawAimLine() {
+    if (!gameState.isAiming || gameState.isShooting) return;
+
+    const trajectory = calculateTrajectory(
+        gameState.launchX,
+        gameState.launchY,
+        gameState.displayAimAngle,
+        5
+    );
+
+    ctx.lineWidth = 2;
+    ctx.setLineDash([8, 8]);
+
+    for (let i = 0; i < trajectory.length - 1; i++) {
+        const alpha = 1 - (i * 0.15);
+        ctx.strokeStyle = `rgba(255,255,255,${Math.max(0.2, alpha * 0.7)})`;
+
         ctx.beginPath();
-        ctx.moveTo(leftBorder, laser.y);
-        ctx.lineTo(rightBorder, laser.y);
+        ctx.moveTo(trajectory[i].x, trajectory[i].y);
+        ctx.lineTo(trajectory[i + 1].x, trajectory[i + 1].y);
         ctx.stroke();
-
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(leftBorder, laser.y);
-        ctx.lineTo(rightBorder, laser.y);
-        ctx.stroke();
-
-        ctx.shadowBlur = 0;
-        ctx.globalAlpha = 1;
     }
 
-    // Draw balls
-    for (let ball of gameState.balls) {
-        if (!ball.active) continue;
+    ctx.setLineDash([]);
 
-        if (ball.fireball) {
-            // Bola de fuego - roja con glow
-            ctx.shadowColor = '#ff6b6b';
-            ctx.shadowBlur = 8;
-            ctx.fillStyle = '#ff6b6b';
-        } else if (ball.splitter && !ball.hasSplit) {
-            // Bola divisora - amarilla con glow
-            ctx.shadowColor = '#f9ed69';
-            ctx.shadowBlur = 8;
-            ctx.fillStyle = '#f9ed69';
-        } else if (ball.strength) {
-            // Bola de fuerza - naranja con glow
-            ctx.shadowColor = '#ff8c00';
-            ctx.shadowBlur = 8;
-            ctx.fillStyle = '#ff8c00';
-        } else {
-            // Bola normal - blanca
-            ctx.fillStyle = '#fff';
-        }
-
-        ctx.beginPath();
-        ctx.arc(ball.x, ball.y, getBallRadius(), 0, Math.PI * 2);
-        ctx.fill();
-        ctx.shadowBlur = 0;
-    }
-
-    // Draw launch indicator
-    if (!gameState.isShooting) {
-        ctx.fillStyle = 'rgba(255,255,255,0.9)';
-        ctx.beginPath();
-        ctx.arc(gameState.launchX, gameState.launchY, getBallRadius() + 2, 0, Math.PI * 2);
-        ctx.fill();
-
-        const totalBalls = gameState.ballInventory.normal + gameState.ballInventory.fireball + gameState.ballInventory.splitter;
-        if (totalBalls > 1) {
-            ctx.fillStyle = 'rgba(255,255,255,0.6)';
-            ctx.font = `bold ${getFontSize(11)}px Arial`;
-            ctx.textAlign = 'center';
-            ctx.fillText('x' + totalBalls, gameState.launchX, gameState.launchY + 22 * getScale());
-        }
-    }
-
-    // Draw aim line
-    if (gameState.isAiming && !gameState.isShooting) {
-        const trajectory = calculateTrajectory(
-            gameState.launchX,
-            gameState.launchY,
-            gameState.displayAimAngle,
-            5
-        );
-
-        ctx.lineWidth = 2;
-        ctx.setLineDash([8, 8]);
-
-        for (let i = 0; i < trajectory.length - 1; i++) {
-            const alpha = 1 - (i * 0.15);
-            ctx.strokeStyle = `rgba(255,255,255,${Math.max(0.2, alpha * 0.7)})`;
-
+    for (let i = 1; i < trajectory.length - 1; i++) {
+        const point = trajectory[i];
+        if (point.isBounce) {
+            ctx.fillStyle = 'rgba(255,255,255,0.8)';
             ctx.beginPath();
-            ctx.moveTo(trajectory[i].x, trajectory[i].y);
-            ctx.lineTo(trajectory[i + 1].x, trajectory[i + 1].y);
-            ctx.stroke();
-        }
-
-        ctx.setLineDash([]);
-
-        for (let i = 1; i < trajectory.length - 1; i++) {
-            const point = trajectory[i];
-            if (point.isBounce) {
-                ctx.fillStyle = 'rgba(255,255,255,0.8)';
-                ctx.beginPath();
-                ctx.arc(point.x, point.y, 4, 0, Math.PI * 2);
-                ctx.fill();
-            }
-        }
-
-        if (trajectory.length > 1) {
-            const endPoint = trajectory[trajectory.length - 1];
-            ctx.fillStyle = `${difficultyConfig.color}cc`;
-            ctx.beginPath();
-            ctx.arc(endPoint.x, endPoint.y, 6, 0, Math.PI * 2);
+            ctx.arc(point.x, point.y, 4, 0, Math.PI * 2);
             ctx.fill();
         }
     }
 
-    // Draw ball inventory indicators (show special balls)
+    if (trajectory.length > 1) {
+        const endPoint = trajectory[trajectory.length - 1];
+        ctx.fillStyle = `${difficultyConfig.color}cc`;
+        ctx.beginPath();
+        ctx.arc(endPoint.x, endPoint.y, 6, 0, Math.PI * 2);
+        ctx.fill();
+    }
+}
+
+/**
+ * Renderiza los indicadores de inventario de bolas especiales
+ * Usa los behaviors registrados para obtener colores
+ */
+function drawBallInventory(leftBorder) {
     const inv = gameState.ballInventory;
-    if (inv.fireball > 0 || inv.splitter > 0 || inv.strength > 0) {
-        const scale = getScale();
-        let indicatorX = leftBorder + 10 * scale;
-        const indicatorY = getBottomLine() + 20 * scale;
-        const indicatorW = 50 * scale;
-        const indicatorH = 20 * scale;
+    if (inv.fireball <= 0 && inv.splitter <= 0 && inv.strength <= 0) return;
 
-        if (inv.fireball > 0) {
-            ctx.fillStyle = 'rgba(255, 107, 107, 0.8)';
+    const scale = getScale();
+    let indicatorX = leftBorder + 10 * scale;
+    const indicatorY = getBottomLine() + 20 * scale;
+    const indicatorW = 50 * scale;
+    const indicatorH = 20 * scale;
+
+    // Usar los behaviors para obtener colores consistentes
+    const inventoryItems = [
+        { key: 'fireball', type: 'fireball', emoji: '🔥', bgColor: 'rgba(255, 107, 107, 0.8)', textColor: 'white' },
+        { key: 'splitter', type: 'splitter', emoji: '💥', bgColor: 'rgba(249, 237, 105, 0.8)', textColor: '#333' },
+        { key: 'strength', type: 'strength', emoji: '💪', bgColor: 'rgba(255, 140, 0, 0.8)', textColor: 'white' }
+    ];
+
+    for (const item of inventoryItems) {
+        if (inv[item.key] > 0) {
+            ctx.fillStyle = item.bgColor;
             ctx.beginPath();
             ctx.roundRect(indicatorX, indicatorY, indicatorW, indicatorH, 10 * scale);
             ctx.fill();
-            ctx.fillStyle = 'white';
+
+            ctx.fillStyle = item.textColor;
             ctx.font = `${getFontSize(11)}px Arial`;
             ctx.textAlign = 'center';
-            ctx.fillText('🔥 ' + inv.fireball, indicatorX + indicatorW / 2, indicatorY + indicatorH * 0.7);
+            ctx.fillText(`${item.emoji} ${inv[item.key]}`, indicatorX + indicatorW / 2, indicatorY + indicatorH * 0.7);
+
             indicatorX += indicatorW + 10 * scale;
-        }
-
-        if (inv.splitter > 0) {
-            ctx.fillStyle = 'rgba(249, 237, 105, 0.8)';
-            ctx.beginPath();
-            ctx.roundRect(indicatorX, indicatorY, indicatorW, indicatorH, 10 * scale);
-            ctx.fill();
-            ctx.fillStyle = '#333';
-            ctx.font = `${getFontSize(11)}px Arial`;
-            ctx.textAlign = 'center';
-            ctx.fillText('💥 ' + inv.splitter, indicatorX + indicatorW / 2, indicatorY + indicatorH * 0.7);
-            indicatorX += indicatorW + 10 * scale;
-        }
-
-        if (inv.strength > 0) {
-            ctx.fillStyle = 'rgba(255, 140, 0, 0.8)';
-            ctx.beginPath();
-            ctx.roundRect(indicatorX, indicatorY, indicatorW, indicatorH, 10 * scale);
-            ctx.fill();
-            ctx.fillStyle = 'white';
-            ctx.font = `${getFontSize(11)}px Arial`;
-            ctx.textAlign = 'center';
-            ctx.fillText('💪 ' + inv.strength, indicatorX + indicatorW / 2, indicatorY + indicatorH * 0.7);
         }
     }
+}
+
+// ====================================
+// FUNCIÓN PRINCIPAL DE DIBUJO
+// ====================================
+
+export function draw() {
+    const width = getWidth();
+    const height = getHeight();
+    const leftBorder = getLeftBorder();
+    const rightBorder = getRightBorder();
+
+    drawBackground(width, height);
+
+    if (!gameState.gameStarted) return;
+
+    drawPlayArea(leftBorder, rightBorder);
+    drawBottomLine(leftBorder, rightBorder);
+    drawGrid(leftBorder);
+    drawBricks();
+    drawBonuses();
+    drawParticles();
+    drawLaserEffect(leftBorder, rightBorder);
+    drawBalls();
+    drawLaunchIndicator();
+    drawAimLine();
+    drawBallInventory(leftBorder);
 }

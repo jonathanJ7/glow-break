@@ -1,8 +1,22 @@
+/**
+ * Physics Module - Refactorizado con patrón Strategy
+ *
+ * Este módulo usa los registries de behaviors para manejar
+ * colisiones y efectos de forma extensible (Open/Closed principle).
+ *
+ * Para agregar un nuevo comportamiento de colisión o efecto,
+ * solo necesitas registrar un nuevo behavior con los métodos correspondientes.
+ */
+
 import { gameState, endTurn, updateUI } from './game.js';
 import { COLS, FAST_SPEED_MULTIPLIER } from './config.js';
 import { getWidth, getHeight, getLeftBorder, getRightBorder, getTopOffset, getBottomLine, getCellSize, getBallRadius, getScale, getBrickColor } from './rendering.js';
+import { BrickRegistry, BallRegistry, BonusRegistry } from './js/behaviors/index.js';
 
-// Particle effects
+// ====================================
+// SISTEMA DE PARTÍCULAS
+// ====================================
+
 export function createParticles(x, y, color, count = 8) {
     for (let i = 0; i < count; i++) {
         const angle = (Math.PI * 2 * i) / count + Math.random() * 0.5;
@@ -36,73 +50,62 @@ export function updateParticles() {
     }
 }
 
-// Explosion for explosive bricks
-export function explodeBrick(brick) {
-    const cellSize = getCellSize();
-    const centerX = brick.x + brick.width / 2;
-    const centerY = brick.y + brick.height / 2;
+// ====================================
+// HELPERS PARA BEHAVIORS
+// ====================================
 
-    createParticles(centerX, centerY, '#ff6b6b', 16);
-
-    const explosionRadius = cellSize * 1.5;
-    for (let other of gameState.bricks) {
-        if (other === brick) continue;
-        const otherCenterX = other.x + other.width / 2;
-        const otherCenterY = other.y + other.height / 2;
-        const dist = Math.hypot(centerX - otherCenterX, centerY - otherCenterY);
-
-        if (dist < explosionRadius) {
-            const damage = brick.maxHp;  // Daño igual al HP inicial del explosivo
-            other.hp -= damage;
-        }
+const physicsHelpers = {
+    getCellSize,
+    getLeftBorder,
+    getRightBorder,
+    getBallRadius,
+    getBrickColor,
+    getScale,
+    createParticles,
+    COLS,
+    get speedMultiplier() {
+        return gameState.speedMultiplier;
     }
-}
+};
 
-// Spawner brick creates new bricks when destroyed
-export function spawnBricks(brick) {
-    const cellSize = getCellSize();
-    const leftBorder = getLeftBorder();
+// ====================================
+// EFECTOS DE BLOQUES (usando behaviors)
+// ====================================
 
-    createParticles(brick.x + brick.width/2, brick.y + brick.height/2, '#a855f7', 12);
+/**
+ * Procesa el efecto de destrucción de un bloque
+ * usando su behavior registrado
+ */
+function processBrickDestruction(brick) {
+    const behavior = BrickRegistry.get(brick.type);
 
-    const spawnCount = 1 + Math.floor(Math.random() * 2);
-    const nearbyPositions = [];
+    if (behavior && behavior.onDestroy) {
+        const result = behavior.onDestroy(brick, gameState, physicsHelpers);
 
-    for (let dc = -1; dc <= 1; dc++) {
-        const newCol = brick.col + dc;
-        if (newCol >= 0 && newCol < COLS) {
-            const newX = leftBorder + newCol * cellSize;
-            const newY = brick.y;
+        if (result) {
+            // Procesar daño a otros bloques
+            if (result.damagedBricks) {
+                for (const { brick: targetBrick, damage } of result.damagedBricks) {
+                    const targetBehavior = BrickRegistry.get(targetBrick.type);
+                    const modifiedDamage = targetBehavior && targetBehavior.onDamage
+                        ? targetBehavior.onDamage(targetBrick, damage, gameState)
+                        : damage;
+                    targetBrick.hp -= modifiedDamage;
+                }
+            }
 
-            const occupied = gameState.bricks.some(b =>
-                Math.abs(b.x - newX) < cellSize * 0.5 && Math.abs(b.y - newY) < cellSize * 0.5
-            );
-
-            if (!occupied) {
-                nearbyPositions.push({col: newCol, x: newX, y: newY});
+            // Procesar spawned bricks
+            if (result.spawnedBricks) {
+                gameState.bricks.push(...result.spawnedBricks);
             }
         }
     }
-
-    for (let i = 0; i < Math.min(spawnCount, nearbyPositions.length); i++) {
-        const pos = nearbyPositions[Math.floor(Math.random() * nearbyPositions.length)];
-        nearbyPositions.splice(nearbyPositions.indexOf(pos), 1);
-
-        const hp = Math.floor(brick.maxHp * 0.5);
-        gameState.bricks.push({
-            x: pos.x,
-            y: pos.y,
-            width: cellSize - 4,
-            height: cellSize - 4,
-            hp: hp,
-            maxHp: hp,
-            col: pos.col,
-            type: 'spawner'
-        });
-    }
 }
 
-// Horizontal laser - finds nearest row with bricks and destroys them
+// ====================================
+// HORIZONTAL LASER
+// ====================================
+
 export function fireHorizontalLaser(ballY) {
     const cellSize = getCellSize();
     const leftBorder = getLeftBorder();
@@ -136,13 +139,26 @@ export function fireHorizontalLaser(ballY) {
         const brickCenterY = brick.y + brick.height / 2;
         if (Math.abs(brickCenterY - targetY) < cellSize / 2) {
             const damage = Math.max(Math.ceil(brick.maxHp * 0.5), Math.ceil(brick.hp * 0.6));
-            brick.hp -= damage;
+
+            // Aplicar modificador de daño del behavior
+            const behavior = BrickRegistry.get(brick.type);
+            const modifiedDamage = behavior && behavior.onDamage
+                ? behavior.onDamage(brick, damage, gameState)
+                : damage;
+
+            brick.hp -= modifiedDamage;
             createParticles(brick.x + brick.width/2, brick.y + brick.height/2, '#3b82f6', 5);
         }
     }
 }
 
-// Ball physics
+// Agregar laser helper para bonuses
+physicsHelpers.fireHorizontalLaser = fireHorizontalLaser;
+
+// ====================================
+// FÍSICA DE BOLAS
+// ====================================
+
 export function updateBalls() {
     const width = getWidth();
     const leftBorder = getLeftBorder();
@@ -154,6 +170,9 @@ export function updateBalls() {
     const iterations = gameState.speedMultiplier > 1 ? FAST_SPEED_MULTIPLIER : 1;
 
     for (let iter = 0; iter < iterations; iter++) {
+        // Bolas nuevas a agregar (desde splits)
+        const newBalls = [];
+
         for (let ball of gameState.balls) {
             if (!ball.active) continue;
 
@@ -164,7 +183,7 @@ export function updateBalls() {
                 ball.hasGoneUp = true;
             }
 
-            // Wall collisions
+            // Colisiones con paredes
             if (ball.x - getBallRadius() < leftBorder) {
                 ball.x = leftBorder + getBallRadius();
                 ball.vx *= -1;
@@ -178,7 +197,7 @@ export function updateBalls() {
                 ball.vy *= -1;
             }
 
-            // Bottom - ball lands
+            // Fondo - bola aterriza
             if (ball.hasGoneUp && ball.y + getBallRadius() > bottomLine) {
                 ball.y = bottomLine;
                 ball.active = false;
@@ -190,7 +209,7 @@ export function updateBalls() {
                 }
             }
 
-            // Safety: force land balls that are out of bounds
+            // Seguridad: aterrizar bolas fuera de límites
             if (ball.x < 0 || ball.x > width || ball.y > getHeight() || ball.y < 0) {
                 ball.active = false;
                 gameState.ballsLanded++;
@@ -200,7 +219,7 @@ export function updateBalls() {
                 }
             }
 
-            // Safety: force land stuck balls
+            // Seguridad: aterrizar bolas atascadas
             ball.lifetime = (ball.lifetime || 0) + 1;
             if (ball.lifetime > 5000) {
                 ball.active = false;
@@ -211,18 +230,24 @@ export function updateBalls() {
                 }
             }
 
-            checkBrickCollisions(ball);
+            // Colisiones con bloques (usando behaviors)
+            const collisionResult = checkBrickCollisions(ball);
+            if (collisionResult && collisionResult.spawnBalls) {
+                newBalls.push(...collisionResult.spawnBalls);
+            }
+
             checkBonusCollisions(ball);
         }
 
-        // Handle destroyed bricks
+        // Agregar nuevas bolas (desde splits)
+        if (newBalls.length > 0) {
+            gameState.balls.push(...newBalls);
+        }
+
+        // Procesar bloques destruidos usando sus behaviors
         const destroyedBricks = gameState.bricks.filter(b => b.hp <= 0);
         for (let brick of destroyedBricks) {
-            if (brick.type === 'explosive') {
-                explodeBrick(brick);
-            } else if (brick.type === 'spawner') {
-                spawnBricks(brick);
-            }
+            processBrickDestruction(brick);
         }
         gameState.bricks = gameState.bricks.filter(b => b.hp > 0);
     }
@@ -230,7 +255,10 @@ export function updateBalls() {
     checkTurnEnd();
 }
 
-// Check if turn should end
+// ====================================
+// DETECCIÓN DE COLISIONES
+// ====================================
+
 function checkTurnEnd() {
     if (!gameState.isShooting) return;
 
@@ -261,7 +289,14 @@ function checkTurnEnd() {
     }
 }
 
+/**
+ * Verifica colisiones de una bola con bloques
+ * usando el behavior de la bola para determinar el resultado
+ */
 function checkBrickCollisions(ball) {
+    const ballBehavior = BallRegistry.get(ball.ballType);
+    let collisionResult = null;
+
     for (let brick of gameState.bricks) {
         if (brick.hp <= 0) continue;
 
@@ -270,121 +305,55 @@ function checkBrickCollisions(ball) {
         if (circleRectCollision(ball.x, ball.y, getBallRadius(),
             brick.x + 2, brick.y + 2, brick.width, brick.height)) {
 
-            // Si es una bola splitter, dividirse en 5 bolas normales
-            if (ball.splitter && !ball.hasSplit) {
-                const damage = ball.damage * (brick.type === 'armored' ? 0.5 : 1);
-                brick.hp -= damage;
-                splitBall(ball);
-                return;
-            }
+            // Usar el behavior de la bola para manejar la colisión
+            if (ballBehavior && ballBehavior.onCollision) {
+                const result = ballBehavior.onCollision(ball, brick, gameState, physicsHelpers);
 
-            if (!ball.fireball) {
-                // Normal ball: bounce
-                const ballCenterX = ball.x;
-                const ballCenterY = ball.y;
-                const brickCenterX = brick.x + 2 + brick.width / 2;
-                const brickCenterY = brick.y + 2 + brick.height / 2;
-
-                const dx = ballCenterX - brickCenterX;
-                const dy = ballCenterY - brickCenterY;
-
-                const overlapX = brick.width / 2 + getBallRadius() - Math.abs(dx);
-                const overlapY = brick.height / 2 + getBallRadius() - Math.abs(dy);
-
-                if (overlapX < overlapY) {
-                    ball.vx *= -1;
-                    ball.x += dx > 0 ? overlapX : -overlapX;
-                } else {
-                    ball.vy *= -1;
-                    ball.y += dy > 0 ? overlapY : -overlapY;
-                }
-
-                const damage = ball.damage * (brick.type === 'armored' ? 0.5 : 1);
-                brick.hp -= damage;
-
-                if (gameState.speedMultiplier === 1) {
-                    createParticles(ball.x, ball.y, getBrickColor(brick.hp, brick.maxHp), 3);
-                }
-
-                return;
-            } else {
-                // Fireball: pass through
-                if (!ball.hitBricks.has(brickId)) {
-                    ball.hitBricks.add(brickId);
-
-                    const damage = ball.damage * (brick.type === 'armored' ? 0.5 : 1);
+                if (result) {
+                    // Aplicar modificador de daño del bloque
+                    const brickBehavior = BrickRegistry.get(brick.type);
+                    let damage = result.damage;
+                    if (brickBehavior && brickBehavior.onDamage) {
+                        damage = brickBehavior.onDamage(brick, damage, gameState);
+                    }
                     brick.hp -= damage;
 
-                    if (gameState.speedMultiplier === 1) {
-                        createParticles(ball.x, ball.y, getBrickColor(brick.hp, brick.maxHp), 3);
+                    // Guardar resultado de colisión
+                    collisionResult = result;
+
+                    // Si no debemos seguir chequeando, salir
+                    if (!result.continueChecking) {
+                        return collisionResult;
                     }
                 }
             }
         } else if (ball.fireball && ball.hitBricks && ball.hitBricks.has(brickId)) {
-            ball.hitBricks.delete(brickId);
+            // Limpiar registro de fireball cuando sale del bloque
+            if (ballBehavior && ballBehavior.onExitBrick) {
+                ballBehavior.onExitBrick(ball, brick);
+            } else {
+                ball.hitBricks.delete(brickId);
+            }
         }
     }
+
+    return collisionResult;
 }
 
-
-// Split a splitter ball into 5 normal balls
-function splitBall(ball) {
-    if (ball.hasSplit) return;  // Solo dividir una vez
-
-    ball.hasSplit = true;
-    ball.active = false;  // Desactivar la bola original
-    gameState.ballsLanded++;  // Contar como aterrizada
-
-    const speed = Math.hypot(ball.vx, ball.vy);
-    const currentAngle = Math.atan2(ball.vy, ball.vx);
-
-    // Crear 5 bolas normales en abanico
-    const angleOffsets = [-Math.PI / 3, -Math.PI / 6, 0, Math.PI / 6, Math.PI / 3]; // -60°, -30°, 0°, +30°, +60°
-
-    for (const offset of angleOffsets) {
-        const newAngle = currentAngle + offset;
-        const newBall = {
-            x: ball.x,
-            y: ball.y,
-            vx: Math.cos(newAngle) * speed,
-            vy: Math.sin(newAngle) * speed,
-            active: true,
-            hasGoneUp: ball.hasGoneUp,
-            ballType: 'normal',
-            fireball: false,
-            splitter: false,
-            hasSplit: false,
-            damage: 1,
-            hitBricks: null,
-            lifetime: 0
-        };
-        gameState.balls.push(newBall);
-    }
-
-    createParticles(ball.x, ball.y, '#f9ed69', 12);
-}
-
+/**
+ * Verifica colisiones de una bola con bonuses
+ * usando el behavior del bonus para aplicar el efecto
+ */
 function checkBonusCollisions(ball) {
     for (let bonus of gameState.bonuses) {
         const dist = Math.hypot(ball.x - bonus.x, ball.y - bonus.y);
 
         if (dist < getBallRadius() + bonus.radius) {
-            const count = bonus.value || 1;
+            // Usar el behavior del bonus para aplicar el efecto
+            const behavior = BonusRegistry.get(bonus.type);
 
-            if (bonus.type === 'ball') {
-                // Bola normal
-                gameState.ballInventory.normal += count;
-            } else if (bonus.type === 'fireballBall') {
-                // Bola de fuego
-                gameState.ballInventory.fireball += count;
-            } else if (bonus.type === 'splitterBall') {
-                // Bola que se divide
-                gameState.ballInventory.splitter += count;
-            } else if (bonus.type === 'horizontal') {
-                fireHorizontalLaser(ball.y);
-            } else if (bonus.type === 'strength') {
-                // Agregar bola de fuerza al inventario
-                gameState.ballInventory.strength += 1;
+            if (behavior && behavior.onCollect) {
+                behavior.onCollect(bonus, ball, gameState, physicsHelpers);
             }
 
             createParticles(bonus.x, bonus.y, '#f9ed69', 8);
@@ -402,7 +371,10 @@ function circleRectCollision(cx, cy, cr, rx, ry, rw, rh) {
     return dist < cr;
 }
 
-// Trajectory prediction
+// ====================================
+// PREDICCIÓN DE TRAYECTORIA
+// ====================================
+
 export function calculateTrajectory(startX, startY, angle, maxBounces) {
     const leftBorder = getLeftBorder();
     const rightBorder = getRightBorder();
@@ -486,11 +458,7 @@ export function calculateTrajectory(startX, startY, angle, maxBounces) {
     return points;
 }
 
-// Helper function for ray-circle intersection
 function raycastToCircle(x, y, vx, vy, cx, cy, radius) {
-    // Ray: P(t) = (x,y) + t*(vx,vy)
-    // Circle: (P.x - cx)^2 + (P.y - cy)^2 = radius^2
-
     const dx = x - cx;
     const dy = y - cy;
 
@@ -505,7 +473,6 @@ function raycastToCircle(x, y, vx, vy, cx, cy, radius) {
     const t1 = (-b - Math.sqrt(discriminant)) / (2 * a);
     const t2 = (-b + Math.sqrt(discriminant)) / (2 * a);
 
-    // Return the closest positive t
     if (t1 > 0) return {dist: t1};
     if (t2 > 0) return {dist: t2};
     return null;
@@ -522,8 +489,7 @@ function raycastToBrick(x, y, vx, vy, brick) {
     let minDist = Infinity;
     let hitSide = null;
 
-    // Raycast against the four sides of the expanded rectangle
-    // Left side
+    // Raycast contra los cuatro lados del rectángulo expandido
     if (vx > 0) {
         const t = (brickLeft - radius - x) / vx;
         const hitY = y + vy * t;
@@ -532,7 +498,6 @@ function raycastToBrick(x, y, vx, vy, brick) {
             hitSide = 'left';
         }
     }
-    // Right side
     if (vx < 0) {
         const t = (brickRight + radius - x) / vx;
         const hitY = y + vy * t;
@@ -541,7 +506,6 @@ function raycastToBrick(x, y, vx, vy, brick) {
             hitSide = 'right';
         }
     }
-    // Top side
     if (vy > 0) {
         const t = (brickTop - radius - y) / vy;
         const hitX = x + vx * t;
@@ -550,7 +514,6 @@ function raycastToBrick(x, y, vx, vy, brick) {
             hitSide = 'top';
         }
     }
-    // Bottom side
     if (vy < 0) {
         const t = (brickBottom + radius - y) / vy;
         const hitX = x + vx * t;
@@ -560,8 +523,7 @@ function raycastToBrick(x, y, vx, vy, brick) {
         }
     }
 
-    // Raycast against the four corners (as circles)
-    // This handles cases where the ball hits the rounded corners
+    // Raycast contra las cuatro esquinas (como círculos)
     const corners = [
         {x: brickLeft, y: brickTop, sideX: 'left', sideY: 'top'},
         {x: brickRight, y: brickTop, sideX: 'right', sideY: 'top'},
@@ -572,11 +534,9 @@ function raycastToBrick(x, y, vx, vy, brick) {
     for (let corner of corners) {
         const collision = raycastToCircle(x, y, vx, vy, corner.x, corner.y, radius);
         if (collision && collision.dist > 0 && collision.dist < minDist) {
-            // Check if this corner hit is outside the main rectangle bounds
             const hitX = x + vx * collision.dist;
             const hitY = y + vy * collision.dist;
 
-            // Only count corner hits that are actually in the corner region
             const inCornerX = (corner.x === brickLeft && hitX < brickLeft) ||
                             (corner.x === brickRight && hitX > brickRight);
             const inCornerY = (corner.y === brickTop && hitY < brickTop) ||
@@ -584,7 +544,6 @@ function raycastToBrick(x, y, vx, vy, brick) {
 
             if (inCornerX || inCornerY) {
                 minDist = collision.dist;
-                // Determine hit side based on which component has larger deviation
                 const dx = hitX - corner.x;
                 const dy = hitY - corner.y;
                 if (Math.abs(dx) > Math.abs(dy)) {
