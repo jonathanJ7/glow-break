@@ -1,17 +1,20 @@
 /**
- * Physics Module - Refactorizado con patrón Strategy
+ * Physics Module - Refactorizado con patrón Strategy y CCD
  *
- * Este módulo usa los registries de behaviors para manejar
- * colisiones y efectos de forma extensible (Open/Closed principle).
+ * Este módulo usa:
+ * 1. Registries de behaviors para manejar colisiones y efectos (Open/Closed principle)
+ * 2. Continuous Collision Detection (CCD) para evitar tunneling
+ * 3. Sistema unificado de colisiones para predicción y simulación
  *
  * Para agregar un nuevo comportamiento de colisión o efecto,
  * solo necesitas registrar un nuevo behavior con los métodos correspondientes.
  */
 
 import { gameState, endTurn, updateUI } from './game.js';
-import { COLS, FAST_SPEED_MULTIPLIER } from './config.js';
+import { COLS, FAST_SPEED_MULTIPLIER, BALL_SPEED } from './config.js';
 import { getWidth, getHeight, getLeftBorder, getRightBorder, getTopOffset, getBottomLine, getCellSize, getBallRadius, getScale, getBrickColor } from './rendering.js';
 import { BrickRegistry, BallRegistry, BonusRegistry } from './js/behaviors/index.js';
+import { processPhysicsStep, simulateTrajectory, circleRectOverlap, reflectVelocity } from './js/systems/CollisionSystem.js';
 
 // ====================================
 // SISTEMA DE PARTÍCULAS
@@ -156,8 +159,20 @@ export function fireHorizontalLaser(ballY) {
 physicsHelpers.fireHorizontalLaser = fireHorizontalLaser;
 
 // ====================================
-// FÍSICA DE BOLAS
+// FÍSICA DE BOLAS - Con Continuous Collision Detection
 // ====================================
+
+/**
+ * Obtiene los límites del área de juego para el sistema de colisiones
+ */
+function getGameBounds() {
+    return {
+        left: getLeftBorder(),
+        right: getRightBorder(),
+        top: getTopOffset() - 15,
+        bottom: getBottomLine()
+    };
+}
 
 export function updateBalls() {
     const width = getWidth();
@@ -165,7 +180,8 @@ export function updateBalls() {
     const rightBorder = getRightBorder();
     const bottomLine = getBottomLine();
     const minY = getTopOffset() + (getBottomLine() - getTopOffset()) * 0.6;
-    const topLimit = getTopOffset() - 15;
+    const radius = getBallRadius();
+    const bounds = getGameBounds();
 
     const iterations = gameState.speedMultiplier > 1 ? FAST_SPEED_MULTIPLIER : 1;
 
@@ -176,29 +192,98 @@ export function updateBalls() {
         for (let ball of gameState.balls) {
             if (!ball.active) continue;
 
-            ball.x += ball.vx;
-            ball.y += ball.vy;
+            const ballBehavior = BallRegistry.get(ball.ballType);
+            const isFireball = ball.fireball || ball.ballType === 'fireball';
 
+            // Callback para manejar colisiones con bloques
+            const onBrickHit = (ball, brick, collision) => {
+                const brickId = `${brick.x},${brick.y}`;
+
+                // Fireball no rebota y solo daña una vez por bloque
+                if (isFireball) {
+                    if (!ball.hitBricks) ball.hitBricks = new Set();
+
+                    if (!ball.hitBricks.has(brickId)) {
+                        ball.hitBricks.add(brickId);
+
+                        // Aplicar daño con modificador del bloque
+                        const brickBehavior = BrickRegistry.get(brick.type);
+                        let damage = ball.damage || 1;
+                        if (brickBehavior && brickBehavior.onDamage) {
+                            damage = brickBehavior.onDamage(brick, damage, gameState);
+                        }
+                        brick.hp -= damage;
+
+                        if (gameState.speedMultiplier === 1) {
+                            createParticles(collision.hitX, collision.hitY, getBrickColor(brick.hp, brick.maxHp), 3);
+                        }
+                    }
+                    return { shouldBounce: false, damage: 0 };
+                }
+
+                // Bola normal o splitter
+                if (ballBehavior && ballBehavior.onCollision) {
+                    const result = ballBehavior.onCollision(ball, brick, gameState, physicsHelpers);
+
+                    if (result) {
+                        // Aplicar modificador de daño del bloque
+                        const brickBehavior = BrickRegistry.get(brick.type);
+                        let damage = result.damage;
+                        if (brickBehavior && brickBehavior.onDamage) {
+                            damage = brickBehavior.onDamage(brick, damage, gameState);
+                        }
+                        brick.hp -= damage;
+
+                        // Manejar split balls
+                        if (result.spawnBalls) {
+                            newBalls.push(...result.spawnBalls);
+                        }
+
+                        // Manejar splitter que se desactiva
+                        if (result.ballLanded) {
+                            gameState.ballsLanded++;
+                        }
+
+                        return { shouldBounce: result.bounce, damage: damage };
+                    }
+                }
+
+                return { shouldBounce: true, damage: 1 };
+            };
+
+            // Usar el nuevo sistema de colisiones CCD
+            const physicsResult = processPhysicsStep(
+                ball, radius, gameState.bricks, bounds, onBrickHit
+            );
+
+            // Actualizar posición y velocidad
+            ball.x = physicsResult.newX;
+            ball.y = physicsResult.newY;
+
+            // Solo actualizar velocidad si la bola rebota (no fireball)
+            if (!isFireball) {
+                ball.vx = physicsResult.newVx;
+                ball.vy = physicsResult.newVy;
+            }
+
+            // Limpiar registro de fireball cuando sale de bloques
+            if (isFireball && ball.hitBricks) {
+                for (const brickId of ball.hitBricks) {
+                    const [bx, by] = brickId.split(',').map(Number);
+                    const brick = gameState.bricks.find(b => b.x === bx && b.y === by);
+                    if (brick && !circleRectOverlap(ball.x, ball.y, radius, brick.x + 2, brick.y + 2, brick.width, brick.height)) {
+                        ball.hitBricks.delete(brickId);
+                    }
+                }
+            }
+
+            // Verificar si ha subido lo suficiente
             if (ball.y < minY) {
                 ball.hasGoneUp = true;
             }
 
-            // Colisiones con paredes
-            if (ball.x - getBallRadius() < leftBorder) {
-                ball.x = leftBorder + getBallRadius();
-                ball.vx *= -1;
-            }
-            if (ball.x + getBallRadius() > rightBorder) {
-                ball.x = rightBorder - getBallRadius();
-                ball.vx *= -1;
-            }
-            if (ball.y - getBallRadius() < topLimit) {
-                ball.y = topLimit + getBallRadius();
-                ball.vy *= -1;
-            }
-
             // Fondo - bola aterriza
-            if (ball.hasGoneUp && ball.y + getBallRadius() > bottomLine) {
+            if (ball.hasGoneUp && ball.y + radius > bottomLine) {
                 ball.y = bottomLine;
                 ball.active = false;
                 gameState.ballsLanded++;
@@ -228,12 +313,6 @@ export function updateBalls() {
                     gameState.firstBallLanded = true;
                     gameState.nextLaunchX = width / 2;
                 }
-            }
-
-            // Colisiones con bloques (usando behaviors)
-            const collisionResult = checkBrickCollisions(ball);
-            if (collisionResult && collisionResult.spawnBalls) {
-                newBalls.push(...collisionResult.spawnBalls);
             }
 
             checkBonusCollisions(ball);
@@ -289,56 +368,7 @@ function checkTurnEnd() {
     }
 }
 
-/**
- * Verifica colisiones de una bola con bloques
- * usando el behavior de la bola para determinar el resultado
- */
-function checkBrickCollisions(ball) {
-    const ballBehavior = BallRegistry.get(ball.ballType);
-    let collisionResult = null;
-
-    for (let brick of gameState.bricks) {
-        if (brick.hp <= 0) continue;
-
-        const brickId = `${brick.x},${brick.y}`;
-
-        if (circleRectCollision(ball.x, ball.y, getBallRadius(),
-            brick.x + 2, brick.y + 2, brick.width, brick.height)) {
-
-            // Usar el behavior de la bola para manejar la colisión
-            if (ballBehavior && ballBehavior.onCollision) {
-                const result = ballBehavior.onCollision(ball, brick, gameState, physicsHelpers);
-
-                if (result) {
-                    // Aplicar modificador de daño del bloque
-                    const brickBehavior = BrickRegistry.get(brick.type);
-                    let damage = result.damage;
-                    if (brickBehavior && brickBehavior.onDamage) {
-                        damage = brickBehavior.onDamage(brick, damage, gameState);
-                    }
-                    brick.hp -= damage;
-
-                    // Guardar resultado de colisión
-                    collisionResult = result;
-
-                    // Si no debemos seguir chequeando, salir
-                    if (!result.continueChecking) {
-                        return collisionResult;
-                    }
-                }
-            }
-        } else if (ball.fireball && ball.hitBricks && ball.hitBricks.has(brickId)) {
-            // Limpiar registro de fireball cuando sale del bloque
-            if (ballBehavior && ballBehavior.onExitBrick) {
-                ballBehavior.onExitBrick(ball, brick);
-            } else {
-                ball.hitBricks.delete(brickId);
-            }
-        }
-    }
-
-    return collisionResult;
-}
+// checkBrickCollisions ha sido reemplazada por el sistema CCD en updateBalls
 
 /**
  * Verifica colisiones de una bola con bonuses
@@ -364,197 +394,44 @@ function checkBonusCollisions(ball) {
     }
 }
 
-function circleRectCollision(cx, cy, cr, rx, ry, rw, rh) {
-    const closestX = Math.max(rx, Math.min(cx, rx + rw));
-    const closestY = Math.max(ry, Math.min(cy, ry + rh));
-    const dist = Math.hypot(cx - closestX, cy - closestY);
-    return dist < cr;
-}
+// circleRectCollision ha sido reemplazada por circleRectOverlap del CollisionSystem
 
 // ====================================
-// PREDICCIÓN DE TRAYECTORIA
+// PREDICCIÓN DE TRAYECTORIA - Unificada con sistema de colisiones
 // ====================================
 
+/**
+ * Calcula la trayectoria predicha usando el mismo sistema de colisiones
+ * que la simulación real. Esto garantiza que lo que se muestra al apuntar
+ * sea exactamente lo que sucederá al disparar.
+ *
+ * @param {number} startX - Posición inicial X
+ * @param {number} startY - Posición inicial Y
+ * @param {number} angle - Ángulo de disparo
+ * @param {number} maxBounces - Máximo de rebotes a mostrar
+ * @returns {Array<{x: number, y: number, isBounce: boolean}>}
+ */
 export function calculateTrajectory(startX, startY, angle, maxBounces) {
-    const leftBorder = getLeftBorder();
-    const rightBorder = getRightBorder();
-    const topLimit = getTopOffset() - 15;
-    const points = [{x: startX, y: startY, isBounce: false}];
-
-    let x = startX;
-    let y = startY;
-    let vx = Math.cos(angle);
-    let vy = Math.sin(angle);
-    let bounces = 0;
-    const maxDistance = 1200;
-    let totalDistance = 0;
-
-    while (bounces <= maxBounces && totalDistance < maxDistance) {
-        let minDist = Infinity;
-        let hitType = null;
-        let hitSide = null;
-
-        if (vx < 0) {
-            const dist = (leftBorder + getBallRadius() - x) / vx;
-            if (dist > 0 && dist < minDist) {
-                minDist = dist;
-                hitType = 'left';
-            }
-        }
-        if (vx > 0) {
-            const dist = (rightBorder - getBallRadius() - x) / vx;
-            if (dist > 0 && dist < minDist) {
-                minDist = dist;
-                hitType = 'right';
-            }
-        }
-        if (vy < 0) {
-            const dist = (topLimit + getBallRadius() - y) / vy;
-            if (dist > 0 && dist < minDist) {
-                minDist = dist;
-                hitType = 'top';
-            }
-        }
-
-        for (let brick of gameState.bricks) {
-            const collision = raycastToBrick(x, y, vx, vy, brick);
-            if (collision && collision.dist > 0.1 && collision.dist < minDist) {
-                minDist = collision.dist;
-                hitType = 'brick';
-                hitSide = collision.side;
-            }
-        }
-
-        if (minDist === Infinity || minDist > maxDistance - totalDistance) {
-            const remainingDist = Math.min(250, maxDistance - totalDistance);
-            points.push({
-                x: x + vx * remainingDist,
-                y: y + vy * remainingDist,
-                isBounce: false
-            });
-            break;
-        }
-
-        x += vx * minDist;
-        y += vy * minDist;
-        totalDistance += minDist;
-
-        points.push({x: x, y: y, isBounce: true});
-        bounces++;
-
-        if (hitType === 'left' || hitType === 'right') {
-            vx *= -1;
-        } else if (hitType === 'top') {
-            vy *= -1;
-        } else if (hitType === 'brick') {
-            if (hitSide === 'left' || hitSide === 'right') {
-                vx *= -1;
-            } else {
-                vy *= -1;
-            }
-        }
-    }
-
-    return points;
-}
-
-function raycastToCircle(x, y, vx, vy, cx, cy, radius) {
-    const dx = x - cx;
-    const dy = y - cy;
-
-    const a = vx * vx + vy * vy;
-    const b = 2 * (dx * vx + dy * vy);
-    const c = dx * dx + dy * dy - radius * radius;
-
-    const discriminant = b * b - 4 * a * c;
-
-    if (discriminant < 0) return null;
-
-    const t1 = (-b - Math.sqrt(discriminant)) / (2 * a);
-    const t2 = (-b + Math.sqrt(discriminant)) / (2 * a);
-
-    if (t1 > 0) return {dist: t1};
-    if (t2 > 0) return {dist: t2};
-    return null;
-}
-
-function raycastToBrick(x, y, vx, vy, brick) {
-    const brickLeft = brick.x + 2;
-    const brickRight = brick.x + 2 + brick.width;
-    const brickTop = brick.y + 2;
-    const brickBottom = brick.y + 2 + brick.height;
+    const bounds = {
+        left: getLeftBorder(),
+        right: getRightBorder(),
+        top: getTopOffset() - 15,
+        bottom: getBottomLine()
+    };
 
     const radius = getBallRadius();
+    const speed = BALL_SPEED; // Usar la misma velocidad que las bolas reales
 
-    let minDist = Infinity;
-    let hitSide = null;
-
-    // Raycast contra los cuatro lados del rectángulo expandido
-    if (vx > 0) {
-        const t = (brickLeft - radius - x) / vx;
-        const hitY = y + vy * t;
-        if (t > 0 && hitY >= brickTop && hitY <= brickBottom && t < minDist) {
-            minDist = t;
-            hitSide = 'left';
-        }
-    }
-    if (vx < 0) {
-        const t = (brickRight + radius - x) / vx;
-        const hitY = y + vy * t;
-        if (t > 0 && hitY >= brickTop && hitY <= brickBottom && t < minDist) {
-            minDist = t;
-            hitSide = 'right';
-        }
-    }
-    if (vy > 0) {
-        const t = (brickTop - radius - y) / vy;
-        const hitX = x + vx * t;
-        if (t > 0 && hitX >= brickLeft && hitX <= brickRight && t < minDist) {
-            minDist = t;
-            hitSide = 'top';
-        }
-    }
-    if (vy < 0) {
-        const t = (brickBottom + radius - y) / vy;
-        const hitX = x + vx * t;
-        if (t > 0 && hitX >= brickLeft && hitX <= brickRight && t < minDist) {
-            minDist = t;
-            hitSide = 'bottom';
-        }
-    }
-
-    // Raycast contra las cuatro esquinas (como círculos)
-    const corners = [
-        {x: brickLeft, y: brickTop, sideX: 'left', sideY: 'top'},
-        {x: brickRight, y: brickTop, sideX: 'right', sideY: 'top'},
-        {x: brickLeft, y: brickBottom, sideX: 'left', sideY: 'bottom'},
-        {x: brickRight, y: brickBottom, sideX: 'right', sideY: 'bottom'}
-    ];
-
-    for (let corner of corners) {
-        const collision = raycastToCircle(x, y, vx, vy, corner.x, corner.y, radius);
-        if (collision && collision.dist > 0 && collision.dist < minDist) {
-            const hitX = x + vx * collision.dist;
-            const hitY = y + vy * collision.dist;
-
-            const inCornerX = (corner.x === brickLeft && hitX < brickLeft) ||
-                            (corner.x === brickRight && hitX > brickRight);
-            const inCornerY = (corner.y === brickTop && hitY < brickTop) ||
-                            (corner.y === brickBottom && hitY > brickBottom);
-
-            if (inCornerX || inCornerY) {
-                minDist = collision.dist;
-                const dx = hitX - corner.x;
-                const dy = hitY - corner.y;
-                if (Math.abs(dx) > Math.abs(dy)) {
-                    hitSide = corner.sideX;
-                } else {
-                    hitSide = corner.sideY;
-                }
-            }
-        }
-    }
-
-    if (minDist === Infinity) return null;
-    return {dist: minDist, side: hitSide};
+    // Usar el sistema unificado de simulación de trayectoria
+    return simulateTrajectory(
+        startX,
+        startY,
+        angle,
+        speed,
+        radius,
+        gameState.bricks,
+        bounds,
+        maxBounces,
+        1200 // maxDistance
+    );
 }

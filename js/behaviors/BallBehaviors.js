@@ -32,32 +32,19 @@ const NormalBallBehavior = {
 
     /**
      * Maneja la colisión con un bloque
+     *
+     * NOTA: El rebote físico (cambio de velocidad y posición) es manejado
+     * por el sistema CCD (CollisionSystem). Este método solo debe:
+     * - Indicar si debe rebotar (bounce: true/false)
+     * - Indicar el daño
+     * - Crear efectos visuales (partículas)
+     *
      * @returns {object} { bounce: boolean, damage: number, continueChecking: boolean }
      */
     onCollision(ball, brick, gameState, helpers) {
-        const { getBallRadius, getBrickColor, createParticles, speedMultiplier } = helpers;
+        const { getBrickColor, createParticles, speedMultiplier } = helpers;
 
-        // Calcular rebote
-        const ballCenterX = ball.x;
-        const ballCenterY = ball.y;
-        const brickCenterX = brick.x + 2 + brick.width / 2;
-        const brickCenterY = brick.y + 2 + brick.height / 2;
-
-        const dx = ballCenterX - brickCenterX;
-        const dy = ballCenterY - brickCenterY;
-
-        const overlapX = brick.width / 2 + getBallRadius() - Math.abs(dx);
-        const overlapY = brick.height / 2 + getBallRadius() - Math.abs(dy);
-
-        if (overlapX < overlapY) {
-            ball.vx *= -1;
-            ball.x += dx > 0 ? overlapX : -overlapX;
-        } else {
-            ball.vy *= -1;
-            ball.y += dy > 0 ? overlapY : -overlapY;
-        }
-
-        // Crear partículas
+        // Crear partículas de impacto (solo en velocidad normal para rendimiento)
         if (speedMultiplier === 1) {
             createParticles(ball.x, ball.y, getBrickColor(brick.hp, brick.maxHp), 3);
         }

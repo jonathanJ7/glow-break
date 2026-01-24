@@ -1,6 +1,6 @@
 import { gameState, startShooting, shootTimeout, shootNextBall, endTurn, initGame, showMainMenu, updateBallsPreview, currentDifficulty } from './game.js';
 import { canvas, getLeftBorder, getRightBorder } from './rendering.js';
-import { FAST_SPEED_MULTIPLIER, POINTER_DISPLAY_DELAY_MS } from './config.js';
+import { FAST_SPEED_MULTIPLIER } from './config.js';
 
 // Input handling
 export function getPointerPos(e) {
@@ -27,6 +27,13 @@ export function handlePointerDown(e) {
     handlePointerMove(e);
 }
 
+/**
+ * Maneja el movimiento del puntero durante el apuntado.
+ *
+ * IMPORTANTE: El ángulo mostrado (displayAimAngle) es EXACTAMENTE el mismo
+ * que el ángulo de disparo (aimAngle). Esto garantiza que la trayectoria
+ * que ve el jugador sea exactamente la que seguirán las bolas.
+ */
 export function handlePointerMove(e) {
     if (!gameState.isAiming || gameState.isShooting) return;
 
@@ -36,38 +43,15 @@ export function handlePointerMove(e) {
 
     let angle = Math.atan2(dy, dx);
 
+    // Limitar el ángulo para que solo apunte hacia arriba
+    // Rango: aproximadamente de -170° a -10° (hemisferio superior)
     if (angle > -0.2) angle = -0.2;
     if (angle < -Math.PI + 0.2) angle = -Math.PI + 0.2;
 
+    // CRÍTICO: El ángulo de disparo Y el ángulo mostrado son el mismo
+    // Esto garantiza que lo que ves es exactamente lo que obtienes
     gameState.aimAngle = angle;
-
-    const now = performance.now();
-    gameState.aimHistory.push({ angle: angle, timestamp: now });
-
-    const cutoff = now - 500;
-    gameState.aimHistory = gameState.aimHistory.filter(entry => entry.timestamp > cutoff);
-
-    const targetTime = now - POINTER_DISPLAY_DELAY_MS;
-
-    let displayAngle = angle;
-    if (gameState.aimHistory.length > 1) {
-        let closestEntry = null;
-        let minTimeDiff = Infinity;
-
-        for (let entry of gameState.aimHistory) {
-            const timeDiff = Math.abs(entry.timestamp - targetTime);
-            if (timeDiff < minTimeDiff) {
-                minTimeDiff = timeDiff;
-                closestEntry = entry;
-            }
-        }
-
-        if (closestEntry) {
-            displayAngle = closestEntry.angle;
-        }
-    }
-
-    gameState.displayAimAngle = displayAngle;
+    gameState.displayAimAngle = angle;
 }
 
 export function handlePointerUp(e) {
