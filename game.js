@@ -154,6 +154,14 @@ export function generateNewRow() {
                 if (specialRoll >= cumulativeProbability && specialRoll < spawnerThreshold) {
                     type = 'spawner';
                 }
+                cumulativeProbability = spawnerThreshold;
+            }
+
+            if (type === 'normal' && config.regeneratorChance && turn > 6) {
+                const regeneratorThreshold = cumulativeProbability + config.regeneratorChance;
+                if (specialRoll >= cumulativeProbability && specialRoll < regeneratorThreshold) {
+                    type = 'regenerator';
+                }
             }
 
             gameState.bricks.push({
