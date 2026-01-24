@@ -296,9 +296,10 @@ export function reflectVelocity(vx, vy, nx, ny) {
  * @param {number} radius - Radio de la bola
  * @param {Array} bricks - Array de bloques [{x, y, width, height, hp, ...}]
  * @param {Object} bounds - Límites del área de juego {left, right, top, bottom}
+ * @param {Set} [excludeBricks] - Set de bloques a excluir de la detección
  * @returns {SweptCollisionResult|null}
  */
-export function findFirstCollision(x, y, vx, vy, radius, bricks, bounds) {
+export function findFirstCollision(x, y, vx, vy, radius, bricks, bounds, excludeBricks = null) {
     let bestCollision = null;
     let bestT = 1 + EPSILON; // 1 = fin del paso de tiempo
 
@@ -357,6 +358,9 @@ export function findFirstCollision(x, y, vx, vy, radius, bricks, bounds) {
     // Verificar cada bloque
     for (const brick of bricks) {
         if (brick.hp <= 0) continue;
+
+        // Excluir bloques que la bola está atravesando
+        if (excludeBricks && excludeBricks.has(brick)) continue;
 
         // Los bloques tienen un offset de +2 para la colisión
         const collision = sweepSphereRect(
@@ -487,7 +491,7 @@ export function simulateTrajectory(startX, startY, angle, speed, radius, bricks,
  * @param {number} radius - Radio de la bola
  * @param {Array} bricks - Array de bloques
  * @param {Object} bounds - Límites del juego
- * @param {Function} onBrickHit - Callback cuando golpea un bloque: (ball, brick, collision) => {shouldBounce, damage}
+ * @param {Function} onBrickHit - Callback cuando golpea un bloque: (ball, brick, collision) => {shouldBounce, damage, passThrough}
  * @returns {{collisions: Array, newX: number, newY: number, newVx: number, newVy: number}}
  */
 export function processPhysicsStep(ball, radius, bricks, bounds, onBrickHit) {
@@ -498,6 +502,9 @@ export function processPhysicsStep(ball, radius, bricks, bounds, onBrickHit) {
     let vy = ball.vy;
     let remainingTime = 1.0;
 
+    // Bloques que la bola está atravesando (para fireballs)
+    const passThroughBricks = new Set();
+
     // Máximo de colisiones por frame para evitar bucles infinitos
     const maxCollisionsPerFrame = 10;
     let collisionCount = 0;
@@ -507,7 +514,7 @@ export function processPhysicsStep(ball, radius, bricks, bounds, onBrickHit) {
         const stepVx = vx * remainingTime;
         const stepVy = vy * remainingTime;
 
-        const collision = findFirstCollision(x, y, stepVx, stepVy, radius, bricks, bounds);
+        const collision = findFirstCollision(x, y, stepVx, stepVy, radius, bricks, bounds, passThroughBricks);
 
         if (!collision || collision.t > 1 - EPSILON) {
             // No hay colisión, mover al destino final
@@ -516,32 +523,46 @@ export function processPhysicsStep(ball, radius, bricks, bounds, onBrickHit) {
             break;
         }
 
-        // Mover al punto de colisión
-        x = collision.hitX;
-        y = collision.hitY;
-
-        // Consumir el tiempo usado
-        remainingTime *= (1 - collision.t);
-
         let shouldBounce = true;
+        let passThrough = false;
 
         // Si golpeó un bloque, notificar
         if (collision.brick) {
             const result = onBrickHit(ball, collision.brick, collision);
             shouldBounce = result.shouldBounce;
+            passThrough = result.passThrough || false;
             collisions.push({
                 brick: collision.brick,
                 damage: result.damage,
                 collision: collision
             });
+
+            // Si la bola atraviesa este bloque, agregarlo a la lista de exclusión
+            if (passThrough) {
+                passThroughBricks.add(collision.brick);
+            }
         } else {
-            // Colisión con pared
+            // Colisión con pared - siempre rebota
             collisions.push({
                 brick: null,
                 wall: collision.side,
                 collision: collision
             });
         }
+
+        // Si atraviesa, no actualizar posición ni consumir tiempo para esta colisión
+        // La siguiente iteración encontrará la siguiente colisión (pared u otro bloque)
+        if (passThrough) {
+            collisionCount++;
+            continue;
+        }
+
+        // Mover al punto de colisión
+        x = collision.hitX;
+        y = collision.hitY;
+
+        // Consumir el tiempo usado
+        remainingTime *= (1 - collision.t);
 
         // Aplicar rebote si corresponde
         if (shouldBounce) {
