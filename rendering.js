@@ -266,10 +266,10 @@ export function draw() {
             color = '#3b82f6';
             text = '';
             icon = '⚡';
-        } else if (bonus.type === 'ballMultiplier') {
-            color = '#a855f7';
+        } else if (bonus.type === 'strength') {
+            color = '#ff8c00';  // Naranja para fuerza
             text = '';
-            icon = '✨';
+            icon = '💪';
         }
 
         ctx.shadowColor = color;

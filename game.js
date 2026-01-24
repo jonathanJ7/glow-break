@@ -34,7 +34,8 @@ export let gameState = {
     gameOver: false,
     gameStarted: false,
     showInstructions: true,
-    speedMultiplier: 1
+    speedMultiplier: 1,
+    strengthBonus: 0    // Bonus de daño del power-up de fuerza
 };
 
 export let currentDifficulty = 'easy';
@@ -189,8 +190,8 @@ export function generateNewRow() {
             });
             bonusPlaced = true;
         } else if (rand < density + config.bonusChance + config.powerupChance && !powerupPlaced && turn > 3) {
-            // Power-ups especiales (laser horizontal, multiplicador)
-            const powerupTypes = ['horizontal', 'ballMultiplier'];
+            // Power-ups especiales (laser horizontal, fuerza)
+            const powerupTypes = ['horizontal', 'strength'];
             const ptype = powerupTypes[Math.floor(Math.random() * powerupTypes.length)];
             gameState.bonuses.push({
                 x: leftBorder + col * cellSize + cellSize / 2,
@@ -315,7 +316,7 @@ export function shootNextBall() {
         fireball: isFireball,
         splitter: isSplitter,
         hasSplit: false,  // Para que solo se divida una vez
-        damage: 1,
+        damage: 1 + (gameState.strengthBonus || 0),  // Aplicar bonus de fuerza si existe
         hitBricks: isFireball ? new Set() : null
     });
 
@@ -334,6 +335,7 @@ export function endTurn() {
     gameState.launchX = gameState.nextLaunchX || getWidth() / 2;
     gameState.turn++;
     gameState.speedMultiplier = 1;
+    gameState.strengthBonus = 0;  // Resetear bonus de fuerza al terminar el turno
     document.getElementById('speedIndicator').style.display = 'none';
     document.getElementById('skipBtn').style.display = 'none';
 
@@ -429,6 +431,7 @@ export function initGame(difficulty) {
     gameState.gameStarted = true;
     gameState.showInstructions = true;
     gameState.speedMultiplier = 1;
+    gameState.strengthBonus = 0;
 
     document.getElementById('mainMenu').style.display = 'none';
     document.getElementById('gameOver').style.display = 'none';

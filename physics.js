@@ -326,34 +326,6 @@ function checkBrickCollisions(ball) {
     }
 }
 
-// Multiply ball into multiple balls with different angles
-function multiplyBall(ball) {
-    const speed = Math.hypot(ball.vx, ball.vy);
-    const currentAngle = Math.atan2(ball.vy, ball.vx);
-
-    // Create 2 additional balls at +/- 30 degrees from the original direction
-    const angleOffsets = [-Math.PI / 6, Math.PI / 6]; // -30° and +30°
-
-    for (const offset of angleOffsets) {
-        const newAngle = currentAngle + offset;
-        const newBall = {
-            x: ball.x,
-            y: ball.y,
-            vx: Math.cos(newAngle) * speed,
-            vy: Math.sin(newAngle) * speed,
-            active: true,
-            hasGoneUp: ball.hasGoneUp,
-            ballType: ball.ballType,
-            fireball: ball.fireball,
-            splitter: ball.splitter,
-            hasSplit: ball.hasSplit,
-            damage: ball.damage,
-            hitBricks: ball.fireball ? new Set() : null,
-            lifetime: 0
-        };
-        gameState.balls.push(newBall);
-    }
-}
 
 // Split a splitter ball into 5 normal balls
 function splitBall(ball) {
@@ -410,9 +382,15 @@ function checkBonusCollisions(ball) {
                 gameState.ballInventory.splitter += count;
             } else if (bonus.type === 'horizontal') {
                 fireHorizontalLaser(ball.y);
-            } else if (bonus.type === 'ballMultiplier') {
-                // Multiplicar la bola actual en 3 bolas con diferentes direcciones
-                multiplyBall(ball);
+            } else if (bonus.type === 'strength') {
+                // Aumentar el daño de todas las bolas activas por el resto del turno
+                for (let b of gameState.balls) {
+                    if (b.active) {
+                        b.damage = (b.damage || 1) + 2;  // +2 daño extra
+                    }
+                }
+                // Marcar para que las bolas futuras del turno también tengan daño aumentado
+                gameState.strengthBonus = (gameState.strengthBonus || 0) + 2;
             }
 
             createParticles(bonus.x, bonus.y, '#f9ed69', 8);
