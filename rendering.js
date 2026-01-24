@@ -339,6 +339,11 @@ export function draw() {
             ctx.shadowColor = '#f9ed69';
             ctx.shadowBlur = 8;
             ctx.fillStyle = '#f9ed69';
+        } else if (ball.strength) {
+            // Bola de fuerza - naranja con glow
+            ctx.shadowColor = '#ff8c00';
+            ctx.shadowBlur = 8;
+            ctx.fillStyle = '#ff8c00';
         } else {
             // Bola normal - blanca
             ctx.fillStyle = '#fff';
@@ -411,7 +416,7 @@ export function draw() {
 
     // Draw ball inventory indicators (show special balls)
     const inv = gameState.ballInventory;
-    if (inv.fireball > 0 || inv.splitter > 0) {
+    if (inv.fireball > 0 || inv.splitter > 0 || inv.strength > 0) {
         const scale = getScale();
         let indicatorX = leftBorder + 10 * scale;
         const indicatorY = getBottomLine() + 20 * scale;
@@ -439,6 +444,18 @@ export function draw() {
             ctx.font = `${getFontSize(11)}px Arial`;
             ctx.textAlign = 'center';
             ctx.fillText('💥 ' + inv.splitter, indicatorX + indicatorW / 2, indicatorY + indicatorH * 0.7);
+            indicatorX += indicatorW + 10 * scale;
+        }
+
+        if (inv.strength > 0) {
+            ctx.fillStyle = 'rgba(255, 140, 0, 0.8)';
+            ctx.beginPath();
+            ctx.roundRect(indicatorX, indicatorY, indicatorW, indicatorH, 10 * scale);
+            ctx.fill();
+            ctx.fillStyle = 'white';
+            ctx.font = `${getFontSize(11)}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.fillText('💪 ' + inv.strength, indicatorX + indicatorW / 2, indicatorY + indicatorH * 0.7);
         }
     }
 }

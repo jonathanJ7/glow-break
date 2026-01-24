@@ -383,14 +383,8 @@ function checkBonusCollisions(ball) {
             } else if (bonus.type === 'horizontal') {
                 fireHorizontalLaser(ball.y);
             } else if (bonus.type === 'strength') {
-                // Aumentar el daño de todas las bolas activas por el resto del turno
-                for (let b of gameState.balls) {
-                    if (b.active) {
-                        b.damage = (b.damage || 1) + 2;  // +2 daño extra
-                    }
-                }
-                // Marcar para que las bolas futuras del turno también tengan daño aumentado
-                gameState.strengthBonus = (gameState.strengthBonus || 0) + 2;
+                // Agregar bola de fuerza al inventario
+                gameState.ballInventory.strength += 1;
             }
 
             createParticles(bonus.x, bonus.y, '#f9ed69', 8);

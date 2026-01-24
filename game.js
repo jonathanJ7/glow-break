@@ -11,7 +11,8 @@ export let gameState = {
     ballInventory: {
         normal: 1,      // Bolas comunes
         fireball: 0,    // Bolas de fuego (atraviesan bloques)
-        splitter: 0     // Bolas que se dividen en 5 al golpear
+        splitter: 0,    // Bolas que se dividen en 5 al golpear
+        strength: 0     // Bolas con daño aumentado (+2)
     },
     balls: [],
     bricks: [],
@@ -34,8 +35,7 @@ export let gameState = {
     gameOver: false,
     gameStarted: false,
     showInstructions: true,
-    speedMultiplier: 1,
-    strengthBonus: 0    // Bonus de daño del power-up de fuerza
+    speedMultiplier: 1
 };
 
 export let currentDifficulty = 'easy';
@@ -47,7 +47,8 @@ export let shootTimeout = null;
 export function getTotalBalls() {
     return gameState.ballInventory.normal +
            gameState.ballInventory.fireball +
-           gameState.ballInventory.splitter;
+           gameState.ballInventory.splitter +
+           gameState.ballInventory.strength;
 }
 
 // Calculate expected balls for a given turn based on difficulty
@@ -271,7 +272,7 @@ export function startShooting() {
     document.getElementById('instructions').style.opacity = '0';
     document.getElementById('skipBtn').style.display = 'block';
 
-    // Crear cola de bolas a disparar (orden: normal, fireball, splitter)
+    // Crear cola de bolas a disparar (orden: normal, fireball, splitter, strength)
     const shootQueue = [];
     const inv = gameState.ballInventory;
     const maxBalls = MAX_BALLS_ON_SCREEN;
@@ -284,9 +285,13 @@ export function startShooting() {
     for (let i = 0; i < inv.fireball && shootQueue.length < maxBalls; i++) {
         shootQueue.push('fireball');
     }
-    // Finalmente splitters
+    // Luego splitters
     for (let i = 0; i < inv.splitter && shootQueue.length < maxBalls; i++) {
         shootQueue.push('splitter');
+    }
+    // Finalmente bolas de fuerza
+    for (let i = 0; i < inv.strength && shootQueue.length < maxBalls; i++) {
+        shootQueue.push('strength');
     }
 
     gameState.ballsToShoot = shootQueue;
@@ -304,6 +309,7 @@ export function shootNextBall() {
 
     const isFireball = ballType === 'fireball';
     const isSplitter = ballType === 'splitter';
+    const isStrength = ballType === 'strength';
 
     gameState.balls.push({
         x: gameState.launchX,
@@ -315,8 +321,9 @@ export function shootNextBall() {
         ballType: ballType,
         fireball: isFireball,
         splitter: isSplitter,
+        strength: isStrength,
         hasSplit: false,  // Para que solo se divida una vez
-        damage: 1 + (gameState.strengthBonus || 0),  // Aplicar bonus de fuerza si existe
+        damage: isStrength ? 3 : 1,  // Bolas de fuerza hacen 3 de daño
         hitBricks: isFireball ? new Set() : null
     });
 
@@ -335,7 +342,6 @@ export function endTurn() {
     gameState.launchX = gameState.nextLaunchX || getWidth() / 2;
     gameState.turn++;
     gameState.speedMultiplier = 1;
-    gameState.strengthBonus = 0;  // Resetear bonus de fuerza al terminar el turno
     document.getElementById('speedIndicator').style.display = 'none';
     document.getElementById('skipBtn').style.display = 'none';
 
@@ -407,7 +413,8 @@ export function initGame(difficulty) {
     gameState.ballInventory = {
         normal: startingBalls.normal,
         fireball: startingBalls.fireball,
-        splitter: startingBalls.splitter
+        splitter: startingBalls.splitter,
+        strength: 0
     };
     gameState.balls = [];
     gameState.bricks = [];
@@ -431,7 +438,6 @@ export function initGame(difficulty) {
     gameState.gameStarted = true;
     gameState.showInstructions = true;
     gameState.speedMultiplier = 1;
-    gameState.strengthBonus = 0;
 
     document.getElementById('mainMenu').style.display = 'none';
     document.getElementById('gameOver').style.display = 'none';
