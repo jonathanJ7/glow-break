@@ -57,9 +57,9 @@ export function calculateStartingBalls(turn, difficulty) {
     if (turn <= 1) return { normal: 1, fireball: 0, splitter: 0, total: 1 };
 
     const ballsPerTurn = {
-        easy: 0.85,
-        medium: 0.55,
-        hard: 0.35
+        easy: 1.2,
+        medium: 0.9,
+        hard: 0.5
     };
 
     const rate = ballsPerTurn[difficulty];
