@@ -29,8 +29,9 @@ export const DIFFICULTY_SETTINGS = {
         // Paso 3: Distribución dentro de cada categoría
         specialDistribution: {
             explosive: 1.0,          // 100% de helpful son explosivos
-            armored: 0.45,           // 45% de challenging son armored
-            spawner: 0.55            // 55% de challenging son spawner
+            armored: 0.35,           // 35% de challenging son armored
+            spawner: 0.40,           // 40% de challenging son spawner
+            regenerator: 0.25        // 25% de challenging son regenerator
         }
     },
     medium: {
@@ -55,8 +56,9 @@ export const DIFFICULTY_SETTINGS = {
         // Paso 3: Distribución dentro de cada categoría
         specialDistribution: {
             explosive: 1.0,          // 100% de helpful son explosivos
-            armored: 0.55,           // 55% de challenging son armored
-            spawner: 0.45            // 45% de challenging son spawner
+            armored: 0.40,           // 40% de challenging son armored
+            spawner: 0.30,           // 30% de challenging son spawner
+            regenerator: 0.30        // 30% de challenging son regenerator
         }
     },
     hard: {
@@ -82,8 +84,9 @@ export const DIFFICULTY_SETTINGS = {
         // Paso 3: Distribución dentro de cada categoría
         specialDistribution: {
             explosive: 1.0,          // 100% de helpful son explosivos
-            armored: 0.60,           // 60% de challenging son armored
-            spawner: 0.40            // 40% de challenging son spawner
+            armored: 0.40,           // 40% de challenging son armored
+            spawner: 0.25,           // 25% de challenging son spawner
+            regenerator: 0.35        // 35% de challenging son regenerator
         }
     }
 };

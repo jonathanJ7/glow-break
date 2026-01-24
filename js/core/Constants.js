@@ -23,20 +23,22 @@ export const GAME_CONSTANTS = {
         NORMAL: 'normal',
         EXPLOSIVE: 'explosive',
         ARMORED: 'armored',
-        SPAWNER: 'spawner'
+        SPAWNER: 'spawner',
+        REGENERATOR: 'regenerator'
     },
 
     // Brick categories (helpful = ayudan al jugador, challenging = dificultan)
     BRICK_CATEGORIES: {
         HELPFUL: ['explosive'],           // Explosivos ayudan a destruir bloques
-        CHALLENGING: ['armored', 'spawner'] // Armored y spawner dificultan
+        CHALLENGING: ['armored', 'spawner', 'regenerator'] // Armored, spawner y regenerator dificultan
     },
 
     // Brick generation thresholds
     BRICK_GENERATION_TURNS: {
         EXPLOSIVE_MIN_TURN: 3,
         ARMORED_MIN_TURN: 5,
-        SPAWNER_MIN_TURN: 8
+        SPAWNER_MIN_TURN: 8,
+        REGENERATOR_MIN_TURN: 6
     },
 
     // Colors

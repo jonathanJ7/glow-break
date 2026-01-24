@@ -142,22 +142,35 @@ export class BrickGenerator {
             // Si no está disponible aún, devuelve normal
             return BRICK_TYPES.NORMAL;
         } else {
-            // PASO 3b: Bloque desafiante (armored o spawner)
+            // PASO 3b: Bloque desafiante (armored, spawner o regenerator)
             const challengingRoll = Math.random();
+            let cumulative = 0;
 
             // Armored
             if (turn > BRICK_GENERATION_TURNS.ARMORED_MIN_TURN) {
-                if (challengingRoll < distribution.armored) {
+                cumulative += distribution.armored || 0;
+                if (challengingRoll < cumulative) {
                     return BRICK_TYPES.ARMORED;
                 }
             }
 
             // Spawner
             if (turn > BRICK_GENERATION_TURNS.SPAWNER_MIN_TURN) {
-                return BRICK_TYPES.SPAWNER;
+                cumulative += distribution.spawner || 0;
+                if (challengingRoll < cumulative) {
+                    return BRICK_TYPES.SPAWNER;
+                }
             }
 
-            // Si armored está disponible pero spawner no, usar armored
+            // Regenerator
+            if (turn > BRICK_GENERATION_TURNS.REGENERATOR_MIN_TURN) {
+                cumulative += distribution.regenerator || 0;
+                if (challengingRoll < cumulative) {
+                    return BRICK_TYPES.REGENERATOR;
+                }
+            }
+
+            // Fallback: usar el primer tipo disponible
             if (turn > BRICK_GENERATION_TURNS.ARMORED_MIN_TURN) {
                 return BRICK_TYPES.ARMORED;
             }

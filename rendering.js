@@ -231,13 +231,25 @@ export function draw() {
             ctx.fillText('👾', brick.x + 2 + brick.width / 2, brick.y + 15 * getScale());
         }
 
+        if (brick.type === 'regenerator') {
+            ctx.fillStyle = 'rgba(34, 197, 94, 0.3)';
+            ctx.beginPath();
+            ctx.roundRect(brick.x + 2, brick.y + 2, brick.width, brick.height, 6);
+            ctx.fill();
+
+            ctx.fillStyle = 'rgba(255,255,255,0.8)';
+            ctx.font = `${getFontSize(12)}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.fillText('💚', brick.x + 2 + brick.width / 2, brick.y + 15 * getScale());
+        }
+
         // HP text
         ctx.fillStyle = 'white';
         const hpFontSize = getFontSize(brick.hp > 999 ? 10 : brick.hp > 99 ? 12 : 14);
         ctx.font = `bold ${hpFontSize}px Arial`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        const textY = (brick.type === 'explosive' || brick.type === 'spawner')
+        const textY = (brick.type === 'explosive' || brick.type === 'spawner' || brick.type === 'regenerator')
             ? brick.y + 2 + brick.height / 2 + 8 * getScale()
             : brick.y + 2 + brick.height / 2;
         ctx.fillText(Math.ceil(brick.hp), brick.x + 2 + brick.width / 2, textY);
