@@ -35,13 +35,13 @@ export const DIFFICULTY_SETTINGS = {
         bonusChance: 0.12,
         powerupChance: 0.05,
         explosiveChance: 0.06,
-        armoredChance: 0.03,
+        armoredChance: 0.015,
         multiBallChance: 0.2,
         startingBalls: 1,
         hpVariationMin: 0.3,
         hpVariationMax: 1.0,
-        poisonBrickChance: 0.04,
-        regeneratorChance: 0.03
+        poisonBrickChance: 0.08,
+        regeneratorChance: 0.06
     },
     medium: {
         name: 'MEDIO',
@@ -54,13 +54,13 @@ export const DIFFICULTY_SETTINGS = {
         bonusChance: 0.08,
         powerupChance: 0.035,
         explosiveChance: 0.08,
-        armoredChance: 0.10,
+        armoredChance: 0.05,
         multiBallChance: 0.1,
         startingBalls: 1,
         hpVariationMin: 0.5,
         hpVariationMax: 1.5,
-        poisonBrickChance: 0.05,
-        regeneratorChance: 0.05
+        poisonBrickChance: 0.10,
+        regeneratorChance: 0.10
     },
     hard: {
         name: 'DIFÍCIL',
@@ -73,13 +73,13 @@ export const DIFFICULTY_SETTINGS = {
         bonusChance: 0.05,
         powerupChance: 0.025,
         explosiveChance: 0.04,
-        armoredChance: 0.20,
+        armoredChance: 0.10,
         multiBallChance: 0.05,
         startingBalls: 1,
         hpVariationMin: 0.7,
         hpVariationMax: 2.0,
-        poisonBrickChance: 0.06,
-        regeneratorChance: 0.08,
+        poisonBrickChance: 0.12,
+        regeneratorChance: 0.16,
         reinforcedRows: true
     }
 };
