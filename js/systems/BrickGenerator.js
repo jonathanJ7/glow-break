@@ -101,20 +101,17 @@ export class BrickGenerator {
     }
 
     /**
-     * Determina el tipo de bloque usando sistema de DOS PASOS
+     * Determina el tipo de bloque usando sistema de TRES PASOS
      *
      * PASO 1: ¿Es un bloque especial?
      *   - Probabilidad base (specialBlockChance) + crecimiento por turno
-     *   - Ejemplo: 5% inicial + (turno × 0.4%) = crece con el tiempo
      *
-     * PASO 2: Si es especial, ¿de qué tipo?
-     *   - Distribución relativa entre explosive/armored/spawner
-     *   - Ejemplo: 35% explosive, 30% armored, 35% spawner
+     * PASO 2: ¿Es un bloque de ayuda (helpful) o desafiante (challenging)?
+     *   - helpful: explosive (ayuda a destruir bloques cercanos)
+     *   - challenging: armored, spawner (dificultan el juego)
      *
-     * Ventajas:
-     *   - Fácil controlar % total de bloques especiales
-     *   - Dificultad escala de forma predecible
-     *   - Se puede ajustar la distribución sin afectar el total
+     * PASO 3: ¿De qué tipo específico dentro de la categoría?
+     *   - Distribución relativa dentro de cada categoría
      */
     _determineBrickType(config, turn) {
         const { BRICK_TYPES, BRICK_GENERATION_TURNS } = GAME_CONSTANTS;
@@ -131,38 +128,43 @@ export class BrickGenerator {
             return BRICK_TYPES.NORMAL;
         }
 
-        // PASO 2: Si es especial, ¿de qué tipo?
-        const distribution = config.specialDistribution;
-        const typeRoll = Math.random();
-        let cumulativeProbability = 0;
+        // PASO 2: ¿Helpful o Challenging?
+        const helpfulChance = config.helpfulChance || 0.5;
+        const isHelpful = Math.random() < helpfulChance;
 
-        // Explosive
-        if (turn > BRICK_GENERATION_TURNS.EXPLOSIVE_MIN_TURN) {
-            cumulativeProbability += distribution.explosive;
-            if (typeRoll < cumulativeProbability) {
+        const distribution = config.specialDistribution;
+
+        if (isHelpful) {
+            // PASO 3a: Bloque de ayuda (explosive)
+            if (turn > BRICK_GENERATION_TURNS.EXPLOSIVE_MIN_TURN) {
                 return BRICK_TYPES.EXPLOSIVE;
             }
-        }
+            // Si no está disponible aún, devuelve normal
+            return BRICK_TYPES.NORMAL;
+        } else {
+            // PASO 3b: Bloque desafiante (armored o spawner)
+            const challengingRoll = Math.random();
 
-        // Armored
-        if (turn > BRICK_GENERATION_TURNS.ARMORED_MIN_TURN) {
-            cumulativeProbability += distribution.armored;
-            if (typeRoll < cumulativeProbability) {
-                return BRICK_TYPES.ARMORED;
+            // Armored
+            if (turn > BRICK_GENERATION_TURNS.ARMORED_MIN_TURN) {
+                if (challengingRoll < distribution.armored) {
+                    return BRICK_TYPES.ARMORED;
+                }
             }
-        }
 
-        // Spawner
-        if (turn > BRICK_GENERATION_TURNS.SPAWNER_MIN_TURN) {
-            cumulativeProbability += distribution.spawner;
-            if (typeRoll < cumulativeProbability) {
+            // Spawner
+            if (turn > BRICK_GENERATION_TURNS.SPAWNER_MIN_TURN) {
                 return BRICK_TYPES.SPAWNER;
             }
-        }
 
-        // Si el turno es muy temprano y ningún tipo está disponible aún,
-        // devuelve normal en lugar de especial
-        return BRICK_TYPES.NORMAL;
+            // Si armored está disponible pero spawner no, usar armored
+            if (turn > BRICK_GENERATION_TURNS.ARMORED_MIN_TURN) {
+                return BRICK_TYPES.ARMORED;
+            }
+
+            // Si ninguno está disponible, devuelve normal
+            return BRICK_TYPES.NORMAL;
+        }
     }
 
     /**

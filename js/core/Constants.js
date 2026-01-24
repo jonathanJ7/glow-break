@@ -26,6 +26,12 @@ export const GAME_CONSTANTS = {
         SPAWNER: 'spawner'
     },
 
+    // Brick categories (helpful = ayudan al jugador, challenging = dificultan)
+    BRICK_CATEGORIES: {
+        HELPFUL: ['explosive'],           // Explosivos ayudan a destruir bloques
+        CHALLENGING: ['armored', 'spawner'] // Armored y spawner dificultan
+    },
+
     // Brick generation thresholds
     BRICK_GENERATION_TURNS: {
         EXPLOSIVE_MIN_TURN: 3,

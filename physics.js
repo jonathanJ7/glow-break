@@ -52,7 +52,7 @@ export function explodeBrick(brick) {
         const dist = Math.hypot(centerX - otherCenterX, centerY - otherCenterY);
 
         if (dist < explosionRadius) {
-            const damage = Math.floor(brick.maxHp * 0.5);
+            const damage = brick.maxHp;  // Daño igual al HP inicial del explosivo
             other.hp -= damage;
         }
     }
