@@ -383,7 +383,7 @@ export function findFirstCollision(x, y, vx, vy, radius, bricks, bounds) {
  * @param {number} startX - Posición inicial X
  * @param {number} startY - Posición inicial Y
  * @param {number} angle - Ángulo de disparo
- * @param {number} speed - Velocidad de la bola
+ * @param {number} speed - Velocidad de la bola (usado para normalización)
  * @param {number} radius - Radio de la bola
  * @param {Array} bricks - Array de bloques
  * @param {Object} bounds - Límites del juego
@@ -396,8 +396,11 @@ export function simulateTrajectory(startX, startY, angle, speed, radius, bricks,
 
     let x = startX;
     let y = startY;
-    let vx = Math.cos(angle) * speed;
-    let vy = Math.sin(angle) * speed;
+
+    // Dirección normalizada
+    let dirX = Math.cos(angle);
+    let dirY = Math.sin(angle);
+
     let bounces = 0;
     let totalDistance = 0;
 
@@ -408,22 +411,28 @@ export function simulateTrajectory(startX, startY, angle, speed, radius, bricks,
     while (bounces < maxBounces && totalDistance < maxDistance && iterations < maxIterations) {
         iterations++;
 
-        // Encontrar la primera colisión en este paso
-        const collision = findFirstCollision(x, y, vx, vy, radius, bricks, bounds);
+        // Calcular la distancia restante que queremos simular
+        const remainingDist = maxDistance - totalDistance;
+
+        // Escalar la dirección para buscar colisiones en todo el tramo restante
+        const searchVx = dirX * remainingDist;
+        const searchVy = dirY * remainingDist;
+
+        // Encontrar la primera colisión en este tramo
+        const collision = findFirstCollision(x, y, searchVx, searchVy, radius, bricks, bounds);
 
         if (!collision || collision.t > 1) {
-            // No hay colisión en este paso, continuar en línea recta
-            const remainingDist = Math.min(speed, maxDistance - totalDistance);
-            const endX = x + (vx / speed) * remainingDist;
-            const endY = y + (vy / speed) * remainingDist;
+            // No hay colisión, extender la trayectoria hasta maxDistance
+            const endX = x + dirX * remainingDist;
+            const endY = y + dirY * remainingDist;
 
             points.push({ x: endX, y: endY, isBounce: false });
             break;
         }
 
-        // Mover hasta el punto de colisión
-        const moveX = vx * collision.t;
-        const moveY = vy * collision.t;
+        // Calcular la distancia real recorrida hasta la colisión
+        const moveX = searchVx * collision.t;
+        const moveY = searchVy * collision.t;
         const moveDist = Math.hypot(moveX, moveY);
 
         x = collision.hitX;
@@ -433,30 +442,37 @@ export function simulateTrajectory(startX, startY, angle, speed, radius, bricks,
         points.push({ x: x, y: y, isBounce: true, side: collision.side });
         bounces++;
 
-        // Reflejar la velocidad
-        const reflected = reflectVelocity(vx, vy, collision.normalX, collision.normalY);
-        vx = reflected.vx;
-        vy = reflected.vy;
+        // Reflejar la dirección usando la normal de la superficie
+        // v' = v - 2(v·n)n
+        const dot = dirX * collision.normalX + dirY * collision.normalY;
+        dirX = dirX - 2 * dot * collision.normalX;
+        dirY = dirY - 2 * dot * collision.normalY;
+
+        // Renormalizar para evitar acumulación de errores
+        const len = Math.hypot(dirX, dirY);
+        if (len > EPSILON) {
+            dirX /= len;
+            dirY /= len;
+        }
 
         // Pequeño empuje para evitar colisiones repetidas
-        // IMPORTANTE: Este valor debe ser igual al de processPhysicsStep
         x += collision.normalX * 0.5;
         y += collision.normalY * 0.5;
     }
 
-    // Si terminamos por iteraciones, agregar punto final
-    if (iterations >= maxIterations && points.length > 0) {
+    // Si terminamos por iteraciones o rebotes, agregar punto final si el último es un rebote
+    if (points.length > 0) {
         const lastPoint = points[points.length - 1];
-        if (!lastPoint.isBounce) {
-            // Ya hay un punto final
-        } else {
+        if (lastPoint.isBounce) {
             // Agregar extensión desde el último rebote
-            const remainingDist = Math.min(50, maxDistance - totalDistance);
-            points.push({
-                x: x + (vx / speed) * remainingDist,
-                y: y + (vy / speed) * remainingDist,
-                isBounce: false
-            });
+            const remainingDist = Math.min(100, maxDistance - totalDistance);
+            if (remainingDist > 0) {
+                points.push({
+                    x: x + dirX * remainingDist,
+                    y: y + dirY * remainingDist,
+                    isBounce: false
+                });
+            }
         }
     }
 
