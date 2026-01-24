@@ -199,7 +199,7 @@ export function updateBalls() {
             const onBrickHit = (ball, brick, collision) => {
                 const brickId = `${brick.x},${brick.y}`;
 
-                // Fireball no rebota y solo daña una vez por bloque
+                // Fireball atraviesa bloques y solo daña una vez por bloque
                 if (isFireball) {
                     if (!ball.hitBricks) ball.hitBricks = new Set();
 
@@ -218,7 +218,8 @@ export function updateBalls() {
                             createParticles(collision.hitX, collision.hitY, getBrickColor(brick.hp, brick.maxHp), 3);
                         }
                     }
-                    return { shouldBounce: false, damage: 0 };
+                    // passThrough: true indica que la bola atraviesa el bloque sin detenerse
+                    return { shouldBounce: false, damage: 0, passThrough: true };
                 }
 
                 // Bola normal o splitter
