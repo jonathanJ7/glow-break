@@ -6,13 +6,18 @@
 
 1. **`service-worker.js`** - line 2:
    ```javascript
-   const APP_VERSION = '2.0.0';  // Change here
+   const APP_VERSION = '2.3.0';  // Change here
    ```
 
 2. **`index.html`** - find the `#versionInfo` div:
    ```html
-   <div id="versionInfo">v2.0.0</div>  <!-- And here -->
+   <div id="versionInfo">v2.3.0</div>  <!-- And here -->
    ```
+
+### Version Increment Rules
+
+- **MINOR** (2.x.0): Default for all changes (bug fixes, new features, improvements)
+- **MAJOR** (x.0.0): Only for large architectural refactors that change how the codebase works fundamentally
 
 This ensures that:
 - The cache invalidates correctly
