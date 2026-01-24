@@ -1,6 +1,17 @@
+/**
+ * Game Module - Refactorizado con patrón Strategy
+ *
+ * Este módulo usa los registries de behaviors para manejar
+ * el estado del juego de forma extensible (Open/Closed principle).
+ *
+ * Para agregar nuevos tipos de bloques, bolas o bonuses,
+ * solo necesitas registrar nuevos behaviors.
+ */
+
 import { DIFFICULTY_SETTINGS, COLS, SHOOT_DELAY, MAX_BALLS_ON_SCREEN, FAST_SPEED_MULTIPLIER, BASE_BALL_RADIUS, BALL_SPEED } from './config.js';
 import { getWidth, getHeight, getCellSize, getLeftBorder, getTopOffset, getBottomLine, getScale, getBallRadius } from './rendering.js';
 import { updateBalls, updateParticles, createParticles } from './physics.js';
+import { BrickRegistry, BallRegistry, BonusRegistry } from './js/behaviors/index.js';
 
 // ====================================
 // ESTADO DEL JUEGO
@@ -43,7 +54,10 @@ export let difficultyConfig = DIFFICULTY_SETTINGS.easy;
 export let startingTurn = 1;
 export let shootTimeout = null;
 
-// Helper para contar total de bolas en inventario
+// ====================================
+// HELPERS DE INVENTARIO
+// ====================================
+
 export function getTotalBalls() {
     return gameState.ballInventory.normal +
            gameState.ballInventory.fireball +
@@ -51,8 +65,6 @@ export function getTotalBalls() {
            gameState.ballInventory.strength;
 }
 
-// Calculate expected balls for a given turn based on difficulty
-// Ahora devuelve un objeto con el inventario de bolas
 export function calculateStartingBalls(turn, difficulty) {
     if (turn <= 1) return { normal: 1, fireball: 0, splitter: 0, total: 1 };
 
@@ -68,7 +80,7 @@ export function calculateStartingBalls(turn, difficulty) {
     const variance = Math.floor(baseBalls * 0.15);
     const totalBalls = Math.max(1, baseBalls + Math.floor(Math.random() * variance * 2) - variance);
 
-    // Distribuir bolas por tipo segun el turno
+    // Distribuir bolas por tipo según el turno
     let normal = totalBalls;
     let fireball = 0;
     let splitter = 0;
@@ -88,7 +100,6 @@ export function calculateStartingBalls(turn, difficulty) {
     return { normal, fireball, splitter, total: totalBalls };
 }
 
-// Update balls preview when turn input changes
 export function updateBallsPreview() {
     const turnInput = document.getElementById('startTurnInput');
     const preview = document.getElementById('ballsPreview');
@@ -105,7 +116,10 @@ export function updateBallsPreview() {
     }
 }
 
-// Generate a new row of bricks
+// ====================================
+// GENERACIÓN DE FILAS (usando behaviors)
+// ====================================
+
 export function generateNewRow() {
     const cellSize = getCellSize();
     const topOffset = getTopOffset();
@@ -129,39 +143,28 @@ export function generateNewRow() {
             const hpVariation = config.hpVariationMin + Math.random() * (config.hpVariationMax - config.hpVariationMin);
             const hp = Math.max(1, Math.floor(baseHP * hpVariation * rowHpMultiplier));
 
+            // Determinar tipo de bloque usando los behaviors registrados
             let type = 'normal';
             const specialRoll = Math.random();
             let cumulativeProbability = 0;
 
-            if (turn > 3) {
-                const explosiveThreshold = cumulativeProbability + config.explosiveChance;
-                if (specialRoll >= cumulativeProbability && specialRoll < explosiveThreshold) {
-                    type = 'explosive';
-                }
-                cumulativeProbability = explosiveThreshold;
-            }
+            // Iterar sobre todos los tipos de bloques registrados
+            for (const [brickType, behavior] of BrickRegistry.getAll()) {
+                if (brickType === 'normal') continue;
 
-            if (type === 'normal' && turn > 5) {
-                const armoredThreshold = cumulativeProbability + config.armoredChance;
-                if (specialRoll >= cumulativeProbability && specialRoll < armoredThreshold) {
-                    type = 'armored';
-                }
-                cumulativeProbability = armoredThreshold;
-            }
+                const brickConfig = behavior.getConfig();
+                if (!brickConfig.configKey) continue;
 
-            if (type === 'normal' && config.poisonBrickChance && turn > 8) {
-                const spawnerThreshold = cumulativeProbability + config.poisonBrickChance;
-                if (specialRoll >= cumulativeProbability && specialRoll < spawnerThreshold) {
-                    type = 'spawner';
-                }
-                cumulativeProbability = spawnerThreshold;
-            }
+                const chance = config[brickConfig.configKey] || 0;
+                if (chance <= 0) continue;
+                if (turn <= brickConfig.minTurn) continue;
 
-            if (type === 'normal' && config.regeneratorChance && turn > 6) {
-                const regeneratorThreshold = cumulativeProbability + config.regeneratorChance;
-                if (specialRoll >= cumulativeProbability && specialRoll < regeneratorThreshold) {
-                    type = 'regenerator';
+                const threshold = cumulativeProbability + chance;
+                if (specialRoll >= cumulativeProbability && specialRoll < threshold) {
+                    type = brickType;
+                    break;
                 }
+                cumulativeProbability = threshold;
             }
 
             gameState.bricks.push({
@@ -176,8 +179,8 @@ export function generateNewRow() {
                 isReinforced: isReinforcedRow
             });
         } else if (rand < density + config.bonusChance && !bonusPlaced) {
-            // Determinar tipo de bola a dar
-            let ballType = 'ball';  // Bola normal
+            // Determinar tipo de bola bonus usando los behaviors
+            let ballType = 'ball';
             const typeRoll = Math.random();
 
             // Fireballs aparecen a partir del turno 8
@@ -199,7 +202,7 @@ export function generateNewRow() {
             });
             bonusPlaced = true;
         } else if (rand < density + config.bonusChance + config.powerupChance && !powerupPlaced && turn > 3) {
-            // Power-ups especiales (laser horizontal, fuerza)
+            // Power-ups especiales
             const powerupTypes = ['horizontal', 'strength'];
             const ptype = powerupTypes[Math.floor(Math.random() * powerupTypes.length)];
             gameState.bonuses.push({
@@ -212,6 +215,7 @@ export function generateNewRow() {
         }
     }
 
+    // Garantizar bonus
     const guaranteedBonusChance = currentDifficulty === 'easy' ? 0.9 : currentDifficulty === 'medium' ? 0.6 : 0.35;
     if (!bonusPlaced && Math.random() < guaranteedBonusChance) {
         const emptyCol = findEmptyColumn();
@@ -246,7 +250,10 @@ function findEmptyColumn() {
     return emptyCols.length > 0 ? emptyCols[Math.floor(Math.random() * emptyCols.length)] : -1;
 }
 
-// Move bricks down
+// ====================================
+// MOVIMIENTO DE BLOQUES
+// ====================================
+
 export function moveBricksDown() {
     const cellSize = getCellSize();
 
@@ -268,7 +275,10 @@ export function moveBricksDown() {
     }
 }
 
-// Shooting mechanics
+// ====================================
+// MECÁNICAS DE DISPARO (usando behaviors)
+// ====================================
+
 export function startShooting() {
     if (gameState.isShooting || gameState.gameOver) return;
 
@@ -280,33 +290,27 @@ export function startShooting() {
     document.getElementById('instructions').style.opacity = '0';
     document.getElementById('skipBtn').style.display = 'block';
 
-    // Guardar HP de regenerators al inicio del turno
+    // Llamar onTurnStart de cada bloque usando su behavior
     for (let brick of gameState.bricks) {
-        if (brick.type === 'regenerator') {
-            brick.turnStartHp = brick.hp;
+        const behavior = BrickRegistry.get(brick.type);
+        if (behavior && behavior.onTurnStart) {
+            behavior.onTurnStart(brick, gameState);
         }
     }
 
-    // Crear cola de bolas a disparar (orden: normal, fireball, splitter, strength)
+    // Crear cola de bolas usando los behaviors registrados
     const shootQueue = [];
     const inv = gameState.ballInventory;
     const maxBalls = MAX_BALLS_ON_SCREEN;
 
-    // Agregar bolas normales primero
-    for (let i = 0; i < inv.normal && shootQueue.length < maxBalls; i++) {
-        shootQueue.push('normal');
-    }
-    // Luego fireballs
-    for (let i = 0; i < inv.fireball && shootQueue.length < maxBalls; i++) {
-        shootQueue.push('fireball');
-    }
-    // Luego splitters
-    for (let i = 0; i < inv.splitter && shootQueue.length < maxBalls; i++) {
-        shootQueue.push('splitter');
-    }
-    // Finalmente bolas de fuerza
-    for (let i = 0; i < inv.strength && shootQueue.length < maxBalls; i++) {
-        shootQueue.push('strength');
+    // Orden de disparo basado en los behaviors
+    const shootOrder = ['normal', 'fireball', 'splitter', 'strength'];
+
+    for (const ballType of shootOrder) {
+        const count = inv[ballType] || 0;
+        for (let i = 0; i < count && shootQueue.length < maxBalls; i++) {
+            shootQueue.push(ballType);
+        }
     }
 
     gameState.ballsToShoot = shootQueue;
@@ -322,31 +326,47 @@ export function shootNextBall() {
     const vx = Math.cos(gameState.aimAngle) * BALL_SPEED;
     const vy = Math.sin(gameState.aimAngle) * BALL_SPEED;
 
-    const isFireball = ballType === 'fireball';
-    const isSplitter = ballType === 'splitter';
-    const isStrength = ballType === 'strength';
+    // Usar el behavior de la bola para crearla
+    const behavior = BallRegistry.get(ballType);
+    let ball;
 
-    gameState.balls.push({
-        x: gameState.launchX,
-        y: gameState.launchY - getBallRadius() - 1,
-        vx: vx,
-        vy: vy,
-        active: true,
-        hasGoneUp: false,
-        ballType: ballType,
-        fireball: isFireball,
-        splitter: isSplitter,
-        strength: isStrength,
-        hasSplit: false,  // Para que solo se divida una vez
-        damage: isStrength ? 3 : 1,  // Bolas de fuerza hacen 3 de daño
-        hitBricks: isFireball ? new Set() : null
-    });
+    if (behavior && behavior.createBall) {
+        ball = behavior.createBall(
+            gameState.launchX,
+            gameState.launchY - getBallRadius() - 1,
+            vx,
+            vy
+        );
+    } else {
+        // Fallback para tipos desconocidos
+        ball = {
+            x: gameState.launchX,
+            y: gameState.launchY - getBallRadius() - 1,
+            vx: vx,
+            vy: vy,
+            active: true,
+            hasGoneUp: false,
+            ballType: ballType,
+            fireball: ballType === 'fireball',
+            splitter: ballType === 'splitter',
+            strength: ballType === 'strength',
+            hasSplit: false,
+            damage: ballType === 'strength' ? 3 : 1,
+            hitBricks: ballType === 'fireball' ? new Set() : null
+        };
+    }
+
+    gameState.balls.push(ball);
 
     if (gameState.ballsToShoot.length > 0) {
         const delay = gameState.speedMultiplier > 1 ? SHOOT_DELAY / 3 : SHOOT_DELAY;
         shootTimeout = setTimeout(shootNextBall, delay);
     }
 }
+
+// ====================================
+// FIN DE TURNO (usando behaviors)
+// ====================================
 
 export function endTurn() {
     gameState.isShooting = false;
@@ -365,13 +385,11 @@ export function endTurn() {
         shootTimeout = null;
     }
 
-    // Curar bloques regenerator al 90% del HP que tenían al inicio del turno
+    // Llamar onTurnEnd de cada bloque usando su behavior
     for (let brick of gameState.bricks) {
-        if (brick.type === 'regenerator' && brick.hp > 0) {
-            const healTarget = Math.floor(brick.turnStartHp * 0.9);
-            if (brick.hp < healTarget) {
-                brick.hp = healTarget;
-            }
+        const behavior = BrickRegistry.get(brick.type);
+        if (behavior && behavior.onTurnEnd) {
+            behavior.onTurnEnd(brick, gameState);
         }
     }
 
@@ -382,6 +400,10 @@ export function endTurn() {
         updateUI();
     }
 }
+
+// ====================================
+// FIN DE JUEGO
+// ====================================
 
 export function endGame() {
     gameState.gameOver = true;
@@ -404,7 +426,10 @@ export function updateUI() {
     document.getElementById('ballDisplay').textContent = getTotalBalls();
 }
 
-// Menu animations
+// ====================================
+// MENÚ
+// ====================================
+
 export function createMenuBalls() {
     const container = document.getElementById('menuBalls');
     container.innerHTML = '';
@@ -422,7 +447,10 @@ export function createMenuBalls() {
     }
 }
 
-// Initialize game
+// ====================================
+// INICIALIZACIÓN
+// ====================================
+
 export function initGame(difficulty) {
     currentDifficulty = difficulty;
     difficultyConfig = DIFFICULTY_SETTINGS[difficulty];
@@ -506,7 +534,10 @@ export function showMainMenu() {
     createMenuBalls();
 }
 
-// Game loop
+// ====================================
+// GAME LOOP
+// ====================================
+
 export function gameLoop() {
     if (gameState.gameStarted && !gameState.gameOver) {
         updateBalls();

@@ -1,0 +1,337 @@
+/**
+ * BallBehaviors - Comportamientos para tipos de bolas
+ *
+ * Cada tipo de bola define:
+ * - render(ctx, ball, helpers): Cómo se dibuja
+ * - onCollision(ball, brick, gameState, helpers): Qué pasa al colisionar
+ * - createBall(x, y, vx, vy): Crea una instancia de la bola con sus propiedades
+ * - getConfig(): Configuración del tipo
+ *
+ * Principio Open/Closed: Para agregar un nuevo tipo de bola,
+ * simplemente crea un nuevo behavior y regístralo.
+ */
+
+import { BallRegistry } from '../core/Registry.js';
+
+// ============================================
+// NORMAL BALL - Bola básica
+// ============================================
+const NormalBallBehavior = {
+    type: 'normal',
+    color: '#fff',
+    glowColor: null,
+    damage: 1,
+
+    render(ctx, ball, helpers) {
+        const { getBallRadius } = helpers;
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.arc(ball.x, ball.y, getBallRadius(), 0, Math.PI * 2);
+        ctx.fill();
+    },
+
+    /**
+     * Maneja la colisión con un bloque
+     * @returns {object} { bounce: boolean, damage: number, continueChecking: boolean }
+     */
+    onCollision(ball, brick, gameState, helpers) {
+        const { getBallRadius, getBrickColor, createParticles, speedMultiplier } = helpers;
+
+        // Calcular rebote
+        const ballCenterX = ball.x;
+        const ballCenterY = ball.y;
+        const brickCenterX = brick.x + 2 + brick.width / 2;
+        const brickCenterY = brick.y + 2 + brick.height / 2;
+
+        const dx = ballCenterX - brickCenterX;
+        const dy = ballCenterY - brickCenterY;
+
+        const overlapX = brick.width / 2 + getBallRadius() - Math.abs(dx);
+        const overlapY = brick.height / 2 + getBallRadius() - Math.abs(dy);
+
+        if (overlapX < overlapY) {
+            ball.vx *= -1;
+            ball.x += dx > 0 ? overlapX : -overlapX;
+        } else {
+            ball.vy *= -1;
+            ball.y += dy > 0 ? overlapY : -overlapY;
+        }
+
+        // Crear partículas
+        if (speedMultiplier === 1) {
+            createParticles(ball.x, ball.y, getBrickColor(brick.hp, brick.maxHp), 3);
+        }
+
+        return {
+            bounce: true,
+            damage: this.damage,
+            continueChecking: false
+        };
+    },
+
+    createBall(x, y, vx, vy) {
+        return {
+            x, y, vx, vy,
+            active: true,
+            hasGoneUp: false,
+            ballType: 'normal',
+            fireball: false,
+            splitter: false,
+            strength: false,
+            hasSplit: false,
+            damage: this.damage,
+            hitBricks: null,
+            lifetime: 0
+        };
+    },
+
+    getConfig() {
+        return {
+            minTurn: 0,
+            inventoryKey: 'normal'
+        };
+    }
+};
+
+// ============================================
+// FIREBALL - Atraviesa bloques
+// ============================================
+const FireballBehavior = {
+    type: 'fireball',
+    color: '#ff6b6b',
+    glowColor: '#ff6b6b',
+    damage: 1,
+
+    render(ctx, ball, helpers) {
+        const { getBallRadius } = helpers;
+
+        ctx.shadowColor = this.glowColor;
+        ctx.shadowBlur = 8;
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.arc(ball.x, ball.y, getBallRadius(), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+    },
+
+    onCollision(ball, brick, gameState, helpers) {
+        const { getBrickColor, createParticles, speedMultiplier } = helpers;
+        const brickId = `${brick.x},${brick.y}`;
+
+        // Fireball atraviesa, no rebota
+        if (!ball.hitBricks.has(brickId)) {
+            ball.hitBricks.add(brickId);
+
+            if (speedMultiplier === 1) {
+                createParticles(ball.x, ball.y, getBrickColor(brick.hp, brick.maxHp), 3);
+            }
+
+            return {
+                bounce: false,
+                damage: this.damage,
+                continueChecking: true
+            };
+        }
+
+        return {
+            bounce: false,
+            damage: 0,
+            continueChecking: true
+        };
+    },
+
+    // Limpiar registro cuando sale del bloque
+    onExitBrick(ball, brick) {
+        const brickId = `${brick.x},${brick.y}`;
+        if (ball.hitBricks && ball.hitBricks.has(brickId)) {
+            ball.hitBricks.delete(brickId);
+        }
+    },
+
+    createBall(x, y, vx, vy) {
+        return {
+            x, y, vx, vy,
+            active: true,
+            hasGoneUp: false,
+            ballType: 'fireball',
+            fireball: true,
+            splitter: false,
+            strength: false,
+            hasSplit: false,
+            damage: this.damage,
+            hitBricks: new Set(),
+            lifetime: 0
+        };
+    },
+
+    getConfig() {
+        return {
+            minTurn: 8,
+            inventoryKey: 'fireball',
+            bonusType: 'fireballBall'
+        };
+    }
+};
+
+// ============================================
+// SPLITTER - Se divide en 5 bolas
+// ============================================
+const SplitterBehavior = {
+    type: 'splitter',
+    color: '#f9ed69',
+    glowColor: '#f9ed69',
+    damage: 1,
+    splitCount: 5,
+    splitAngles: [-Math.PI / 3, -Math.PI / 6, 0, Math.PI / 6, Math.PI / 3],
+
+    render(ctx, ball, helpers) {
+        const { getBallRadius } = helpers;
+
+        // Solo mostrar glow si no se ha dividido
+        if (!ball.hasSplit) {
+            ctx.shadowColor = this.glowColor;
+            ctx.shadowBlur = 8;
+        }
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.arc(ball.x, ball.y, getBallRadius(), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+    },
+
+    onCollision(ball, brick, gameState, helpers) {
+        const { createParticles } = helpers;
+
+        if (!ball.hasSplit) {
+            // Dividirse en múltiples bolas
+            ball.hasSplit = true;
+            ball.active = false;
+
+            const speed = Math.hypot(ball.vx, ball.vy);
+            const currentAngle = Math.atan2(ball.vy, ball.vx);
+
+            const newBalls = this.splitAngles.map(offset => {
+                const newAngle = currentAngle + offset;
+                return NormalBallBehavior.createBall(
+                    ball.x,
+                    ball.y,
+                    Math.cos(newAngle) * speed,
+                    Math.sin(newAngle) * speed
+                );
+            });
+
+            // Heredar hasGoneUp
+            newBalls.forEach(b => b.hasGoneUp = ball.hasGoneUp);
+
+            createParticles(ball.x, ball.y, this.color, 12);
+
+            return {
+                bounce: false,
+                damage: this.damage,
+                continueChecking: false,
+                spawnBalls: newBalls,
+                ballLanded: true
+            };
+        }
+
+        // Si ya se dividió, comportarse como bola normal
+        return NormalBallBehavior.onCollision(ball, brick, gameState, helpers);
+    },
+
+    createBall(x, y, vx, vy) {
+        return {
+            x, y, vx, vy,
+            active: true,
+            hasGoneUp: false,
+            ballType: 'splitter',
+            fireball: false,
+            splitter: true,
+            strength: false,
+            hasSplit: false,
+            damage: this.damage,
+            hitBricks: null,
+            lifetime: 0
+        };
+    },
+
+    getConfig() {
+        return {
+            minTurn: 15,
+            inventoryKey: 'splitter',
+            bonusType: 'splitterBall'
+        };
+    }
+};
+
+// ============================================
+// STRENGTH - Daño aumentado (+2)
+// ============================================
+const StrengthBallBehavior = {
+    type: 'strength',
+    color: '#ff8c00',
+    glowColor: '#ff8c00',
+    damage: 3,
+
+    render(ctx, ball, helpers) {
+        const { getBallRadius } = helpers;
+
+        ctx.shadowColor = this.glowColor;
+        ctx.shadowBlur = 8;
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.arc(ball.x, ball.y, getBallRadius(), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+    },
+
+    onCollision(ball, brick, gameState, helpers) {
+        // Usa la lógica de rebote normal pero con más daño
+        const result = NormalBallBehavior.onCollision(ball, brick, gameState, helpers);
+        result.damage = this.damage;
+        return result;
+    },
+
+    createBall(x, y, vx, vy) {
+        return {
+            x, y, vx, vy,
+            active: true,
+            hasGoneUp: false,
+            ballType: 'strength',
+            fireball: false,
+            splitter: false,
+            strength: true,
+            hasSplit: false,
+            damage: this.damage,
+            hitBricks: null,
+            lifetime: 0
+        };
+    },
+
+    getConfig() {
+        return {
+            minTurn: 0,
+            inventoryKey: 'strength',
+            bonusType: 'strength'
+        };
+    }
+};
+
+// ============================================
+// REGISTRO DE TODOS LOS TIPOS
+// ============================================
+BallRegistry
+    .setDefault('normal')
+    .register('normal', NormalBallBehavior)
+    .register('fireball', FireballBehavior)
+    .register('splitter', SplitterBehavior)
+    .register('strength', StrengthBallBehavior);
+
+// Exportar para uso directo
+export {
+    NormalBallBehavior,
+    FireballBehavior,
+    SplitterBehavior,
+    StrengthBallBehavior
+};
+
+export default BallRegistry;
