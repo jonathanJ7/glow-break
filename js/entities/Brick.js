@@ -17,6 +17,7 @@ export class Brick {
         this.col = col;
         this.type = type;
         this.laserY = 0; // Para el efecto láser
+        this.turnStartHp = hp; // HP al inicio del turno (para regenerator)
     }
 
     /**
@@ -70,6 +71,8 @@ export class Brick {
                 return '🛡️';
             case GAME_CONSTANTS.BRICK_TYPES.SPAWNER:
                 return '👾';
+            case GAME_CONSTANTS.BRICK_TYPES.REGENERATOR:
+                return '💚';
             default:
                 return '';
         }

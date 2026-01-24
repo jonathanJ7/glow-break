@@ -57,9 +57,9 @@ export function calculateStartingBalls(turn, difficulty) {
     if (turn <= 1) return { normal: 1, fireball: 0, splitter: 0, total: 1 };
 
     const ballsPerTurn = {
-        easy: 0.85,
-        medium: 0.55,
-        hard: 0.35
+        easy: 1.2,
+        medium: 0.9,
+        hard: 0.5
     };
 
     const rate = ballsPerTurn[difficulty];
@@ -272,6 +272,13 @@ export function startShooting() {
     document.getElementById('instructions').style.opacity = '0';
     document.getElementById('skipBtn').style.display = 'block';
 
+    // Guardar HP de regenerators al inicio del turno
+    for (let brick of gameState.bricks) {
+        if (brick.type === 'regenerator') {
+            brick.turnStartHp = brick.hp;
+        }
+    }
+
     // Crear cola de bolas a disparar (orden: normal, fireball, splitter, strength)
     const shootQueue = [];
     const inv = gameState.ballInventory;
@@ -348,6 +355,16 @@ export function endTurn() {
     if (shootTimeout) {
         clearTimeout(shootTimeout);
         shootTimeout = null;
+    }
+
+    // Curar bloques regenerator al 90% del HP que tenían al inicio del turno
+    for (let brick of gameState.bricks) {
+        if (brick.type === 'regenerator' && brick.hp > 0) {
+            const healTarget = Math.floor(brick.turnStartHp * 0.9);
+            if (brick.hp < healTarget) {
+                brick.hp = healTarget;
+            }
+        }
     }
 
     moveBricksDown();

@@ -24,11 +24,14 @@ export const DIFFICULTY_SETTINGS = {
         specialBlockChance: 0.05,    // 5% inicial de que sea especial
         specialGrowthRate: 0.004,    // Crece 0.4% por turno
         maxSpecialChance: 0.50,      // Máximo 50% de bloques especiales
-        // Paso 2: Si es especial, ¿de qué tipo? (distribución relativa)
+        // Paso 2: Si es especial, ¿de qué categoría? (helpful vs challenging)
+        helpfulChance: 0.60,         // 60% helpful (explosivos), 40% challenging
+        // Paso 3: Distribución dentro de cada categoría
         specialDistribution: {
-            explosive: 0.35,         // 35% de los especiales son explosivos
-            armored: 0.30,           // 30% de los especiales son armored
-            spawner: 0.35            // 35% de los especiales son spawner
+            explosive: 1.0,          // 100% de helpful son explosivos
+            armored: 0.35,           // 35% de challenging son armored
+            spawner: 0.40,           // 40% de challenging son spawner
+            regenerator: 0.25        // 25% de challenging son regenerator
         }
     },
     medium: {
@@ -48,10 +51,14 @@ export const DIFFICULTY_SETTINGS = {
         specialBlockChance: 0.08,    // 8% inicial
         specialGrowthRate: 0.005,    // Crece 0.5% por turno
         maxSpecialChance: 0.60,      // Máximo 60%
+        // Paso 2: Si es especial, ¿de qué categoría?
+        helpfulChance: 0.40,         // 40% helpful, 60% challenging
+        // Paso 3: Distribución dentro de cada categoría
         specialDistribution: {
-            explosive: 0.30,
-            armored: 0.40,           // Más armored en medio
-            spawner: 0.30
+            explosive: 1.0,          // 100% de helpful son explosivos
+            armored: 0.40,           // 40% de challenging son armored
+            spawner: 0.30,           // 30% de challenging son spawner
+            regenerator: 0.30        // 30% de challenging son regenerator
         }
     },
     hard: {
@@ -72,10 +79,14 @@ export const DIFFICULTY_SETTINGS = {
         specialBlockChance: 0.10,    // 10% inicial
         specialGrowthRate: 0.006,    // Crece 0.6% por turno
         maxSpecialChance: 0.70,      // Máximo 70%
+        // Paso 2: Si es especial, ¿de qué categoría?
+        helpfulChance: 0.20,         // 20% helpful, 80% challenging
+        // Paso 3: Distribución dentro de cada categoría
         specialDistribution: {
-            explosive: 0.20,         // Menos explosivos en difícil
-            armored: 0.50,           // Muchos armored
-            spawner: 0.30
+            explosive: 1.0,          // 100% de helpful son explosivos
+            armored: 0.40,           // 40% de challenging son armored
+            spawner: 0.25,           // 25% de challenging son spawner
+            regenerator: 0.35        // 35% de challenging son regenerator
         }
     }
 };
