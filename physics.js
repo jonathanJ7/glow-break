@@ -260,11 +260,11 @@ export function updateBalls() {
             ball.x = physicsResult.newX;
             ball.y = physicsResult.newY;
 
-            // Solo actualizar velocidad si la bola rebota (no fireball)
-            if (!isFireball) {
-                ball.vx = physicsResult.newVx;
-                ball.vy = physicsResult.newVy;
-            }
+            // Siempre actualizar velocidad - el sistema de colisiones ya maneja
+            // que fireballs no reboten en bloques (shouldBounce: false) pero sí
+            // reboten en paredes
+            ball.vx = physicsResult.newVx;
+            ball.vy = physicsResult.newVy;
 
             // Limpiar registro de fireball cuando sale de bloques
             if (isFireball && ball.hitBricks) {
