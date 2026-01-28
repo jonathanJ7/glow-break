@@ -27,8 +27,10 @@ export function handlePointerDown(e) {
     handlePointerMove(e);
 }
 
-// Tiempo en ms para ignorar micro-movimientos al soltar el dedo
-const RELEASE_STABILIZATION_TIME = 80;
+// Umbral mínimo de cambio angular para actualizar (en radianes, ~2 grados)
+const MIN_ANGLE_CHANGE = 0.035;
+// Tiempo en ms donde aplicamos el filtro de micro-movimientos
+const STABILIZATION_WINDOW = 100;
 
 /**
  * Maneja el movimiento del puntero durante el apuntado.
@@ -37,8 +39,8 @@ const RELEASE_STABILIZATION_TIME = 80;
  * que el ángulo de disparo (aimAngle). Esto garantiza que la trayectoria
  * que ve el jugador sea exactamente la que seguirán las bolas.
  *
- * El historial de ángulos se usa para ignorar micro-movimientos involuntarios
- * al levantar el dedo, tomando el ángulo estable de hace ~80ms.
+ * Se filtran micro-movimientos: si el dedo estuvo quieto por un momento
+ * y luego hay un pequeño movimiento, se ignora (típico del temblor al soltar).
  */
 export function handlePointerMove(e) {
     if (!gameState.isAiming || gameState.isShooting) return;
@@ -54,12 +56,26 @@ export function handlePointerMove(e) {
     if (angle > -0.2) angle = -0.2;
     if (angle < -Math.PI + 0.2) angle = -Math.PI + 0.2;
 
-    // Guardar en historial con timestamp para estabilización al soltar
     const now = Date.now();
+    const lastEntry = gameState.aimHistory[gameState.aimHistory.length - 1];
+
+    // Filtrar micro-movimientos: si hubo una pausa y el cambio es pequeño, ignorar
+    if (lastEntry) {
+        const timeSinceLastMove = now - lastEntry.time;
+        const angleDelta = Math.abs(angle - lastEntry.angle);
+
+        // Si pasó tiempo (dedo quieto) y el movimiento es pequeño, ignorar
+        // Esto filtra el "temblor" típico al soltar el dedo
+        if (timeSinceLastMove > STABILIZATION_WINDOW && angleDelta < MIN_ANGLE_CHANGE) {
+            return;
+        }
+    }
+
+    // Guardar en historial
     gameState.aimHistory.push({ angle, time: now });
 
-    // Mantener solo los últimos 200ms de historial
-    const cutoff = now - 200;
+    // Mantener solo los últimos 300ms de historial
+    const cutoff = now - 300;
     gameState.aimHistory = gameState.aimHistory.filter(h => h.time > cutoff);
 
     // CRÍTICO: El ángulo de disparo Y el ángulo mostrado son el mismo
@@ -77,26 +93,6 @@ export function handlePointerUp(e) {
     }
 
     if (!gameState.isAiming) return;
-
-    // Usar el ángulo estabilizado para evitar micro-movimientos al soltar
-    if (gameState.aimHistory.length > 1) {
-        const now = Date.now();
-        const targetTime = now - RELEASE_STABILIZATION_TIME;
-
-        // Buscar el ángulo más cercano a targetTime (hace ~80ms)
-        let stableEntry = gameState.aimHistory[0];
-        for (const entry of gameState.aimHistory) {
-            if (entry.time <= targetTime) {
-                stableEntry = entry;
-            } else {
-                break;
-            }
-        }
-
-        // Usar el ángulo estable
-        gameState.aimAngle = stableEntry.angle;
-        gameState.displayAimAngle = stableEntry.angle;
-    }
 
     gameState.isAiming = false;
     gameState.aimHistory = [];
