@@ -27,12 +27,18 @@ export function handlePointerDown(e) {
     handlePointerMove(e);
 }
 
+// Tiempo en ms para ignorar micro-movimientos al soltar el dedo
+const RELEASE_STABILIZATION_TIME = 80;
+
 /**
  * Maneja el movimiento del puntero durante el apuntado.
  *
  * IMPORTANTE: El ángulo mostrado (displayAimAngle) es EXACTAMENTE el mismo
  * que el ángulo de disparo (aimAngle). Esto garantiza que la trayectoria
  * que ve el jugador sea exactamente la que seguirán las bolas.
+ *
+ * El historial de ángulos se usa para ignorar micro-movimientos involuntarios
+ * al levantar el dedo, tomando el ángulo estable de hace ~80ms.
  */
 export function handlePointerMove(e) {
     if (!gameState.isAiming || gameState.isShooting) return;
@@ -47,6 +53,14 @@ export function handlePointerMove(e) {
     // Rango: aproximadamente de -170° a -10° (hemisferio superior)
     if (angle > -0.2) angle = -0.2;
     if (angle < -Math.PI + 0.2) angle = -Math.PI + 0.2;
+
+    // Guardar en historial con timestamp para estabilización al soltar
+    const now = Date.now();
+    gameState.aimHistory.push({ angle, time: now });
+
+    // Mantener solo los últimos 200ms de historial
+    const cutoff = now - 200;
+    gameState.aimHistory = gameState.aimHistory.filter(h => h.time > cutoff);
 
     // CRÍTICO: El ángulo de disparo Y el ángulo mostrado son el mismo
     // Esto garantiza que lo que ves es exactamente lo que obtienes
@@ -63,6 +77,26 @@ export function handlePointerUp(e) {
     }
 
     if (!gameState.isAiming) return;
+
+    // Usar el ángulo estabilizado para evitar micro-movimientos al soltar
+    if (gameState.aimHistory.length > 1) {
+        const now = Date.now();
+        const targetTime = now - RELEASE_STABILIZATION_TIME;
+
+        // Buscar el ángulo más cercano a targetTime (hace ~80ms)
+        let stableEntry = gameState.aimHistory[0];
+        for (const entry of gameState.aimHistory) {
+            if (entry.time <= targetTime) {
+                stableEntry = entry;
+            } else {
+                break;
+            }
+        }
+
+        // Usar el ángulo estable
+        gameState.aimAngle = stableEntry.angle;
+        gameState.displayAimAngle = stableEntry.angle;
+    }
 
     gameState.isAiming = false;
     gameState.aimHistory = [];
