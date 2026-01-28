@@ -2,6 +2,94 @@ import { gameState, startShooting, shootTimeout, shootNextBall, endTurn, initGam
 import { canvas, getLeftBorder, getRightBorder } from './rendering.js';
 import { FAST_SPEED_MULTIPLIER } from './config.js';
 
+// ============================================
+// ONE EURO FILTER - Estándar de la industria
+// para filtrar jitter en input táctil
+// Ref: CHI '12 - Casiez, Roussel, Vogel
+// ============================================
+
+class LowPassFilter {
+    constructor(alpha, initval = 0) {
+        this.y = this.s = initval;
+        this.setAlpha(alpha);
+    }
+
+    setAlpha(alpha) {
+        this.a = Math.max(0, Math.min(1, alpha));
+    }
+
+    filter(value) {
+        this.y = value;
+        this.s = this.a * value + (1 - this.a) * this.s;
+        return this.s;
+    }
+
+    lastValue() {
+        return this.y;
+    }
+}
+
+class OneEuroFilter {
+    /**
+     * @param {number} freq - Frecuencia de muestreo estimada (Hz)
+     * @param {number} minCutoff - Frecuencia de corte mínima (Hz). Menor = más suave
+     * @param {number} beta - Sensibilidad a la velocidad. Mayor = menos lag pero más jitter
+     * @param {number} dCutoff - Frecuencia de corte para la derivada
+     */
+    constructor(freq = 60, minCutoff = 1.0, beta = 0.007, dCutoff = 1.0) {
+        this.freq = freq;
+        this.minCutoff = minCutoff;
+        this.beta = beta;
+        this.dCutoff = dCutoff;
+        this.x = new LowPassFilter(this.alpha(minCutoff));
+        this.dx = new LowPassFilter(this.alpha(dCutoff), 0);
+        this.lastTime = null;
+    }
+
+    alpha(cutoff) {
+        const te = 1.0 / this.freq;
+        const tau = 1.0 / (2 * Math.PI * cutoff);
+        return 1.0 / (1.0 + tau / te);
+    }
+
+    filter(x, timestamp = null) {
+        // Calcular frecuencia real basada en timestamps
+        if (this.lastTime !== null && timestamp !== null) {
+            const dt = (timestamp - this.lastTime) / 1000; // ms a segundos
+            if (dt > 0) {
+                this.freq = 1.0 / dt;
+            }
+        }
+        this.lastTime = timestamp;
+
+        // Calcular derivada (velocidad del cambio)
+        const prevX = this.x.lastValue();
+        const dx = (x - prevX) * this.freq;
+
+        // Filtrar la derivada
+        const edx = this.dx.filter(dx);
+
+        // Calcular cutoff adaptativo: más movimiento = menos filtro
+        const cutoff = this.minCutoff + this.beta * Math.abs(edx);
+
+        // Aplicar filtro con cutoff adaptativo
+        this.x.setAlpha(this.alpha(cutoff));
+        return this.x.filter(x);
+    }
+
+    reset(value = 0) {
+        this.x = new LowPassFilter(this.alpha(this.minCutoff), value);
+        this.dx = new LowPassFilter(this.alpha(this.dCutoff), 0);
+        this.lastTime = null;
+    }
+}
+
+// Filtro para el ángulo de apuntado
+// Parámetros ajustados para touch input en juego:
+// - minCutoff bajo (1.0): suavizado fuerte cuando está quieto
+// - beta bajo (0.007): respuesta rápida a movimientos intencionales
+const angleFilter = new OneEuroFilter(60, 1.0, 0.007, 1.0);
+
 // Input handling
 export function getPointerPos(e) {
     const rect = canvas.getBoundingClientRect();
@@ -24,23 +112,19 @@ export function handlePointerDown(e) {
     }
 
     gameState.isAiming = true;
+    // Resetear el filtro al comenzar a apuntar
+    angleFilter.reset(-Math.PI / 2);
     handlePointerMove(e);
 }
-
-// Umbral mínimo de cambio angular para actualizar (en radianes, ~2 grados)
-const MIN_ANGLE_CHANGE = 0.035;
-// Tiempo en ms donde aplicamos el filtro de micro-movimientos
-const STABILIZATION_WINDOW = 100;
 
 /**
  * Maneja el movimiento del puntero durante el apuntado.
  *
- * IMPORTANTE: El ángulo mostrado (displayAimAngle) es EXACTAMENTE el mismo
- * que el ángulo de disparo (aimAngle). Esto garantiza que la trayectoria
- * que ve el jugador sea exactamente la que seguirán las bolas.
+ * Usa el One Euro Filter (estándar de la industria) para:
+ * - Filtrar jitter/temblor cuando el dedo está quieto o se mueve lento
+ * - Responder rápidamente a movimientos intencionales (sin lag)
  *
- * Se filtran micro-movimientos: si el dedo estuvo quieto por un momento
- * y luego hay un pequeño movimiento, se ignora (típico del temblor al soltar).
+ * IMPORTANTE: El ángulo mostrado es el mismo que el de disparo.
  */
 export function handlePointerMove(e) {
     if (!gameState.isAiming || gameState.isShooting) return;
@@ -49,39 +133,19 @@ export function handlePointerMove(e) {
     const dx = pos.x - gameState.launchX;
     const dy = pos.y - gameState.launchY;
 
-    let angle = Math.atan2(dy, dx);
+    let rawAngle = Math.atan2(dy, dx);
 
     // Limitar el ángulo para que solo apunte hacia arriba
-    // Rango: aproximadamente de -170° a -10° (hemisferio superior)
-    if (angle > -0.2) angle = -0.2;
-    if (angle < -Math.PI + 0.2) angle = -Math.PI + 0.2;
+    if (rawAngle > -0.2) rawAngle = -0.2;
+    if (rawAngle < -Math.PI + 0.2) rawAngle = -Math.PI + 0.2;
 
-    const now = Date.now();
-    const lastEntry = gameState.aimHistory[gameState.aimHistory.length - 1];
+    // Aplicar One Euro Filter para suavizar
+    const timestamp = performance.now();
+    const filteredAngle = angleFilter.filter(rawAngle, timestamp);
 
-    // Filtrar micro-movimientos: si hubo una pausa y el cambio es pequeño, ignorar
-    if (lastEntry) {
-        const timeSinceLastMove = now - lastEntry.time;
-        const angleDelta = Math.abs(angle - lastEntry.angle);
-
-        // Si pasó tiempo (dedo quieto) y el movimiento es pequeño, ignorar
-        // Esto filtra el "temblor" típico al soltar el dedo
-        if (timeSinceLastMove > STABILIZATION_WINDOW && angleDelta < MIN_ANGLE_CHANGE) {
-            return;
-        }
-    }
-
-    // Guardar en historial
-    gameState.aimHistory.push({ angle, time: now });
-
-    // Mantener solo los últimos 300ms de historial
-    const cutoff = now - 300;
-    gameState.aimHistory = gameState.aimHistory.filter(h => h.time > cutoff);
-
-    // CRÍTICO: El ángulo de disparo Y el ángulo mostrado son el mismo
-    // Esto garantiza que lo que ves es exactamente lo que obtienes
-    gameState.aimAngle = angle;
-    gameState.displayAimAngle = angle;
+    // El ángulo filtrado es tanto el mostrado como el de disparo
+    gameState.aimAngle = filteredAngle;
+    gameState.displayAimAngle = filteredAngle;
 }
 
 export function handlePointerUp(e) {
@@ -95,8 +159,6 @@ export function handlePointerUp(e) {
     if (!gameState.isAiming) return;
 
     gameState.isAiming = false;
-    gameState.aimHistory = [];
-
     startShooting();
 }
 
@@ -107,7 +169,6 @@ export function setupEventListeners() {
     canvas.addEventListener('mouseup', handlePointerUp);
     canvas.addEventListener('mouseleave', () => {
         gameState.isAiming = false;
-        gameState.aimHistory = [];
         if (gameState.isHolding) {
             gameState.speedMultiplier = 1;
             gameState.isHolding = false;
