@@ -26,6 +26,7 @@ animate();
 // Register Service Worker for PWA with update detection
 if ('serviceWorker' in navigator) {
     let refreshing = false;
+    let swRegistration = null;
 
     // Listen for controller changes (new SW activated)
     navigator.serviceWorker.addEventListener('controllerchange', () => {
@@ -45,6 +46,7 @@ if ('serviceWorker' in navigator) {
 
     navigator.serviceWorker.register('service-worker.js')
         .then(reg => {
+            swRegistration = reg;
             console.log('Service Worker registrado');
 
             // Check for updates periodically (every 5 minutes)
@@ -72,27 +74,29 @@ if ('serviceWorker' in navigator) {
             });
         })
         .catch(err => console.log('Error registrando SW:', err));
-}
 
-// Show update banner
-function showUpdateBanner() {
-    const banner = document.getElementById('updateBanner');
-    if (banner) {
-        banner.classList.remove('hidden');
+    // Show update banner
+    function showUpdateBanner() {
+        const banner = document.getElementById('updateBanner');
+        if (banner) {
+            banner.classList.remove('hidden');
+        }
     }
-}
 
-// Update button click handler
-document.addEventListener('DOMContentLoaded', () => {
-    const updateBtn = document.getElementById('updateBtn');
-    if (updateBtn) {
-        updateBtn.addEventListener('click', () => {
-            if (navigator.serviceWorker.controller) {
-                // Tell SW to skip waiting and activate
-                navigator.serviceWorker.controller.postMessage({ type: 'SKIP_WAITING' });
-            }
-            // Also reload as fallback
-            window.location.reload(true);
-        });
-    }
-});
+    // Update button click handler
+    document.addEventListener('DOMContentLoaded', () => {
+        const updateBtn = document.getElementById('updateBtn');
+        if (updateBtn) {
+            updateBtn.addEventListener('click', () => {
+                // Send SKIP_WAITING to the waiting SW (not the current controller)
+                if (swRegistration && swRegistration.waiting) {
+                    swRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
+                    // The 'controllerchange' listener will handle the reload
+                } else {
+                    // Fallback: force reload to get latest version
+                    window.location.reload(true);
+                }
+            });
+        }
+    });
+}
