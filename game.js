@@ -37,8 +37,6 @@ export let gameState = {
     isShooting: false,
     isHolding: false,
     aimAngle: -Math.PI / 2,
-    displayAimAngle: -Math.PI / 2,
-    aimHistory: [],
     ballsToShoot: [],  // Cola de tipos de bola a disparar
     ballsLanded: 0,
     totalBallsToShoot: 0,
@@ -481,8 +479,6 @@ export function initGame(difficulty) {
     gameState.isShooting = false;
     gameState.isHolding = false;
     gameState.aimAngle = -Math.PI / 2;
-    gameState.displayAimAngle = -Math.PI / 2;
-    gameState.aimHistory = [];
     gameState.ballsToShoot = [];
     gameState.totalBallsToShoot = 0;
     gameState.ballsLanded = 0;

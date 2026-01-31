@@ -357,7 +357,7 @@ function drawAimLine() {
     const trajectory = calculateTrajectory(
         gameState.launchX,
         gameState.launchY,
-        gameState.displayAimAngle,
+        gameState.aimAngle,
         5
     );
 

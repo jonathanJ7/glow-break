@@ -1,5 +1,5 @@
-import { gameState, startShooting, shootTimeout, shootNextBall, endTurn, initGame, showMainMenu, updateBallsPreview, currentDifficulty } from './game.js';
-import { canvas, getLeftBorder, getRightBorder } from './rendering.js';
+import { gameState, startShooting, shootTimeout, endTurn, initGame, showMainMenu, updateBallsPreview, currentDifficulty } from './game.js';
+import { canvas } from './rendering.js';
 import { FAST_SPEED_MULTIPLIER } from './config.js';
 
 // ============================================
@@ -17,7 +17,6 @@ const UNFREEZE_DISTANCE = 80;       // Distancia en píxeles para descongelar
 // Estado del sistema de congelación
 let freezeState = {
     isFrozen: false,                // Si el puntero está congelado
-    frozenAngle: 0,                 // Ángulo cuando se congeló
     frozenPointerPos: { x: 0, y: 0 }, // Posición del dedo cuando se congeló
     lastMoveTime: 0,                // Último momento que se movió significativamente
     lastAngle: 0                    // Último ángulo registrado
@@ -26,7 +25,6 @@ let freezeState = {
 function resetFreezeState() {
     freezeState = {
         isFrozen: false,
-        frozenAngle: 0,
         frozenPointerPos: { x: 0, y: 0 },
         lastMoveTime: performance.now(),
         lastAngle: -Math.PI / 2
@@ -97,7 +95,6 @@ export function handlePointerMove(e) {
 
             // Actualizar ángulo
             gameState.aimAngle = rawAngle;
-            gameState.displayAimAngle = rawAngle;
         }
         // Si sigue congelado, no actualizar el ángulo
     } else {
@@ -115,7 +112,6 @@ export function handlePointerMove(e) {
             if (timeSinceMove >= FREEZE_TIME_MS) {
                 // Congelar!
                 freezeState.isFrozen = true;
-                freezeState.frozenAngle = gameState.aimAngle;
                 freezeState.frozenPointerPos = { x: pos.x, y: pos.y };
                 return; // No actualizar más el ángulo
             }
@@ -123,7 +119,6 @@ export function handlePointerMove(e) {
 
         // Actualizar ángulo en tiempo real
         gameState.aimAngle = rawAngle;
-        gameState.displayAimAngle = rawAngle;
     }
 }
 
