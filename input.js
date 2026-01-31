@@ -1,94 +1,35 @@
-import { gameState, startShooting, shootTimeout, shootNextBall, endTurn, initGame, showMainMenu, updateBallsPreview, currentDifficulty } from './game.js';
-import { canvas, getLeftBorder, getRightBorder } from './rendering.js';
+import { gameState, startShooting, shootTimeout, endTurn, initGame, showMainMenu, updateBallsPreview, currentDifficulty } from './game.js';
+import { canvas } from './rendering.js';
 import { FAST_SPEED_MULTIPLIER } from './config.js';
 
 // ============================================
-// ONE EURO FILTER - Estándar de la industria
-// para filtrar jitter en input táctil
-// Ref: CHI '12 - Casiez, Roussel, Vogel
+// SISTEMA DE PUNTERO SIMPLIFICADO
+// - Tiempo real sin retraso
+// - Se congela si apuntas 3 segundos al mismo lugar
+// - Solo se descongela si alejas mucho el dedo
 // ============================================
 
-class LowPassFilter {
-    constructor(alpha, initval = 0) {
-        this.y = this.s = initval;
-        this.setAlpha(alpha);
-    }
+// Configuración del sistema de congelación
+const FREEZE_TIME_MS = 3000;        // 3 segundos para congelar
+const FREEZE_THRESHOLD = 0.1;       // Umbral de movimiento angular para considerar "quieto" (radianes)
+const UNFREEZE_DISTANCE = 80;       // Distancia en píxeles para descongelar
 
-    setAlpha(alpha) {
-        this.a = Math.max(0, Math.min(1, alpha));
-    }
+// Estado del sistema de congelación
+let freezeState = {
+    isFrozen: false,                // Si el puntero está congelado
+    frozenPointerPos: { x: 0, y: 0 }, // Posición del dedo cuando se congeló
+    lastMoveTime: 0,                // Último momento que se movió significativamente
+    lastAngle: 0                    // Último ángulo registrado
+};
 
-    filter(value) {
-        this.y = value;
-        this.s = this.a * value + (1 - this.a) * this.s;
-        return this.s;
-    }
-
-    lastValue() {
-        return this.y;
-    }
+function resetFreezeState() {
+    freezeState = {
+        isFrozen: false,
+        frozenPointerPos: { x: 0, y: 0 },
+        lastMoveTime: performance.now(),
+        lastAngle: -Math.PI / 2
+    };
 }
-
-class OneEuroFilter {
-    /**
-     * @param {number} freq - Frecuencia de muestreo estimada (Hz)
-     * @param {number} minCutoff - Frecuencia de corte mínima (Hz). Menor = más suave
-     * @param {number} beta - Sensibilidad a la velocidad. Mayor = menos lag pero más jitter
-     * @param {number} dCutoff - Frecuencia de corte para la derivada
-     */
-    constructor(freq = 60, minCutoff = 1.0, beta = 0.007, dCutoff = 1.0) {
-        this.freq = freq;
-        this.minCutoff = minCutoff;
-        this.beta = beta;
-        this.dCutoff = dCutoff;
-        this.x = new LowPassFilter(this.alpha(minCutoff));
-        this.dx = new LowPassFilter(this.alpha(dCutoff), 0);
-        this.lastTime = null;
-    }
-
-    alpha(cutoff) {
-        const te = 1.0 / this.freq;
-        const tau = 1.0 / (2 * Math.PI * cutoff);
-        return 1.0 / (1.0 + tau / te);
-    }
-
-    filter(x, timestamp = null) {
-        // Calcular frecuencia real basada en timestamps
-        if (this.lastTime !== null && timestamp !== null) {
-            const dt = (timestamp - this.lastTime) / 1000; // ms a segundos
-            if (dt > 0) {
-                this.freq = 1.0 / dt;
-            }
-        }
-        this.lastTime = timestamp;
-
-        // Calcular derivada (velocidad del cambio)
-        const prevX = this.x.lastValue();
-        const dx = (x - prevX) * this.freq;
-
-        // Filtrar la derivada
-        const edx = this.dx.filter(dx);
-
-        // Calcular cutoff adaptativo: más movimiento = menos filtro
-        const cutoff = this.minCutoff + this.beta * Math.abs(edx);
-
-        // Aplicar filtro con cutoff adaptativo
-        this.x.setAlpha(this.alpha(cutoff));
-        return this.x.filter(x);
-    }
-
-    reset(value = 0) {
-        this.x = new LowPassFilter(this.alpha(this.minCutoff), value);
-        this.dx = new LowPassFilter(this.alpha(this.dCutoff), 0);
-        this.lastTime = null;
-    }
-}
-
-// Filtro para el ángulo de apuntado
-// Parámetros ajustados para touch input en juego:
-// - minCutoff bajo (1.0): suavizado fuerte cuando está quieto
-// - beta bajo (0.007): respuesta rápida a movimientos intencionales
-const angleFilter = new OneEuroFilter(60, 1.0, 0.007, 1.0);
 
 // Input handling
 export function getPointerPos(e) {
@@ -112,40 +53,73 @@ export function handlePointerDown(e) {
     }
 
     gameState.isAiming = true;
-    // Resetear el filtro al comenzar a apuntar
-    angleFilter.reset(-Math.PI / 2);
+    resetFreezeState();
     handlePointerMove(e);
 }
 
 /**
  * Maneja el movimiento del puntero durante el apuntado.
  *
- * Usa el One Euro Filter (estándar de la industria) para:
- * - Filtrar jitter/temblor cuando el dedo está quieto o se mueve lento
- * - Responder rápidamente a movimientos intencionales (sin lag)
- *
- * IMPORTANTE: El ángulo mostrado es el mismo que el de disparo.
+ * Sistema simplificado:
+ * - Movimiento en tiempo real sin filtros
+ * - Se congela si estás 3 segundos sin mover mucho
+ * - Solo se descongela si alejas mucho el dedo
  */
 export function handlePointerMove(e) {
     if (!gameState.isAiming || gameState.isShooting) return;
 
     const pos = getPointerPos(e);
+    const now = performance.now();
+
+    // Calcular ángulo directo (sin filtro)
     const dx = pos.x - gameState.launchX;
     const dy = pos.y - gameState.launchY;
-
     let rawAngle = Math.atan2(dy, dx);
 
     // Limitar el ángulo para que solo apunte hacia arriba
     if (rawAngle > -0.2) rawAngle = -0.2;
     if (rawAngle < -Math.PI + 0.2) rawAngle = -Math.PI + 0.2;
 
-    // Aplicar One Euro Filter para suavizar
-    const timestamp = performance.now();
-    const filteredAngle = angleFilter.filter(rawAngle, timestamp);
+    if (freezeState.isFrozen) {
+        // Estamos congelados - verificar si hay que descongelar
+        const distFromFrozen = Math.hypot(
+            pos.x - freezeState.frozenPointerPos.x,
+            pos.y - freezeState.frozenPointerPos.y
+        );
 
-    // El ángulo filtrado es tanto el mostrado como el de disparo
-    gameState.aimAngle = filteredAngle;
-    gameState.displayAimAngle = filteredAngle;
+        if (distFromFrozen > UNFREEZE_DISTANCE) {
+            // El dedo se alejó mucho - descongelar
+            freezeState.isFrozen = false;
+            freezeState.lastMoveTime = now;
+            freezeState.lastAngle = rawAngle;
+
+            // Actualizar ángulo
+            gameState.aimAngle = rawAngle;
+        }
+        // Si sigue congelado, no actualizar el ángulo
+    } else {
+        // No estamos congelados - actualizar en tiempo real
+        const angleDiff = Math.abs(rawAngle - freezeState.lastAngle);
+
+        if (angleDiff > FREEZE_THRESHOLD) {
+            // Hubo movimiento significativo - resetear timer
+            freezeState.lastMoveTime = now;
+            freezeState.lastAngle = rawAngle;
+        } else {
+            // Poco movimiento - verificar si pasaron 3 segundos
+            const timeSinceMove = now - freezeState.lastMoveTime;
+
+            if (timeSinceMove >= FREEZE_TIME_MS) {
+                // Congelar!
+                freezeState.isFrozen = true;
+                freezeState.frozenPointerPos = { x: pos.x, y: pos.y };
+                return; // No actualizar más el ángulo
+            }
+        }
+
+        // Actualizar ángulo en tiempo real
+        gameState.aimAngle = rawAngle;
+    }
 }
 
 export function handlePointerUp(e) {
@@ -159,6 +133,7 @@ export function handlePointerUp(e) {
     if (!gameState.isAiming) return;
 
     gameState.isAiming = false;
+    resetFreezeState();
     startShooting();
 }
 
@@ -169,6 +144,7 @@ export function setupEventListeners() {
     canvas.addEventListener('mouseup', handlePointerUp);
     canvas.addEventListener('mouseleave', () => {
         gameState.isAiming = false;
+        resetFreezeState();
         if (gameState.isHolding) {
             gameState.speedMultiplier = 1;
             gameState.isHolding = false;
@@ -209,8 +185,6 @@ export function setupEventListeners() {
             gameState.ballsToShoot = [];  // Vaciar la cola de bolas
             if (shootTimeout) {
                 clearTimeout(shootTimeout);
-                // Note: shootTimeout is exported from game.js but can't be modified here
-                // This should be refactored to use a function call
             }
             for (let ball of gameState.balls) {
                 ball.active = false;
