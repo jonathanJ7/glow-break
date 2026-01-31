@@ -1,5 +1,5 @@
 // Version: Update this when deploying new versions
-const APP_VERSION = '2.3.8';
+const APP_VERSION = '2.3.9';
 const CACHE_NAME = `ballz-${APP_VERSION}`;
 
 const urlsToCache = [
@@ -102,12 +102,19 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Network-first for JS/CSS (ensures updates are applied immediately)
+  // Network-first for JS/CSS with cache busting
   if (url.pathname.endsWith('.js') || url.pathname.endsWith('.css')) {
+    // Add version param to bust browser's HTTP cache
+    const bustUrl = new URL(event.request.url);
+    bustUrl.searchParams.set('v', APP_VERSION);
+
     event.respondWith(
-      fetch(event.request)
+      fetch(bustUrl.toString(), {
+        cache: 'no-cache',
+        headers: event.request.headers
+      })
         .then(response => {
-          // Clone and cache the new response
+          // Clone and cache the new response (using original URL as key)
           const responseClone = response.clone();
           caches.open(CACHE_NAME).then(cache => {
             cache.put(event.request, responseClone);
