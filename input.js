@@ -10,7 +10,7 @@ import { FAST_SPEED_MULTIPLIER } from './config.js';
 // ============================================
 
 // Configuración del sistema de congelación
-const FREEZE_TIME_MS = 4500;        // 4.5 segundos para congelar (más tiempo para ajustes finos)
+const FREEZE_TIME_MS = 3000;        // 3 segundos para congelar
 const FREEZE_THRESHOLD = 0.04;      // Umbral más sensible (~2.3°) - pequeños ajustes reinician el timer
 const UNFREEZE_DISTANCE = 80;       // Distancia en píxeles para descongelar
 
