@@ -22,6 +22,11 @@ let freezeState = {
     lastAngle: 0                    // Último ángulo registrado
 };
 
+// Exportar estado de congelación para efectos visuales
+export function isAimFrozen() {
+    return freezeState.isFrozen;
+}
+
 function resetFreezeState() {
     freezeState = {
         isFrozen: false,

@@ -12,6 +12,7 @@ import { gameState, difficultyConfig } from './game.js';
 import { COLS, BRICK_COLORS, BASE_BALL_RADIUS } from './config.js';
 import { calculateTrajectory } from './physics.js';
 import { BrickRegistry, BallRegistry, BonusRegistry } from './js/behaviors/index.js';
+import { isAimFrozen } from './input.js';
 
 export let canvas;
 export let ctx;
@@ -351,6 +352,79 @@ function drawLaunchIndicator() {
     }
 }
 
+// Estado para animación de hielo
+let iceAnimationTime = 0;
+
+/**
+ * Dibuja un cristal de hielo en una posición dada
+ */
+function drawIceCrystal(x, y, size, rotation, alpha) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(rotation);
+    ctx.globalAlpha = alpha;
+
+    // Cristal principal (hexágono simplificado)
+    ctx.fillStyle = 'rgba(200, 230, 255, 0.8)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.lineWidth = 1;
+
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+        const angle = (i * Math.PI) / 3;
+        const px = Math.cos(angle) * size;
+        const py = Math.sin(angle) * size;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Líneas internas del cristal
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.lineWidth = 0.5;
+    for (let i = 0; i < 3; i++) {
+        const angle = (i * Math.PI) / 3;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(Math.cos(angle) * size, Math.sin(angle) * size);
+        ctx.stroke();
+    }
+
+    ctx.restore();
+}
+
+/**
+ * Dibuja partículas de escarcha flotando
+ */
+function drawFrostParticles(trajectory, time) {
+    const particleCount = 12;
+
+    for (let i = 0; i < particleCount; i++) {
+        // Posición a lo largo de la trayectoria
+        const trajIndex = Math.floor((i / particleCount) * (trajectory.length - 1));
+        if (trajIndex >= trajectory.length - 1) continue;
+
+        const basePoint = trajectory[trajIndex];
+
+        // Offset animado perpendicular a la trayectoria
+        const offsetPhase = time * 0.002 + i * 0.5;
+        const offsetX = Math.sin(offsetPhase) * 15;
+        const offsetY = Math.cos(offsetPhase * 1.3) * 10;
+
+        const x = basePoint.x + offsetX;
+        const y = basePoint.y + offsetY;
+
+        // Tamaño y rotación animados
+        const size = 2 + Math.sin(time * 0.003 + i) * 1;
+        const rotation = time * 0.001 + i;
+        const alpha = 0.4 + Math.sin(time * 0.002 + i * 0.7) * 0.3;
+
+        drawIceCrystal(x, y, size, rotation, alpha);
+    }
+}
+
 function drawAimLine() {
     if (!gameState.isAiming || gameState.isShooting) return;
 
@@ -361,37 +435,120 @@ function drawAimLine() {
         5
     );
 
-    ctx.lineWidth = 2;
-    ctx.setLineDash([8, 8]);
+    const frozen = isAimFrozen();
 
-    for (let i = 0; i < trajectory.length - 1; i++) {
-        const alpha = 1 - (i * 0.15);
-        ctx.strokeStyle = `rgba(255,255,255,${Math.max(0.2, alpha * 0.7)})`;
+    // Actualizar tiempo de animación
+    iceAnimationTime = performance.now();
 
-        ctx.beginPath();
-        ctx.moveTo(trajectory[i].x, trajectory[i].y);
-        ctx.lineTo(trajectory[i + 1].x, trajectory[i + 1].y);
-        ctx.stroke();
-    }
+    if (frozen) {
+        // === EFECTO DE HIELO ===
 
-    ctx.setLineDash([]);
+        // Glow azul hielo
+        ctx.shadowColor = '#7dd3fc';
+        ctx.shadowBlur = 15;
 
-    for (let i = 1; i < trajectory.length - 1; i++) {
-        const point = trajectory[i];
-        if (point.isBounce) {
-            ctx.fillStyle = 'rgba(255,255,255,0.8)';
+        ctx.lineWidth = 3;
+        ctx.setLineDash([10, 6]);
+
+        // Dibujar línea con gradiente de hielo
+        for (let i = 0; i < trajectory.length - 1; i++) {
+            const alpha = 1 - (i * 0.12);
+            // Color azul hielo que va de cian claro a azul
+            const blueIntensity = 200 + Math.sin(iceAnimationTime * 0.003 + i) * 30;
+            ctx.strokeStyle = `rgba(135, ${blueIntensity}, 255, ${Math.max(0.3, alpha * 0.85)})`;
+
             ctx.beginPath();
-            ctx.arc(point.x, point.y, 4, 0, Math.PI * 2);
+            ctx.moveTo(trajectory[i].x, trajectory[i].y);
+            ctx.lineTo(trajectory[i + 1].x, trajectory[i + 1].y);
+            ctx.stroke();
+        }
+
+        ctx.shadowBlur = 0;
+        ctx.setLineDash([]);
+
+        // Dibujar cristales de hielo flotando
+        drawFrostParticles(trajectory, iceAnimationTime);
+
+        // Puntos de rebote con efecto de hielo
+        for (let i = 1; i < trajectory.length - 1; i++) {
+            const point = trajectory[i];
+            if (point.isBounce) {
+                // Glow
+                ctx.shadowColor = '#7dd3fc';
+                ctx.shadowBlur = 8;
+
+                ctx.fillStyle = 'rgba(180, 220, 255, 0.9)';
+                ctx.beginPath();
+                ctx.arc(point.x, point.y, 5, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Cristal pequeño en cada rebote
+                drawIceCrystal(point.x, point.y, 4, iceAnimationTime * 0.002 + i, 0.7);
+
+                ctx.shadowBlur = 0;
+            }
+        }
+
+        // Punto final con cristal grande
+        if (trajectory.length > 1) {
+            const endPoint = trajectory[trajectory.length - 1];
+
+            // Glow del cristal
+            ctx.shadowColor = '#38bdf8';
+            ctx.shadowBlur = 20;
+
+            // Círculo base azul hielo
+            ctx.fillStyle = 'rgba(56, 189, 248, 0.8)';
+            ctx.beginPath();
+            ctx.arc(endPoint.x, endPoint.y, 8, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.shadowBlur = 0;
+
+            // Cristal central rotando
+            drawIceCrystal(endPoint.x, endPoint.y, 6, iceAnimationTime * 0.001, 0.9);
+
+            // Emoji de copo de nieve
+            ctx.font = `${getFontSize(12)}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('❄️', endPoint.x, endPoint.y - 18);
+        }
+
+    } else {
+        // === EFECTO NORMAL ===
+        ctx.lineWidth = 2;
+        ctx.setLineDash([8, 8]);
+
+        for (let i = 0; i < trajectory.length - 1; i++) {
+            const alpha = 1 - (i * 0.15);
+            ctx.strokeStyle = `rgba(255,255,255,${Math.max(0.2, alpha * 0.7)})`;
+
+            ctx.beginPath();
+            ctx.moveTo(trajectory[i].x, trajectory[i].y);
+            ctx.lineTo(trajectory[i + 1].x, trajectory[i + 1].y);
+            ctx.stroke();
+        }
+
+        ctx.setLineDash([]);
+
+        for (let i = 1; i < trajectory.length - 1; i++) {
+            const point = trajectory[i];
+            if (point.isBounce) {
+                ctx.fillStyle = 'rgba(255,255,255,0.8)';
+                ctx.beginPath();
+                ctx.arc(point.x, point.y, 4, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        if (trajectory.length > 1) {
+            const endPoint = trajectory[trajectory.length - 1];
+            ctx.fillStyle = `${difficultyConfig.color}cc`;
+            ctx.beginPath();
+            ctx.arc(endPoint.x, endPoint.y, 6, 0, Math.PI * 2);
             ctx.fill();
         }
-    }
-
-    if (trajectory.length > 1) {
-        const endPoint = trajectory[trajectory.length - 1];
-        ctx.fillStyle = `${difficultyConfig.color}cc`;
-        ctx.beginPath();
-        ctx.arc(endPoint.x, endPoint.y, 6, 0, Math.PI * 2);
-        ctx.fill();
     }
 }
 
