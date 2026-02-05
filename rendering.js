@@ -428,12 +428,22 @@ function drawFrostParticles(trajectory, time) {
 function drawAimLine() {
     if (!gameState.isAiming || gameState.isShooting) return;
 
+    const radius = getBallRadius();
+    // Use the actual ball spawn position for trajectory calculation
+    // (balls spawn at launchY - radius - 1, matching shootNextBall in game.js)
+    const ballSpawnY = gameState.launchY - radius - 1;
     const trajectory = calculateTrajectory(
         gameState.launchX,
-        gameState.launchY,
+        ballSpawnY,
         gameState.aimAngle,
         5
     );
+
+    // Replace the first point with the visual launcher position
+    // so the line connects to the launch indicator
+    if (trajectory.length > 0) {
+        trajectory[0] = { x: gameState.launchX, y: gameState.launchY, isBounce: false };
+    }
 
     const frozen = isAimFrozen();
 
