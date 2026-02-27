@@ -560,6 +560,14 @@ function drawAimLine() {
             ctx.fill();
         }
     }
+
+    // Indicador de ángulo (grados desde vertical)
+    const degFromVert = (gameState.aimAngle + Math.PI / 2) * (180 / Math.PI);
+    ctx.fillStyle = frozen ? 'rgba(135, 200, 255, 0.6)' : 'rgba(255,255,255,0.35)';
+    ctx.font = `${getFontSize(10)}px monospace`;
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'top';
+    ctx.fillText(degFromVert.toFixed(1) + '°', getRightBorder() - 5, getBottomLine() + 5);
 }
 
 /**

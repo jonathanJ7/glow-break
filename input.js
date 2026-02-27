@@ -3,8 +3,10 @@ import { canvas } from './rendering.js';
 import { FAST_SPEED_MULTIPLIER } from './config.js';
 
 // ============================================
-// SISTEMA DE PUNTERO SIMPLIFICADO
-// - Tiempo real sin retraso
+// SISTEMA DE APUNTADO CON PRECISIÓN
+// - Toque inicial: apunta en la dirección del dedo
+// - Arrastre: ajustes finos con sensibilidad reducida (2.5x precisión)
+// - Barrido grande: re-ancla automáticamente (no necesitas levantar el dedo)
 // - Se congela si apuntas 3 segundos al mismo lugar
 // - Solo se descongela si alejas mucho el dedo
 // ============================================
@@ -14,12 +16,27 @@ const FREEZE_TIME_MS = 3000;        // 3 segundos para congelar
 const FREEZE_THRESHOLD = 0.04;      // Umbral más sensible (~2.3°) - pequeños ajustes reinician el timer
 const UNFREEZE_DISTANCE = 80;       // Distancia en píxeles para descongelar
 
+// Configuración de precisión de apuntado
+// Valor más bajo = más precisión. 0.4 significa que los movimientos del dedo
+// producen solo el 40% del cambio angular, dando 2.5x más precisión.
+const AIM_SENSITIVITY = 0.4;
+// Cuando el dedo se mueve más de este umbral (en radianes crudos), se re-ancla
+// la base de precisión automáticamente, permitiendo cambios grandes de dirección
+// sin levantar el dedo. ~29° de movimiento crudo del dedo.
+const REANCHOR_RAW_THRESHOLD = 0.5;
+
 // Estado del sistema de congelación
 let freezeState = {
     isFrozen: false,                // Si el puntero está congelado
     frozenPointerPos: { x: 0, y: 0 }, // Posición del dedo cuando se congeló
     lastMoveTime: 0,                // Último momento que se movió significativamente
     lastAngle: 0                    // Último ángulo registrado
+};
+
+// Estado de apuntado de precisión
+let precisionState = {
+    baseAngle: -Math.PI / 2,        // Ángulo de mira al momento del toque
+    baseRawAngle: -Math.PI / 2,     // Ángulo crudo del dedo al momento del toque
 };
 
 // Exportar estado de congelación para efectos visuales
@@ -34,6 +51,16 @@ function resetFreezeState() {
         lastMoveTime: performance.now(),
         lastAngle: -Math.PI / 2
     };
+}
+
+// Calcula ángulo crudo (limitado) desde posición del puntero al lanzador
+function getRawAngle(pos) {
+    const dx = pos.x - gameState.launchX;
+    const dy = pos.y - gameState.launchY;
+    let angle = Math.atan2(dy, dx);
+    if (angle > -0.2) angle = -0.2;
+    if (angle < -Math.PI + 0.2) angle = -Math.PI + 0.2;
+    return angle;
 }
 
 // Input handling
@@ -59,14 +86,25 @@ export function handlePointerDown(e) {
 
     gameState.isAiming = true;
     resetFreezeState();
+
+    // Inicializar precisión: capturar ángulo del toque inicial
+    const pos = getPointerPos(e);
+    const rawAngle = getRawAngle(pos);
+    precisionState.baseAngle = rawAngle;
+    precisionState.baseRawAngle = rawAngle;
+
     handlePointerMove(e);
 }
 
 /**
  * Maneja el movimiento del puntero durante el apuntado.
  *
- * Sistema simplificado:
- * - Movimiento en tiempo real sin filtros
+ * Sistema de precisión:
+ * - El toque inicial establece la dirección base (snap)
+ * - Al arrastrar, los cambios angulares se escalan por AIM_SENSITIVITY
+ *   (0.4 = movimientos producen 40% del cambio, dando 2.5x más precisión)
+ * - Barrido grande (>29° crudo): re-ancla la base automáticamente,
+ *   permitiendo cambios grandes de dirección sin levantar el dedo
  * - Se congela si estás 3 segundos sin mover mucho
  * - Solo se descongela si alejas mucho el dedo
  */
@@ -76,14 +114,22 @@ export function handlePointerMove(e) {
     const pos = getPointerPos(e);
     const now = performance.now();
 
-    // Calcular ángulo directo (sin filtro)
-    const dx = pos.x - gameState.launchX;
-    const dy = pos.y - gameState.launchY;
-    let rawAngle = Math.atan2(dy, dx);
+    // Calcular ángulo crudo desde posición del dedo
+    const rawAngle = getRawAngle(pos);
 
-    // Limitar el ángulo para que solo apunte hacia arriba
-    if (rawAngle > -0.2) rawAngle = -0.2;
-    if (rawAngle < -Math.PI + 0.2) rawAngle = -Math.PI + 0.2;
+    // Aplicar precisión: escalar el delta desde el toque inicial
+    const delta = rawAngle - precisionState.baseRawAngle;
+    let precisionAngle = precisionState.baseAngle + delta * AIM_SENSITIVITY;
+    if (precisionAngle > -0.2) precisionAngle = -0.2;
+    if (precisionAngle < -Math.PI + 0.2) precisionAngle = -Math.PI + 0.2;
+
+    // Re-anclar automáticamente cuando el dedo se mueve mucho.
+    // Esto permite cambios grandes de dirección sin levantar el dedo:
+    // movimientos pequeños → precisión, barridos grandes → reposicionar mira.
+    if (Math.abs(delta) > REANCHOR_RAW_THRESHOLD) {
+        precisionState.baseAngle = precisionAngle;
+        precisionState.baseRawAngle = rawAngle;
+    }
 
     if (freezeState.isFrozen) {
         // Estamos congelados - verificar si hay que descongelar
@@ -96,20 +142,21 @@ export function handlePointerMove(e) {
             // El dedo se alejó mucho - descongelar
             freezeState.isFrozen = false;
             freezeState.lastMoveTime = now;
-            freezeState.lastAngle = rawAngle;
+            freezeState.lastAngle = precisionAngle;
 
-            // Actualizar ángulo
-            gameState.aimAngle = rawAngle;
+            // Resetear base de precisión: continuar desde ángulo congelado
+            precisionState.baseAngle = gameState.aimAngle;
+            precisionState.baseRawAngle = rawAngle;
         }
         // Si sigue congelado, no actualizar el ángulo
     } else {
-        // No estamos congelados - actualizar en tiempo real
-        const angleDiff = Math.abs(rawAngle - freezeState.lastAngle);
+        // No estamos congelados - verificar congelación con ángulo de precisión
+        const angleDiff = Math.abs(precisionAngle - freezeState.lastAngle);
 
         if (angleDiff > FREEZE_THRESHOLD) {
             // Hubo movimiento significativo - resetear timer
             freezeState.lastMoveTime = now;
-            freezeState.lastAngle = rawAngle;
+            freezeState.lastAngle = precisionAngle;
         } else {
             // Poco movimiento - verificar si pasaron 3 segundos
             const timeSinceMove = now - freezeState.lastMoveTime;
@@ -122,8 +169,8 @@ export function handlePointerMove(e) {
             }
         }
 
-        // Actualizar ángulo en tiempo real
-        gameState.aimAngle = rawAngle;
+        // Actualizar ángulo con precisión aplicada
+        gameState.aimAngle = precisionAngle;
     }
 }
 
