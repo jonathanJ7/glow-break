@@ -6,6 +6,7 @@ import { FAST_SPEED_MULTIPLIER } from './config.js';
 // SISTEMA DE APUNTADO CON PRECISIÓN
 // - Toque inicial: apunta en la dirección del dedo
 // - Arrastre: ajustes finos con sensibilidad reducida (2.5x precisión)
+// - Barrido grande: re-ancla automáticamente (no necesitas levantar el dedo)
 // - Se congela si apuntas 3 segundos al mismo lugar
 // - Solo se descongela si alejas mucho el dedo
 // ============================================
@@ -19,6 +20,10 @@ const UNFREEZE_DISTANCE = 80;       // Distancia en píxeles para descongelar
 // Valor más bajo = más precisión. 0.4 significa que los movimientos del dedo
 // producen solo el 40% del cambio angular, dando 2.5x más precisión.
 const AIM_SENSITIVITY = 0.4;
+// Cuando el dedo se mueve más de este umbral (en radianes crudos), se re-ancla
+// la base de precisión automáticamente, permitiendo cambios grandes de dirección
+// sin levantar el dedo. ~29° de movimiento crudo del dedo.
+const REANCHOR_RAW_THRESHOLD = 0.5;
 
 // Estado del sistema de congelación
 let freezeState = {
@@ -98,6 +103,8 @@ export function handlePointerDown(e) {
  * - El toque inicial establece la dirección base (snap)
  * - Al arrastrar, los cambios angulares se escalan por AIM_SENSITIVITY
  *   (0.4 = movimientos producen 40% del cambio, dando 2.5x más precisión)
+ * - Barrido grande (>29° crudo): re-ancla la base automáticamente,
+ *   permitiendo cambios grandes de dirección sin levantar el dedo
  * - Se congela si estás 3 segundos sin mover mucho
  * - Solo se descongela si alejas mucho el dedo
  */
@@ -115,6 +122,14 @@ export function handlePointerMove(e) {
     let precisionAngle = precisionState.baseAngle + delta * AIM_SENSITIVITY;
     if (precisionAngle > -0.2) precisionAngle = -0.2;
     if (precisionAngle < -Math.PI + 0.2) precisionAngle = -Math.PI + 0.2;
+
+    // Re-anclar automáticamente cuando el dedo se mueve mucho.
+    // Esto permite cambios grandes de dirección sin levantar el dedo:
+    // movimientos pequeños → precisión, barridos grandes → reposicionar mira.
+    if (Math.abs(delta) > REANCHOR_RAW_THRESHOLD) {
+        precisionState.baseAngle = precisionAngle;
+        precisionState.baseRawAngle = rawAngle;
+    }
 
     if (freezeState.isFrozen) {
         // Estamos congelados - verificar si hay que descongelar
