@@ -161,24 +161,22 @@ const FireballBehavior = {
 };
 
 // ============================================
-// SPLITTER - Se divide en 5 bolas
+// SPLITTER - Se divide en 2 bolas al 5to impacto
 // ============================================
 const SplitterBehavior = {
     type: 'splitter',
     color: '#f9ed69',
     glowColor: '#f9ed69',
     damage: 1,
-    splitCount: 5,
-    splitAngles: [-Math.PI / 3, -Math.PI / 6, 0, Math.PI / 6, Math.PI / 3],
+    splitCount: 2,
+    hitsToSplit: 5,
+    splitAngles: [-Math.PI / 6, Math.PI / 6],
 
     render(ctx, ball, helpers) {
         const { getBallRadius } = helpers;
 
-        // Solo mostrar glow si no se ha dividido
-        if (!ball.hasSplit) {
-            ctx.shadowColor = this.glowColor;
-            ctx.shadowBlur = 8;
-        }
+        ctx.shadowColor = this.glowColor;
+        ctx.shadowBlur = 8;
         ctx.fillStyle = this.color;
         ctx.beginPath();
         ctx.arc(ball.x, ball.y, getBallRadius(), 0, Math.PI * 2);
@@ -187,11 +185,13 @@ const SplitterBehavior = {
     },
 
     onCollision(ball, brick, gameState, helpers) {
-        const { createParticles } = helpers;
+        const { createParticles, getBrickColor, speedMultiplier } = helpers;
 
-        if (!ball.hasSplit) {
-            // Dividirse en múltiples bolas
-            ball.hasSplit = true;
+        // Incrementar contador de impactos
+        ball.hitCount = (ball.hitCount || 0) + 1;
+
+        if (ball.hitCount >= this.hitsToSplit) {
+            // Dividirse en 2 bolas splitter
             ball.active = false;
 
             const speed = Math.hypot(ball.vx, ball.vy);
@@ -199,7 +199,7 @@ const SplitterBehavior = {
 
             const newBalls = this.splitAngles.map(offset => {
                 const newAngle = currentAngle + offset;
-                return NormalBallBehavior.createBall(
+                return SplitterBehavior.createBall(
                     ball.x,
                     ball.y,
                     Math.cos(newAngle) * speed,
@@ -221,8 +221,16 @@ const SplitterBehavior = {
             };
         }
 
-        // Si ya se dividió, comportarse como bola normal
-        return NormalBallBehavior.onCollision(ball, brick, gameState, helpers);
+        // Antes del 5to impacto, comportarse como bola normal (rebota)
+        if (speedMultiplier === 1) {
+            createParticles(ball.x, ball.y, getBrickColor(brick.hp, brick.maxHp), 3);
+        }
+
+        return {
+            bounce: true,
+            damage: this.damage,
+            continueChecking: false
+        };
     },
 
     createBall(x, y, vx, vy) {
@@ -235,6 +243,7 @@ const SplitterBehavior = {
             splitter: true,
             strength: false,
             hasSplit: false,
+            hitCount: 0,
             damage: this.damage,
             hitBricks: null,
             lifetime: 0
