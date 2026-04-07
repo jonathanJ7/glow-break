@@ -26,6 +26,23 @@ export async function loadGame(page) {
 }
 
 /**
+ * Load the PWA with the `?testHooks=1` query so the test-hooks module
+ * exposes registries on `window.__game`. Resolves once the menu is
+ * visible AND the hooks have installed.
+ *
+ * @param {import('@playwright/test').Page} page
+ */
+export async function loadGameWithHooks(page) {
+    await page.goto('/?testHooks=1');
+    await expect(page.locator('#mainMenu')).toBeVisible();
+    await page.waitForFunction(
+        () => typeof window.__game !== 'undefined' && window.__game.ready === true,
+        null,
+        { timeout: 5_000 }
+    );
+}
+
+/**
  * Set the "Empezar en turno" input to a specific starting turn. The input
  * is clamped 1..500 by the game itself.
  *
