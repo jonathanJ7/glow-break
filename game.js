@@ -123,6 +123,44 @@ export function updateBallsPreview() {
 // GENERACIÓN DE FILAS (usando behaviors)
 // ====================================
 
+/**
+ * Elige un bonus type del BonusRegistry filtrando por category
+ * ('ball' o 'powerup') y respetando minTurn de cada behavior.
+ *
+ * Para 'ball' usa los `probability` declarados en getConfig() (acumulativo).
+ * Para 'powerup' es uniform random entre los candidatos elegibles.
+ *
+ * Reemplaza los antiguos hardcoded if (turn >= 8) ... fireballBall
+ * y los arrays ['horizontal', 'strength'].
+ */
+function pickBonusByCategory(category, turn) {
+    const candidates = [];
+    let cumulative = 0;
+    for (const [type, behavior] of BonusRegistry.getAll()) {
+        const cfg = behavior.getConfig();
+        if (cfg.category !== category) continue;
+        if (turn < (cfg.minTurn || 0)) continue;
+        candidates.push({ type, behavior, cfg });
+    }
+    if (candidates.length === 0) return null;
+
+    if (category === 'ball') {
+        // Pesos via cfg.probability acumulativo. El default (sin probability)
+        // captura el remainder para garantizar siempre un resultado.
+        const roll = Math.random();
+        for (const c of candidates) {
+            if (!c.cfg.probability) continue;
+            const threshold = cumulative + c.cfg.probability;
+            if (roll >= cumulative && roll < threshold) return c.type;
+            cumulative = threshold;
+        }
+        return BonusRegistry.defaultType;
+    }
+
+    // 'powerup': uniform pick
+    return candidates[Math.floor(Math.random() * candidates.length)].type;
+}
+
 export function generateNewRow() {
     const cellSize = getCellSize();
     const topOffset = getTopOffset();
@@ -146,21 +184,24 @@ export function generateNewRow() {
             const hpVariation = config.hpVariationMin + Math.random() * (config.hpVariationMax - config.hpVariationMin);
             const hp = Math.max(1, Math.floor(baseHP * hpVariation * rowHpMultiplier));
 
-            // Determinar tipo de bloque usando los behaviors registrados
-            let type = 'normal';
+            // Determinar tipo de bloque iterando los behaviors registrados.
+            // Cada behavior expone su propia baseChance + difficultyMultiplier
+            // en getConfig(); la dificultad solo escala. Cero hardcoded keys
+            // por dificultad en config.js.
+            let type = BrickRegistry.defaultType;
             const specialRoll = Math.random();
             let cumulativeProbability = 0;
 
-            // Iterar sobre todos los tipos de bloques registrados
             for (const [brickType, behavior] of BrickRegistry.getAll()) {
-                if (brickType === 'normal') continue;
+                if (brickType === BrickRegistry.defaultType) continue;
 
                 const brickConfig = behavior.getConfig();
-                if (!brickConfig.configKey) continue;
+                const baseChance = brickConfig.baseChance || 0;
+                const mult = brickConfig.difficultyMultiplier?.[currentDifficulty] ?? 1;
+                const chance = baseChance * mult;
 
-                const chance = config[brickConfig.configKey] || 0;
                 if (chance <= 0) continue;
-                if (turn <= brickConfig.minTurn) continue;
+                if (turn <= (brickConfig.minTurn || 0)) continue;
 
                 const threshold = cumulativeProbability + chance;
                 if (specialRoll >= cumulativeProbability && specialRoll < threshold) {
@@ -182,18 +223,8 @@ export function generateNewRow() {
                 isReinforced: isReinforcedRow
             });
         } else if (rand < density + config.bonusChance && !bonusPlaced) {
-            // Determinar tipo de bola bonus usando los behaviors
-            let ballType = 'ball';
-            const typeRoll = Math.random();
-
-            // Fireballs aparecen a partir del turno 8
-            if (turn >= 8 && typeRoll < 0.15) {
-                ballType = 'fireballBall';
-            }
-            // Splitters aparecen a partir del turno 15
-            else if (turn >= 15 && typeRoll < 0.25) {
-                ballType = 'splitterBall';
-            }
+            // Tipo de bola bonus iterando BonusRegistry filtrando category 'ball'.
+            const ballType = pickBonusByCategory('ball', turn);
 
             const bonusCount = Math.random() < config.multiBallChance && turn > 10 ? 2 : 1;
             gameState.bonuses.push({
@@ -205,9 +236,9 @@ export function generateNewRow() {
             });
             bonusPlaced = true;
         } else if (rand < density + config.bonusChance + config.powerupChance && !powerupPlaced && turn > 3) {
-            // Power-ups especiales
-            const powerupTypes = ['horizontal', 'strength'];
-            const ptype = powerupTypes[Math.floor(Math.random() * powerupTypes.length)];
+            // Power-ups especiales — itera la categoria 'powerup' del BonusRegistry.
+            const ptype = pickBonusByCategory('powerup', turn);
+            if (!ptype) continue;
             gameState.bonuses.push({
                 x: leftBorder + col * cellSize + cellSize / 2,
                 y: topOffset + cellSize / 2,

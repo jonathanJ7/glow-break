@@ -460,3 +460,92 @@ test.describe('OCP - Fase 5: data-driven inventory', () => {
         expect(errors).toEqual([]);
     });
 });
+
+test.describe('OCP - Fase 6: per-type config in behaviors', () => {
+    test('built-in brick behaviors expose baseChance + difficultyMultiplier', async ({ page }) => {
+        await loadGameWithHooks(page);
+        const result = await page.evaluate(() => {
+            const out = {};
+            for (const t of ['explosive', 'armored', 'spawner', 'regenerator']) {
+                const cfg = window.__game.BrickRegistry.get(t).getConfig();
+                out[t] = {
+                    baseChance: cfg.baseChance,
+                    difficultyMultiplier: cfg.difficultyMultiplier,
+                };
+            }
+            return out;
+        });
+        for (const [type, cfg] of Object.entries(result)) {
+            expect(cfg.baseChance, `${type}.baseChance`).toBeGreaterThan(0);
+            expect(cfg.difficultyMultiplier, `${type}.difficultyMultiplier`).toBeDefined();
+            expect(cfg.difficultyMultiplier.easy).toBeDefined();
+            expect(cfg.difficultyMultiplier.medium).toBeDefined();
+            expect(cfg.difficultyMultiplier.hard).toBeDefined();
+        }
+    });
+
+    test('DIFFICULTY_SETTINGS no longer has *Chance keys for brick types', async ({ page }) => {
+        await loadGameWithHooks(page);
+        const settings = await page.evaluate(() => window.__game.DIFFICULTY_SETTINGS);
+        for (const diff of ['easy', 'medium', 'hard']) {
+            expect(settings[diff].explosiveChance, `${diff}.explosiveChance`).toBeUndefined();
+            expect(settings[diff].armoredChance, `${diff}.armoredChance`).toBeUndefined();
+            expect(settings[diff].poisonBrickChance, `${diff}.poisonBrickChance`).toBeUndefined();
+            expect(settings[diff].regeneratorChance, `${diff}.regeneratorChance`).toBeUndefined();
+        }
+    });
+
+    test('a registered TestBrick with baseChance: 1.0 spawns when game starts', async ({ page }) => {
+        await loadGameWithHooks(page);
+        // Register before initGame so the spawner sees it
+        await page.evaluate(() => {
+            window.__game.BrickRegistry.register('phase6-saturate', {
+                type: 'phase6-saturate',
+                render() {},
+                getConfig() {
+                    return {
+                        minTurn: 0,
+                        baseChance: 1.0, // overwhelmingly likely to be picked
+                        difficultyMultiplier: { easy: 1, medium: 1, hard: 1 },
+                    };
+                },
+            });
+        });
+        // Start the game (initGame -> generateNewRow uses the registry)
+        await page.locator('#easyBtn').evaluate((el) => /** @type {HTMLElement} */ (el).click());
+        await page.waitForFunction(() => window.__game.gameState.gameStarted === true);
+        // Some bricks should have type === 'phase6-saturate'
+        const found = await page.evaluate(() => {
+            return window.__game.gameState.bricks.some(b => b.type === 'phase6-saturate');
+        });
+        expect(found).toBe(true);
+    });
+
+    test('numerical parity: baseChance * difficultyMultiplier reproduces legacy values', async ({ page }) => {
+        await loadGameWithHooks(page);
+        const computed = await page.evaluate(() => {
+            const out = {};
+            for (const t of ['explosive', 'armored', 'spawner', 'regenerator']) {
+                const cfg = window.__game.BrickRegistry.get(t).getConfig();
+                out[t] = {
+                    easy: cfg.baseChance * cfg.difficultyMultiplier.easy,
+                    medium: cfg.baseChance * cfg.difficultyMultiplier.medium,
+                    hard: cfg.baseChance * cfg.difficultyMultiplier.hard,
+                };
+            }
+            return out;
+        });
+        // Within 1% of legacy hardcoded values from config.js
+        const expected = {
+            explosive:    { easy: 0.06,  medium: 0.08, hard: 0.04 },
+            armored:      { easy: 0.015, medium: 0.05, hard: 0.10 },
+            spawner:      { easy: 0.08,  medium: 0.10, hard: 0.12 },
+            regenerator:  { easy: 0.06,  medium: 0.10, hard: 0.16 },
+        };
+        for (const [type, diffs] of Object.entries(expected)) {
+            for (const [diff, want] of Object.entries(diffs)) {
+                expect(computed[type][diff], `${type}.${diff}`).toBeCloseTo(want, 3);
+            }
+        }
+    });
+});

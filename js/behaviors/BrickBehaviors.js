@@ -128,7 +128,8 @@ const ExplosiveBrickBehavior = {
         return {
             minTurn: 3,
             category: 'helpful',
-            configKey: 'explosiveChance'
+            baseChance: 0.06,
+            difficultyMultiplier: { easy: 1.0, medium: 1.3333, hard: 0.6667 },
         };
     }
 };
@@ -165,7 +166,8 @@ const ArmoredBrickBehavior = {
         return {
             minTurn: 5,
             category: 'challenging',
-            configKey: 'armoredChance'
+            baseChance: 0.015,
+            difficultyMultiplier: { easy: 1.0, medium: 3.3333, hard: 6.6667 },
         };
     }
 };
@@ -254,7 +256,8 @@ const SpawnerBrickBehavior = {
         return {
             minTurn: 8,
             category: 'challenging',
-            configKey: 'poisonBrickChance'
+            baseChance: 0.08,
+            difficultyMultiplier: { easy: 1.0, medium: 1.25, hard: 1.5 },
         };
     }
 };
@@ -311,7 +314,8 @@ const RegeneratorBrickBehavior = {
         return {
             minTurn: 6,
             category: 'challenging',
-            configKey: 'regeneratorChance'
+            baseChance: 0.06,
+            difficultyMultiplier: { easy: 1.0, medium: 1.6667, hard: 2.6667 },
         };
     }
 };
