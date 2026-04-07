@@ -10,7 +10,7 @@
  * solo necesitas registrar un nuevo behavior con los métodos correspondientes.
  */
 
-import { gameState, endTurn, updateUI } from './game.js';
+import { gameState, endTurn, events } from './game.js';
 import { COLS, FAST_SPEED_MULTIPLIER, BALL_SPEED } from './config.js';
 import { getWidth, getHeight, getLeftBorder, getRightBorder, getTopOffset, getBottomLine, getCellSize, getBallRadius, getScale, getBrickColor } from './rendering.js';
 import { BrickRegistry, BallRegistry, BonusRegistry } from './js/behaviors/index.js';
@@ -333,7 +333,7 @@ function checkBonusCollisions(ball) {
             createParticles(bonus.x, bonus.y, '#f9ed69', 8);
             gameState.bonuses = gameState.bonuses.filter(b => b !== bonus);
 
-            updateUI();
+            events.emit('inventoryChanged');
         }
     }
 }

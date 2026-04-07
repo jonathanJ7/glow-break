@@ -14,6 +14,33 @@ import { updateBalls, updateParticles, createParticles } from './physics.js';
 import { BrickRegistry, BallRegistry, BonusRegistry } from './js/behaviors/index.js';
 
 // ====================================
+// EVENT EMITTER
+// ====================================
+
+/**
+ * Mini event emitter para desacoplar dominio de UI.
+ * Permite que physics.js notifique cambios sin importar updateUI
+ * directamente (lo que rompia el lado UI de la dependencia circular).
+ */
+class Emitter {
+    constructor() {
+        this._listeners = new Map();
+    }
+    on(event, fn) {
+        if (!this._listeners.has(event)) this._listeners.set(event, new Set());
+        this._listeners.get(event).add(fn);
+        return () => this._listeners.get(event)?.delete(fn);
+    }
+    emit(event, payload) {
+        const set = this._listeners.get(event);
+        if (!set) return;
+        for (const fn of set) fn(payload);
+    }
+}
+
+export const events = new Emitter();
+
+// ====================================
 // ESTADO DEL JUEGO
 // ====================================
 export let gameState = {
@@ -436,6 +463,11 @@ export function updateUI() {
     document.getElementById('turnDisplay').textContent = gameState.turn;
     document.getElementById('ballDisplay').textContent = getTotalBalls();
 }
+
+// physics.js emite 'inventoryChanged' al recolectar bonuses; aqui
+// reaccionamos refrescando el HUD. Cualquier nueva UI (sound effects,
+// achievements, etc.) puede suscribirse sin tocar physics.
+events.on('inventoryChanged', () => updateUI());
 
 // ====================================
 // MENÚ
