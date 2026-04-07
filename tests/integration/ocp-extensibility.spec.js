@@ -549,3 +549,27 @@ test.describe('OCP - Fase 6: per-type config in behaviors', () => {
         }
     });
 });
+
+test.describe('OCP - Fase 7: frozen physicsHelpers + laser regression', () => {
+    test('physics.fireHorizontalLaser sets gameState.laserEffect', async ({ page }) => {
+        await loadGameWithHooks(page);
+        await page.locator('#easyBtn').evaluate((el) => /** @type {HTMLElement} */ (el).click());
+        await page.waitForFunction(() => window.__game.gameState.gameStarted === true);
+
+        const result = await page.evaluate(() => {
+            const gs = window.__game.gameState;
+            // Ensure there's a brick to target
+            if (gs.bricks.length === 0) {
+                gs.bricks.push({
+                    x: 50, y: 100, width: 30, height: 30,
+                    hp: 10, maxHp: 10, col: 0, type: 'normal',
+                });
+            }
+            gs.laserEffect = null;
+            window.__game.physics.fireHorizontalLaser(gs.bricks[0].y + 15);
+            return { laser: gs.laserEffect };
+        });
+        expect(result.laser).not.toBeNull();
+        expect(result.laser.alpha).toBe(1);
+    });
+});

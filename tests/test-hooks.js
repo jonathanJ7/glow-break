@@ -15,6 +15,7 @@
  */
 import { BrickRegistry, BallRegistry, BonusRegistry } from '../js/behaviors/index.js';
 import * as game from '../game.js';
+import * as physics from '../physics.js';
 import { DIFFICULTY_SETTINGS } from '../config.js';
 
 window.__game = {
@@ -23,6 +24,7 @@ window.__game = {
     BonusRegistry,
     get gameState() { return game.gameState; },
     game,
+    physics,
     DIFFICULTY_SETTINGS,
     ready: true,
 };

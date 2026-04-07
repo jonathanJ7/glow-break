@@ -57,7 +57,11 @@ export function updateParticles() {
 // HELPERS PARA BEHAVIORS
 // ====================================
 
-const physicsHelpers = {
+// fireHorizontalLaser es una function declaration mas abajo, asi que
+// hoist garantiza que su referencia ya este disponible aqui. Construimos
+// el helpers object completo y lo congelamos: nada en el codigo deberia
+// mutarlo en runtime (eso era spooky-action-at-a-distance).
+const physicsHelpers = Object.freeze({
     getCellSize,
     getLeftBorder,
     getRightBorder,
@@ -65,11 +69,12 @@ const physicsHelpers = {
     getBrickColor,
     getScale,
     createParticles,
+    fireHorizontalLaser,
     COLS,
     get speedMultiplier() {
         return gameState.speedMultiplier;
     }
-};
+});
 
 // ====================================
 // EFECTOS DE BLOQUES (usando behaviors)
@@ -144,9 +149,6 @@ export function fireHorizontalLaser(ballY) {
         }
     }
 }
-
-// Agregar laser helper para bonuses
-physicsHelpers.fireHorizontalLaser = fireHorizontalLaser;
 
 // ====================================
 // FÍSICA DE BOLAS - Con Continuous Collision Detection
