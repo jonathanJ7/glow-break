@@ -1,6 +1,6 @@
 {
-  "defaultMode": "dontAsk",
   "permissions": {
+    "defaultMode": "dontAsk",
     "allow": [
       "Read",
       "Edit",
@@ -8,9 +8,6 @@
       "WebFetch",
       "WebSearch",
       "Bash(npm test*)"
-    ],
-    "deny": [
-      "Bash(*)"
     ]
   }
 }

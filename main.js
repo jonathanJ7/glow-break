@@ -28,8 +28,17 @@ if ('serviceWorker' in navigator) {
     let refreshing = false;
     let swRegistration = null;
 
+    // Snapshot whether the page was already SW-controlled at load time.
+    // The SW calls clients.claim() on first activation, which fires
+    // controllerchange on a brand-new (uncontrolled) page. Reloading there
+    // would cause a flicker for first-time users and races mid-test.
+    // We only want to reload when an *updated* SW takes over a page that
+    // was already controlled — the real "new version is live" case.
+    const hadControllerOnLoad = !!navigator.serviceWorker.controller;
+
     // Listen for controller changes (new SW activated)
     navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!hadControllerOnLoad) return;
         if (!refreshing) {
             refreshing = true;
             window.location.reload();
