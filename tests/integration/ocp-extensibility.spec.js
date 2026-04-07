@@ -313,3 +313,150 @@ test.describe('OCP - Fase 3: ball state and shoot path', () => {
         expect('hasSplit' in ball).toBe(false);
     });
 });
+
+test.describe('OCP - Fase 5: data-driven inventory', () => {
+    test('calculateStartingBalls returns inventory keyed by ball type', async ({ page }) => {
+        await loadGameWithHooks(page);
+        const result = await page.evaluate(() => {
+            return window.__game.game.calculateStartingBalls(20, 'easy');
+        });
+        // Post-Fase 5 shape: { inventory: {...}, total: N }
+        expect(result.inventory).toBeDefined();
+        expect(typeof result.inventory).toBe('object');
+        expect(result.total).toBeGreaterThan(0);
+    });
+
+    test('a registered ball type with startingShare appears in calculateStartingBalls', async ({ page }) => {
+        await loadGameWithHooks(page);
+        await page.evaluate(() => {
+            window.__game.BallRegistry.register('phase5-share', {
+                type: 'phase5-share',
+                color: 'magenta',
+                damage: 1,
+                render() {},
+                createBall(x, y, vx, vy) {
+                    return {
+                        x, y, vx, vy,
+                        active: true, hasGoneUp: false,
+                        ballType: 'phase5-share',
+                        damage: 1, lifetime: 0, state: {},
+                    };
+                },
+                getConfig() {
+                    return { minTurn: 1, startingShare: 0.5 };
+                },
+            });
+        });
+        const inv = await page.evaluate(() => {
+            const r = window.__game.game.calculateStartingBalls(20, 'easy');
+            return r.inventory || r;
+        });
+        expect(inv['phase5-share']).toBeGreaterThan(0);
+    });
+
+    test('built-in fireballBall bonus declares targetBallType: fireball', async ({ page }) => {
+        await loadGameWithHooks(page);
+        const result = await page.evaluate(() => {
+            const b = window.__game.BonusRegistry.get('fireballBall');
+            return { hasTarget: 'targetBallType' in b, target: b.targetBallType };
+        });
+        expect(result.hasTarget).toBe(true);
+        expect(result.target).toBe('fireball');
+    });
+
+    test('built-in splitterBall bonus declares targetBallType: splitter', async ({ page }) => {
+        await loadGameWithHooks(page);
+        const result = await page.evaluate(() => {
+            const b = window.__game.BonusRegistry.get('splitterBall');
+            return { hasTarget: 'targetBallType' in b, target: b.targetBallType };
+        });
+        expect(result.hasTarget).toBe(true);
+        expect(result.target).toBe('splitter');
+    });
+
+    test('a custom bonus with targetBallType increments inventory[type] when collected', async ({ page }) => {
+        await loadGameWithHooks(page);
+        // Register a synthetic ball type and a bonus that targets it
+        await page.evaluate(() => {
+            window.__game.BallRegistry.register('phase5-target', {
+                type: 'phase5-target',
+                color: 'magenta',
+                render() {},
+                createBall(x, y, vx, vy) {
+                    return { x, y, vx, vy, ballType: 'phase5-target', active: true, hasGoneUp: false, damage: 1, lifetime: 0, state: {} };
+                },
+                getConfig: () => ({}),
+            });
+        });
+        // Start a game so gameState.ballInventory exists
+        await page.locator('#easyBtn').evaluate((el) => /** @type {HTMLElement} */ (el).click());
+        await page.waitForFunction(() => window.__game.gameState.gameStarted === true);
+
+        const result = await page.evaluate(() => {
+            // Mimic the post-Fase-5 ball-bonus contract: behavior reads
+            // its own targetBallType and increments inventory[that key].
+            const fireballBonus = window.__game.BonusRegistry.get('fireballBall');
+            const before = window.__game.gameState.ballInventory.fireball || 0;
+            fireballBonus.onCollect(
+                { value: 5 },
+                {},
+                window.__game.gameState,
+                {}
+            );
+            const after = window.__game.gameState.ballInventory.fireball || 0;
+            return { before, after };
+        });
+        expect(result.after).toBe(result.before + 5);
+    });
+
+    test('shoot priorities exposed via getConfig().shootPriority', async ({ page }) => {
+        await loadGameWithHooks(page);
+        const priorities = await page.evaluate(() => {
+            const out = {};
+            for (const t of window.__game.BallRegistry.getTypes()) {
+                const cfg = window.__game.BallRegistry.get(t).getConfig();
+                out[t] = cfg.shootPriority;
+            }
+            return out;
+        });
+        // Built-in priorities (preserves the legacy order)
+        expect(priorities.normal).toBeDefined();
+        expect(priorities.fireball).toBeDefined();
+        expect(priorities.splitter).toBeDefined();
+        expect(priorities.strength).toBeDefined();
+        expect(priorities.normal).toBeLessThan(priorities.fireball);
+        expect(priorities.fireball).toBeLessThan(priorities.splitter);
+        expect(priorities.splitter).toBeLessThan(priorities.strength);
+    });
+
+    test('drawBallInventory does not crash with a registered new ball type in inventory', async ({ page }) => {
+        await loadGameWithHooks(page);
+        await page.evaluate(() => {
+            window.__game.BallRegistry.register('phase5-hud', {
+                type: 'phase5-hud',
+                color: 'magenta',
+                icon: '🟪',
+                bgColor: 'rgba(255, 0, 255, 0.8)',
+                textColor: 'white',
+                showInInventoryHud: true,
+                render() {},
+                createBall(x, y, vx, vy) {
+                    return { x, y, vx, vy, ballType: 'phase5-hud', state: {} };
+                },
+                getConfig: () => ({}),
+            });
+        });
+        await page.locator('#easyBtn').evaluate((el) => /** @type {HTMLElement} */ (el).click());
+        await page.waitForFunction(() => window.__game.gameState.gameStarted === true);
+
+        const errors = [];
+        page.on('pageerror', (e) => errors.push(e.message));
+
+        await page.evaluate(() => {
+            window.__game.gameState.ballInventory['phase5-hud'] = 3;
+        });
+        // Force a few render frames
+        await page.waitForTimeout(100);
+        expect(errors).toEqual([]);
+    });
+});

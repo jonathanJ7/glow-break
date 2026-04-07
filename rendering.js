@@ -8,7 +8,7 @@
  * un nuevo behavior con su método render().
  */
 
-import { gameState, difficultyConfig } from './game.js';
+import { gameState, difficultyConfig, getTotalBalls } from './game.js';
 import { COLS, BRICK_COLORS, BASE_BALL_RADIUS } from './config.js';
 import { calculateTrajectory } from './physics.js';
 import { BrickRegistry, BallRegistry, BonusRegistry } from './js/behaviors/index.js';
@@ -330,10 +330,7 @@ function drawLaunchIndicator() {
     ctx.arc(gameState.launchX, gameState.launchY, getBallRadius() + 2, 0, Math.PI * 2);
     ctx.fill();
 
-    const totalBalls = gameState.ballInventory.normal +
-                       gameState.ballInventory.fireball +
-                       gameState.ballInventory.splitter +
-                       gameState.ballInventory.strength;
+    const totalBalls = getTotalBalls();
 
     if (totalBalls > 1) {
         ctx.fillStyle = 'rgba(255,255,255,0.6)';
@@ -567,7 +564,16 @@ function drawAimLine() {
  */
 function drawBallInventory(leftBorder) {
     const inv = gameState.ballInventory;
-    if (inv.fireball <= 0 && inv.splitter <= 0 && inv.strength <= 0) return;
+
+    // Iteramos el registry: cualquier ball type con showInInventoryHud
+    // y count > 0 aparece. Cero hardcoded keys, agregar una bola nueva
+    // solo requiere setear showInInventoryHud: true en su behavior.
+    let hasAny = false;
+    for (const [type, behavior] of BallRegistry.getAll()) {
+        if (!behavior.showInInventoryHud) continue;
+        if ((inv[type] || 0) > 0) { hasAny = true; break; }
+    }
+    if (!hasAny) return;
 
     const scale = getScale();
     let indicatorX = leftBorder + 10 * scale;
@@ -575,27 +581,22 @@ function drawBallInventory(leftBorder) {
     const indicatorW = 50 * scale;
     const indicatorH = 20 * scale;
 
-    // Usar los behaviors para obtener colores consistentes
-    const inventoryItems = [
-        { key: 'fireball', type: 'fireball', emoji: '🔥', bgColor: 'rgba(255, 107, 107, 0.8)', textColor: 'white' },
-        { key: 'splitter', type: 'splitter', emoji: '💥', bgColor: 'rgba(249, 237, 105, 0.8)', textColor: '#333' },
-        { key: 'strength', type: 'strength', emoji: '💪', bgColor: 'rgba(255, 140, 0, 0.8)', textColor: 'white' }
-    ];
+    for (const [type, behavior] of BallRegistry.getAll()) {
+        if (!behavior.showInInventoryHud) continue;
+        const count = inv[type] || 0;
+        if (count <= 0) continue;
 
-    for (const item of inventoryItems) {
-        if (inv[item.key] > 0) {
-            ctx.fillStyle = item.bgColor;
-            ctx.beginPath();
-            ctx.roundRect(indicatorX, indicatorY, indicatorW, indicatorH, 10 * scale);
-            ctx.fill();
+        ctx.fillStyle = behavior.bgColor || 'rgba(255,255,255,0.5)';
+        ctx.beginPath();
+        ctx.roundRect(indicatorX, indicatorY, indicatorW, indicatorH, 10 * scale);
+        ctx.fill();
 
-            ctx.fillStyle = item.textColor;
-            ctx.font = `${getFontSize(11)}px Arial`;
-            ctx.textAlign = 'center';
-            ctx.fillText(`${item.emoji} ${inv[item.key]}`, indicatorX + indicatorW / 2, indicatorY + indicatorH * 0.7);
+        ctx.fillStyle = behavior.textColor || 'white';
+        ctx.font = `${getFontSize(11)}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.fillText(`${behavior.icon || '?'} ${count}`, indicatorX + indicatorW / 2, indicatorY + indicatorH * 0.7);
 
-            indicatorX += indicatorW + 10 * scale;
-        }
+        indicatorX += indicatorW + 10 * scale;
     }
 }
 

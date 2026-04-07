@@ -20,6 +20,7 @@ const BallBonusBehavior = {
     type: 'ball',
     color: '#4ecca3',
     icon: null,
+    targetBallType: 'normal',
 
     render(ctx, bonus, helpers) {
         const { getFontSize } = helpers;
@@ -42,10 +43,11 @@ const BallBonusBehavior = {
 
     onCollect(bonus, ball, gameState, helpers) {
         const count = bonus.value || 1;
-        gameState.ballInventory.normal += count;
+        const key = this.targetBallType;
+        gameState.ballInventory[key] = (gameState.ballInventory[key] || 0) + count;
 
         return {
-            inventoryChange: { normal: count }
+            inventoryChange: { [key]: count }
         };
     },
 
@@ -68,6 +70,7 @@ const FireballBonusBehavior = {
     type: 'fireballBall',
     color: '#ff6b6b',
     icon: '🔥',
+    targetBallType: 'fireball',
 
     render(ctx, bonus, helpers) {
         const { getFontSize } = helpers;
@@ -90,10 +93,11 @@ const FireballBonusBehavior = {
 
     onCollect(bonus, ball, gameState, helpers) {
         const count = bonus.value || 1;
-        gameState.ballInventory.fireball += count;
+        const key = this.targetBallType;
+        gameState.ballInventory[key] = (gameState.ballInventory[key] || 0) + count;
 
         return {
-            inventoryChange: { fireball: count }
+            inventoryChange: { [key]: count }
         };
     },
 
@@ -117,6 +121,7 @@ const SplitterBonusBehavior = {
     type: 'splitterBall',
     color: '#f9ed69',
     icon: '💥',
+    targetBallType: 'splitter',
 
     render(ctx, bonus, helpers) {
         const { getFontSize } = helpers;
@@ -139,10 +144,11 @@ const SplitterBonusBehavior = {
 
     onCollect(bonus, ball, gameState, helpers) {
         const count = bonus.value || 1;
-        gameState.ballInventory.splitter += count;
+        const key = this.targetBallType;
+        gameState.ballInventory[key] = (gameState.ballInventory[key] || 0) + count;
 
         return {
-            inventoryChange: { splitter: count }
+            inventoryChange: { [key]: count }
         };
     },
 
@@ -215,6 +221,7 @@ const StrengthBonusBehavior = {
     type: 'strength',
     color: '#ff8c00',
     icon: '💪',
+    targetBallType: 'strength',
 
     render(ctx, bonus, helpers) {
         const { getFontSize } = helpers;
@@ -236,10 +243,11 @@ const StrengthBonusBehavior = {
     },
 
     onCollect(bonus, ball, gameState, helpers) {
-        gameState.ballInventory.strength += 1;
+        const key = this.targetBallType;
+        gameState.ballInventory[key] = (gameState.ballInventory[key] || 0) + 1;
 
         return {
-            inventoryChange: { strength: 1 }
+            inventoryChange: { [key]: 1 }
         };
     },
 

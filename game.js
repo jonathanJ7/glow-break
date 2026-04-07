@@ -18,13 +18,10 @@ import { BrickRegistry, BallRegistry, BonusRegistry } from './js/behaviors/index
 // ====================================
 export let gameState = {
     turn: 1,
-    // Inventario de bolas por tipo
-    ballInventory: {
-        normal: 1,      // Bolas comunes
-        fireball: 0,    // Bolas de fuego (atraviesan bloques)
-        splitter: 0,    // Bolas que se dividen en 5 al golpear
-        strength: 0     // Bolas con daño aumentado (+2)
-    },
+    // Inventario de bolas keyed por behavior.type. Vacio al inicio;
+    // initGame lo poblara con los starting balls del registry.
+    // Toda lectura debe usar `inventory[type] || 0`.
+    ballInventory: {},
     balls: [],
     bricks: [],
     bonuses: [],
@@ -57,14 +54,19 @@ export let shootTimeout = null;
 // ====================================
 
 export function getTotalBalls() {
-    return gameState.ballInventory.normal +
-           gameState.ballInventory.fireball +
-           gameState.ballInventory.splitter +
-           gameState.ballInventory.strength;
+    let sum = 0;
+    for (const type of BallRegistry.getTypes()) {
+        sum += gameState.ballInventory[type] || 0;
+    }
+    return sum;
 }
 
 export function calculateStartingBalls(turn, difficulty) {
-    if (turn <= 1) return { normal: 1, fireball: 0, splitter: 0, total: 1 };
+    const defaultType = BallRegistry.defaultType;
+
+    if (turn <= 1) {
+        return { inventory: { [defaultType]: 1 }, total: 1 };
+    }
 
     const ballsPerTurn = {
         easy: 1.2,
@@ -78,24 +80,27 @@ export function calculateStartingBalls(turn, difficulty) {
     const variance = Math.floor(baseBalls * 0.15);
     const totalBalls = Math.max(1, baseBalls + Math.floor(Math.random() * variance * 2) - variance);
 
-    // Distribuir bolas por tipo según el turno
-    let normal = totalBalls;
-    let fireball = 0;
-    let splitter = 0;
+    // Distribuir por tipo iterando el registry: cada behavior con
+    // startingShare en su getConfig() reclama su porcion segun el turno.
+    // El remainder cae al defaultType.
+    const inventory = {};
+    let remaining = totalBalls;
 
-    // Fireballs aparecen a partir del turno 8
-    if (turn >= 8) {
-        fireball = Math.floor(totalBalls * 0.15);
-        normal -= fireball;
+    for (const [type, behavior] of BallRegistry.getAll()) {
+        if (type === defaultType) continue;
+        const cfg = behavior.getConfig();
+        if (turn < (cfg.minTurn || 0)) continue;
+        if (!cfg.startingShare) continue;
+        const count = Math.floor(totalBalls * cfg.startingShare);
+        if (count > 0) {
+            inventory[type] = count;
+            remaining -= count;
+        }
     }
 
-    // Splitters aparecen a partir del turno 15
-    if (turn >= 15) {
-        splitter = Math.floor(totalBalls * 0.10);
-        normal -= splitter;
-    }
+    inventory[defaultType] = Math.max(0, remaining);
 
-    return { normal, fireball, splitter, total: totalBalls };
+    return { inventory, total: totalBalls };
 }
 
 export function updateBallsPreview() {
@@ -293,13 +298,17 @@ export function startShooting() {
         BrickRegistry.get(brick.type).onTurnStart(brick, gameState);
     }
 
-    // Crear cola de bolas usando los behaviors registrados
+    // Crear cola de bolas usando los behaviors registrados.
+    // El orden viene del registry: shootPriority asc.
     const shootQueue = [];
     const inv = gameState.ballInventory;
     const maxBalls = MAX_BALLS_ON_SCREEN;
 
-    // Orden de disparo basado en los behaviors
-    const shootOrder = ['normal', 'fireball', 'splitter', 'strength'];
+    const shootOrder = BallRegistry.getTypes()
+        .slice()
+        .sort((a, b) =>
+            (BallRegistry.get(a).getConfig().shootPriority ?? 100) -
+            (BallRegistry.get(b).getConfig().shootPriority ?? 100));
 
     for (const ballType of shootOrder) {
         const count = inv[ballType] || 0;
@@ -434,12 +443,7 @@ export function initGame(difficulty) {
     const width = getWidth();
 
     gameState.turn = startingTurn;
-    gameState.ballInventory = {
-        normal: startingBalls.normal,
-        fireball: startingBalls.fireball,
-        splitter: startingBalls.splitter,
-        strength: 0
-    };
+    gameState.ballInventory = { ...startingBalls.inventory };
     gameState.balls = [];
     gameState.bricks = [];
     gameState.bonuses = [];

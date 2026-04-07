@@ -72,7 +72,8 @@ const NormalBallBehavior = {
     getConfig() {
         return {
             minTurn: 0,
-            inventoryKey: 'normal'
+            inventoryKey: 'normal',
+            shootPriority: 10,
         };
     }
 };
@@ -85,6 +86,10 @@ const FireballBehavior = {
     color: '#ff6b6b',
     glowColor: '#ff6b6b',
     damage: 1,
+    icon: '🔥',
+    bgColor: 'rgba(255, 107, 107, 0.8)',
+    textColor: 'white',
+    showInInventoryHud: true,
 
     render(ctx, ball, helpers) {
         const { getBallRadius } = helpers;
@@ -159,7 +164,9 @@ const FireballBehavior = {
         return {
             minTurn: 8,
             inventoryKey: 'fireball',
-            bonusType: 'fireballBall'
+            bonusType: 'fireballBall',
+            shootPriority: 20,
+            startingShare: 0.15,
         };
     }
 };
@@ -175,6 +182,10 @@ const SplitterBehavior = {
     splitCount: 2,
     hitsToSplit: 5,
     splitAngles: [-Math.PI / 6, Math.PI / 6],
+    icon: '💥',
+    bgColor: 'rgba(249, 237, 105, 0.8)',
+    textColor: '#333',
+    showInInventoryHud: true,
 
     render(ctx, ball, helpers) {
         const { getBallRadius } = helpers;
@@ -253,7 +264,9 @@ const SplitterBehavior = {
         return {
             minTurn: 15,
             inventoryKey: 'splitter',
-            bonusType: 'splitterBall'
+            bonusType: 'splitterBall',
+            shootPriority: 30,
+            startingShare: 0.10,
         };
     }
 };
@@ -266,6 +279,10 @@ const StrengthBallBehavior = {
     color: '#ff8c00',
     glowColor: '#ff8c00',
     damage: 3,
+    icon: '💪',
+    bgColor: 'rgba(255, 140, 0, 0.8)',
+    textColor: 'white',
+    showInInventoryHud: true,
 
     render(ctx, ball, helpers) {
         const { getBallRadius } = helpers;
@@ -302,7 +319,8 @@ const StrengthBallBehavior = {
         return {
             minTurn: 0,
             inventoryKey: 'strength',
-            bonusType: 'strength'
+            bonusType: 'strength',
+            shootPriority: 40,
         };
     }
 };
