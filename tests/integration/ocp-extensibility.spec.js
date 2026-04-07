@@ -1,6 +1,6 @@
 // @ts-check
 import { test, expect } from '@playwright/test';
-import { loadGameWithHooks } from './helpers/game.js';
+import { loadGameWithHooks, setStartingTurn } from './helpers/game.js';
 import {
     registerTestBrick,
     registerTestBall,
@@ -511,10 +511,12 @@ test.describe('OCP - Fase 6: per-type config in behaviors', () => {
                 },
             });
         });
-        // Start the game (initGame -> generateNewRow uses the registry)
+        // Start at turn 30: initGame pre-generates 6 rows × 7 cols ≈ 42 cells.
+        // Even at the lowest density rolls, the chance of zero spawns is
+        // negligible. Removes the ~10% flake rate of starting at turn 1.
+        await setStartingTurn(page, 30);
         await page.locator('#easyBtn').evaluate((el) => /** @type {HTMLElement} */ (el).click());
         await page.waitForFunction(() => window.__game.gameState.gameStarted === true);
-        // Some bricks should have type === 'phase6-saturate'
         const found = await page.evaluate(() => {
             return window.__game.gameState.bricks.some(b => b.type === 'phase6-saturate');
         });
@@ -587,6 +589,97 @@ test.describe('OCP - Fase 8: events emitter for UI', () => {
                 && typeof window.__game.game.events.emit === 'function';
         });
         expect(has).toBe(true);
+    });
+});
+
+test.describe('OCP - Fase 9: end-to-end acceptance', () => {
+    test('a full new feature (brick + ball + bonus) registers without engine edits', async ({ page }) => {
+        // The acceptance bar of the entire refactor: agregar un feature
+        // completamente nuevo solo requiere registrar behaviors. Cero ediciones
+        // a game.js / physics.js / rendering.js / config.js. Si este test pasa,
+        // el OCP lo logramos.
+        await loadGameWithHooks(page);
+
+        await page.evaluate(() => {
+            // -------- Phantom Brick --------
+            window.__game.BrickRegistry.register('phantom-brick', {
+                type: 'phantom-brick',
+                emoji: '👻',
+                render(ctx, brick) {
+                    ctx.fillStyle = 'rgba(200, 200, 255, 0.4)';
+                    ctx.fillRect(brick.x, brick.y, brick.width, brick.height);
+                },
+                getConfig: () => ({
+                    minTurn: 0,
+                    baseChance: 0.5,
+                    difficultyMultiplier: { easy: 1, medium: 1, hard: 1 },
+                }),
+            });
+            // -------- Phantom Ball --------
+            window.__game.BallRegistry.register('phantom-ball', {
+                type: 'phantom-ball',
+                color: '#cccccc',
+                damage: 1,
+                icon: '👻',
+                bgColor: 'rgba(200, 200, 200, 0.8)',
+                textColor: '#333',
+                showInInventoryHud: true,
+                render(ctx, ball, helpers) {
+                    ctx.fillStyle = '#cccccc';
+                    ctx.beginPath();
+                    ctx.arc(ball.x, ball.y, helpers.getBallRadius(), 0, Math.PI * 2);
+                    ctx.fill();
+                },
+                createBall(x, y, vx, vy) {
+                    return {
+                        x, y, vx, vy,
+                        active: true, hasGoneUp: false,
+                        ballType: 'phantom-ball',
+                        damage: 1, lifetime: 0,
+                        state: {},
+                    };
+                },
+                getConfig: () => ({ minTurn: 0, shootPriority: 50 }),
+            });
+            // -------- Phantom Bonus --------
+            window.__game.BonusRegistry.register('phantom-bonus', {
+                type: 'phantom-bonus',
+                color: '#cccccc',
+                icon: '👻',
+                targetBallType: 'phantom-ball',
+                render(ctx, bonus) {
+                    ctx.fillStyle = '#cccccc';
+                    ctx.beginPath();
+                    ctx.arc(bonus.x, bonus.y, bonus.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                },
+                onCollect(bonus, ball, gs) {
+                    const key = this.targetBallType;
+                    gs.ballInventory[key] = (gs.ballInventory[key] || 0) + 1;
+                },
+                getConfig: () => ({ category: 'powerup', minTurn: 0 }),
+            });
+        });
+
+        // Start a real game so initGame -> generateNewRow runs.
+        await page.locator('#easyBtn').evaluate((el) => /** @type {HTMLElement} */ (el).click());
+        await page.waitForFunction(() => window.__game.gameState.gameStarted === true);
+
+        const result = await page.evaluate(() => {
+            const gs = window.__game.gameState;
+            const brickTypes = [...new Set(gs.bricks.map(b => b.type))];
+            return {
+                phantomBrickSpawned: brickTypes.includes('phantom-brick'),
+                phantomBallRegistered: window.__game.BallRegistry.getTypes().includes('phantom-ball'),
+                phantomBonusRegistered: window.__game.BonusRegistry.getTypes().includes('phantom-bonus'),
+                phantomBallShootable: typeof window.__game.BallRegistry.get('phantom-ball').createBall === 'function',
+            };
+        });
+
+        expect(result.phantomBrickSpawned).toBe(true);
+        expect(result.phantomBallRegistered).toBe(true);
+        expect(result.phantomBonusRegistered).toBe(true);
+        expect(result.phantomBallShootable).toBe(true);
     });
 });
 
