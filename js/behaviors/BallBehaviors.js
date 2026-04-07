@@ -12,6 +12,7 @@
  */
 
 import { BallRegistry } from '../core/Registry.js';
+import { circleRectOverlap } from '../systems/CollisionSystem.js';
 
 // ============================================
 // NORMAL BALL - Bola básica
@@ -101,7 +102,7 @@ const FireballBehavior = {
         const { getBrickColor, createParticles, speedMultiplier } = helpers;
         const brickId = `${brick.x},${brick.y}`;
 
-        // Fireball atraviesa, no rebota
+        // Fireball atraviesa: nunca rebota, daña una sola vez por brick.
         if (!ball.state.hitBricks.has(brickId)) {
             ball.state.hitBricks.add(brickId);
 
@@ -112,22 +113,33 @@ const FireballBehavior = {
             return {
                 bounce: false,
                 damage: this.damage,
-                continueChecking: true
+                continueChecking: true,
+                passThrough: true,
             };
         }
 
         return {
             bounce: false,
             damage: 0,
-            continueChecking: true
+            continueChecking: true,
+            passThrough: true,
         };
     },
 
-    // Limpiar registro cuando sale del bloque
-    onExitBrick(ball, brick) {
-        const brickId = `${brick.x},${brick.y}`;
-        if (ball.state.hitBricks.has(brickId)) {
-            ball.state.hitBricks.delete(brickId);
+    // Cleanup post-step: olvidar bricks que la bola dejo de tocar.
+    // Antes esta logica vivia en physics.js como un caso especial.
+    onPostStep(ball, gameState, helpers) {
+        const { getBallRadius } = helpers;
+        const radius = getBallRadius();
+        for (const brickId of ball.state.hitBricks) {
+            const [bx, by] = brickId.split(',').map(Number);
+            const brick = gameState.bricks.find(b => b.x === bx && b.y === by);
+            if (brick && !circleRectOverlap(
+                ball.x, ball.y, radius,
+                brick.x + 2, brick.y + 2, brick.width, brick.height
+            )) {
+                ball.state.hitBricks.delete(brickId);
+            }
         }
     },
 

@@ -14,7 +14,7 @@ import { gameState, endTurn, updateUI } from './game.js';
 import { COLS, FAST_SPEED_MULTIPLIER, BALL_SPEED } from './config.js';
 import { getWidth, getHeight, getLeftBorder, getRightBorder, getTopOffset, getBottomLine, getCellSize, getBallRadius, getScale, getBrickColor } from './rendering.js';
 import { BrickRegistry, BallRegistry, BonusRegistry } from './js/behaviors/index.js';
-import { processPhysicsStep, simulateTrajectory, circleRectOverlap, reflectVelocity } from './js/systems/CollisionSystem.js';
+import { processPhysicsStep, simulateTrajectory } from './js/systems/CollisionSystem.js';
 
 // ====================================
 // SISTEMA DE PARTÍCULAS
@@ -183,30 +183,12 @@ export function updateBalls() {
             if (!ball.active) continue;
 
             const ballBehavior = BallRegistry.get(ball.ballType);
-            const isFireball = ball.ballType === 'fireball';
 
-            // Callback para manejar colisiones con bloques
+            // Callback uniforme: el motor solo delega al behavior. Cualquier
+            // semantica especial (passThrough de fireball, split de splitter,
+            // etc.) vive en el behavior y solo se ve aqui via el shape del
+            // resultado.
             const onBrickHit = (ball, brick, collision) => {
-                const brickId = `${brick.x},${brick.y}`;
-
-                // Fireball atraviesa bloques y solo daña una vez por bloque
-                if (isFireball) {
-                    if (!ball.state.hitBricks.has(brickId)) {
-                        ball.state.hitBricks.add(brickId);
-
-                        const brickBehavior = BrickRegistry.get(brick.type);
-                        const damage = brickBehavior.onDamage(brick, ball.damage || 1, gameState);
-                        brick.hp -= damage;
-
-                        if (gameState.speedMultiplier === 1) {
-                            createParticles(collision.hitX, collision.hitY, getBrickColor(brick.hp, brick.maxHp), 3);
-                        }
-                    }
-                    // passThrough: true indica que la bola atraviesa el bloque sin detenerse
-                    return { shouldBounce: false, damage: 0, passThrough: true };
-                }
-
-                // Bola normal o splitter
                 const result = ballBehavior.onCollision(ball, brick, gameState, physicsHelpers);
                 const brickBehavior = BrickRegistry.get(brick.type);
                 const damage = brickBehavior.onDamage(brick, result.damage, gameState);
@@ -219,7 +201,11 @@ export function updateBalls() {
                     gameState.ballsLanded++;
                 }
 
-                return { shouldBounce: result.bounce, damage };
+                return {
+                    shouldBounce: result.bounce,
+                    damage,
+                    passThrough: result.passThrough === true,
+                };
             };
 
             // Usar el nuevo sistema de colisiones CCD
@@ -227,26 +213,15 @@ export function updateBalls() {
                 ball, radius, gameState.bricks, bounds, onBrickHit
             );
 
-            // Actualizar posición y velocidad
             ball.x = physicsResult.newX;
             ball.y = physicsResult.newY;
-
-            // Siempre actualizar velocidad - el sistema de colisiones ya maneja
-            // que fireballs no reboten en bloques (shouldBounce: false) pero sí
-            // reboten en paredes
             ball.vx = physicsResult.newVx;
             ball.vy = physicsResult.newVy;
 
-            // Limpiar registro de fireball cuando sale de bloques
-            if (isFireball) {
-                for (const brickId of ball.state.hitBricks) {
-                    const [bx, by] = brickId.split(',').map(Number);
-                    const brick = gameState.bricks.find(b => b.x === bx && b.y === by);
-                    if (brick && !circleRectOverlap(ball.x, ball.y, radius, brick.x + 2, brick.y + 2, brick.width, brick.height)) {
-                        ball.state.hitBricks.delete(brickId);
-                    }
-                }
-            }
+            // Cleanup post-step delegado al behavior (no-op para tipos
+            // sin estado persistente; FireballBehavior usa esto para
+            // olvidar bricks que la bola ya dejo de tocar).
+            ballBehavior.onPostStep(ball, gameState, physicsHelpers);
 
             // Verificar si ha subido lo suficiente
             if (ball.y < minY) {
