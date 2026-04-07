@@ -81,26 +81,20 @@ const physicsHelpers = {
  */
 function processBrickDestruction(brick) {
     const behavior = BrickRegistry.get(brick.type);
+    const result = behavior.onDestroy(brick, gameState, physicsHelpers);
 
-    if (behavior && behavior.onDestroy) {
-        const result = behavior.onDestroy(brick, gameState, physicsHelpers);
-
-        if (result) {
-            // Procesar daño a otros bloques
-            if (result.damagedBricks) {
-                for (const { brick: targetBrick, damage } of result.damagedBricks) {
-                    const targetBehavior = BrickRegistry.get(targetBrick.type);
-                    const modifiedDamage = targetBehavior && targetBehavior.onDamage
-                        ? targetBehavior.onDamage(targetBrick, damage, gameState)
-                        : damage;
-                    targetBrick.hp -= modifiedDamage;
-                }
+    if (result) {
+        // Procesar daño a otros bloques
+        if (result.damagedBricks) {
+            for (const { brick: targetBrick, damage } of result.damagedBricks) {
+                const targetBehavior = BrickRegistry.get(targetBrick.type);
+                targetBrick.hp -= targetBehavior.onDamage(targetBrick, damage, gameState);
             }
+        }
 
-            // Procesar spawned bricks
-            if (result.spawnedBricks) {
-                gameState.bricks.push(...result.spawnedBricks);
-            }
+        // Procesar spawned bricks
+        if (result.spawnedBricks) {
+            gameState.bricks.push(...result.spawnedBricks);
         }
     }
 }
@@ -145,11 +139,7 @@ export function fireHorizontalLaser(ballY) {
 
             // Aplicar modificador de daño del behavior
             const behavior = BrickRegistry.get(brick.type);
-            const modifiedDamage = behavior && behavior.onDamage
-                ? behavior.onDamage(brick, damage, gameState)
-                : damage;
-
-            brick.hp -= modifiedDamage;
+            brick.hp -= behavior.onDamage(brick, damage, gameState);
             createParticles(brick.x + brick.width/2, brick.y + brick.height/2, '#3b82f6', 5);
         }
     }
@@ -206,12 +196,8 @@ export function updateBalls() {
                     if (!ball.hitBricks.has(brickId)) {
                         ball.hitBricks.add(brickId);
 
-                        // Aplicar daño con modificador del bloque
                         const brickBehavior = BrickRegistry.get(brick.type);
-                        let damage = ball.damage || 1;
-                        if (brickBehavior && brickBehavior.onDamage) {
-                            damage = brickBehavior.onDamage(brick, damage, gameState);
-                        }
+                        const damage = brickBehavior.onDamage(brick, ball.damage || 1, gameState);
                         brick.hp -= damage;
 
                         if (gameState.speedMultiplier === 1) {
@@ -223,33 +209,19 @@ export function updateBalls() {
                 }
 
                 // Bola normal o splitter
-                if (ballBehavior && ballBehavior.onCollision) {
-                    const result = ballBehavior.onCollision(ball, brick, gameState, physicsHelpers);
+                const result = ballBehavior.onCollision(ball, brick, gameState, physicsHelpers);
+                const brickBehavior = BrickRegistry.get(brick.type);
+                const damage = brickBehavior.onDamage(brick, result.damage, gameState);
+                brick.hp -= damage;
 
-                    if (result) {
-                        // Aplicar modificador de daño del bloque
-                        const brickBehavior = BrickRegistry.get(brick.type);
-                        let damage = result.damage;
-                        if (brickBehavior && brickBehavior.onDamage) {
-                            damage = brickBehavior.onDamage(brick, damage, gameState);
-                        }
-                        brick.hp -= damage;
-
-                        // Manejar split balls
-                        if (result.spawnBalls) {
-                            newBalls.push(...result.spawnBalls);
-                        }
-
-                        // Manejar splitter que se desactiva
-                        if (result.ballLanded) {
-                            gameState.ballsLanded++;
-                        }
-
-                        return { shouldBounce: result.bounce, damage: damage };
-                    }
+                if (result.spawnBalls) {
+                    newBalls.push(...result.spawnBalls);
+                }
+                if (result.ballLanded) {
+                    gameState.ballsLanded++;
                 }
 
-                return { shouldBounce: true, damage: 1 };
+                return { shouldBounce: result.bounce, damage };
             };
 
             // Usar el nuevo sistema de colisiones CCD
@@ -381,11 +353,7 @@ function checkBonusCollisions(ball) {
 
         if (dist < getBallRadius() + bonus.radius) {
             // Usar el behavior del bonus para aplicar el efecto
-            const behavior = BonusRegistry.get(bonus.type);
-
-            if (behavior && behavior.onCollect) {
-                behavior.onCollect(bonus, ball, gameState, physicsHelpers);
-            }
+            BonusRegistry.get(bonus.type).onCollect(bonus, ball, gameState, physicsHelpers);
 
             createParticles(bonus.x, bonus.y, '#f9ed69', 8);
             gameState.bonuses = gameState.bonuses.filter(b => b !== bonus);

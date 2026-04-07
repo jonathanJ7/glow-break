@@ -1,8 +1,15 @@
 /**
- * Registry - Sistema de registro central para tipos extensibles
+ * Registry - Sistema de registro central para tipos extensibles.
  *
  * Implementa el principio Open/Closed permitiendo agregar nuevos tipos
  * sin modificar el código existente.
+ *
+ * Cada registry recibe en construcción:
+ *   - base: behavior con métodos no-op por defecto. Se mergea con cada
+ *     behavior registrado, así las llamadas del motor (`brick.onTurnStart`,
+ *     etc.) nunca necesitan guards `if (behavior.method)`.
+ *   - required: lista de campos que un behavior debe definir o el
+ *     register() lanza. Falla rápido en lugar de en silencio.
  *
  * Uso:
  *   BrickRegistry.register('miTipo', MiBrickBehavior);
@@ -10,72 +17,117 @@
  */
 
 class TypeRegistry {
-    constructor(name) {
+    /**
+     * @param {string} name
+     * @param {{ base?: object, required?: string[] }} [options]
+     */
+    constructor(name, options = {}) {
         this.name = name;
         this.types = new Map();
         this.defaultType = null;
+        this.baseBehavior = options.base || {};
+        this.requiredFields = options.required || [];
     }
 
     /**
-     * Registra un nuevo tipo en el registry
-     * @param {string} type - Identificador del tipo
-     * @param {object} behavior - Objeto con los métodos del comportamiento
+     * Registra un nuevo tipo en el registry.
+     *
+     * Valida los campos requeridos y mergea el behavior con la base
+     * para que los métodos opcionales tengan no-ops por defecto.
+     *
+     * @param {string} type
+     * @param {object} behavior
      */
     register(type, behavior) {
+        for (const field of this.requiredFields) {
+            if (!(field in behavior) || behavior[field] === undefined) {
+                throw new Error(
+                    `[${this.name}] Cannot register '${type}': missing required field '${field}'`
+                );
+            }
+        }
+
         if (this.types.has(type)) {
             console.warn(`[${this.name}] Type '${type}' is being overwritten`);
         }
-        this.types.set(type, behavior);
+
+        const merged = Object.assign({}, this.baseBehavior, behavior);
+        this.types.set(type, merged);
         return this;
     }
 
     /**
-     * Obtiene el comportamiento para un tipo
-     * @param {string} type - Identificador del tipo
-     * @returns {object} - Comportamiento del tipo o el default
+     * Obtiene el comportamiento para un tipo (o el default si no existe).
      */
     get(type) {
         return this.types.get(type) || this.types.get(this.defaultType);
     }
 
-    /**
-     * Verifica si un tipo está registrado
-     * @param {string} type - Identificador del tipo
-     * @returns {boolean}
-     */
     has(type) {
         return this.types.has(type);
     }
 
-    /**
-     * Establece el tipo por defecto
-     * @param {string} type - Identificador del tipo default
-     */
     setDefault(type) {
         this.defaultType = type;
         return this;
     }
 
-    /**
-     * Obtiene todos los tipos registrados
-     * @returns {string[]}
-     */
     getTypes() {
         return Array.from(this.types.keys());
     }
 
-    /**
-     * Obtiene todos los behaviors registrados
-     * @returns {Map}
-     */
     getAll() {
         return this.types;
     }
 }
 
-// Registries globales para cada tipo de entidad
-export const BrickRegistry = new TypeRegistry('BrickRegistry');
-export const BallRegistry = new TypeRegistry('BallRegistry');
-export const BonusRegistry = new TypeRegistry('BonusRegistry');
+// ============================================
+// BASES — métodos no-op por defecto
+// ============================================
+
+const brickBase = {
+    render() {},
+    onDestroy() { return null; },
+    onDamage(brick, damage) { return damage; },
+    onTurnStart() {},
+    onTurnEnd() {},
+    getConfig() { return {}; },
+};
+
+const ballBase = {
+    render() {},
+    onCollision() {
+        return { bounce: true, damage: 1, continueChecking: false };
+    },
+    onExitBrick() {},
+    onPostStep() {},
+    getConfig() { return {}; },
+};
+
+const bonusBase = {
+    render() {},
+    onCollect() { return null; },
+    getText() { return ''; },
+    getConfig() { return {}; },
+};
+
+// ============================================
+// REGISTRIES GLOBALES
+// ============================================
+
+export const BrickRegistry = new TypeRegistry('BrickRegistry', {
+    base: brickBase,
+    required: ['type', 'render', 'getConfig'],
+});
+
+export const BallRegistry = new TypeRegistry('BallRegistry', {
+    base: ballBase,
+    required: ['type', 'render', 'createBall', 'getConfig'],
+});
+
+export const BonusRegistry = new TypeRegistry('BonusRegistry', {
+    base: bonusBase,
+    required: ['type', 'render', 'onCollect', 'getConfig'],
+});
 
 export default TypeRegistry;

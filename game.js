@@ -290,10 +290,7 @@ export function startShooting() {
 
     // Llamar onTurnStart de cada bloque usando su behavior
     for (let brick of gameState.bricks) {
-        const behavior = BrickRegistry.get(brick.type);
-        if (behavior && behavior.onTurnStart) {
-            behavior.onTurnStart(brick, gameState);
-        }
+        BrickRegistry.get(brick.type).onTurnStart(brick, gameState);
     }
 
     // Crear cola de bolas usando los behaviors registrados
@@ -385,10 +382,7 @@ export function endTurn() {
 
     // Llamar onTurnEnd de cada bloque usando su behavior
     for (let brick of gameState.bricks) {
-        const behavior = BrickRegistry.get(brick.type);
-        if (behavior && behavior.onTurnEnd) {
-            behavior.onTurnEnd(brick, gameState);
-        }
+        BrickRegistry.get(brick.type).onTurnEnd(brick, gameState);
     }
 
     moveBricksDown();

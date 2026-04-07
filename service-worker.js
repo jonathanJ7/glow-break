@@ -1,5 +1,5 @@
 // Version: Update this when deploying new versions
-const APP_VERSION = '2.3.19';
+const APP_VERSION = '2.3.20';
 const CACHE_NAME = `ballz-${APP_VERSION}`;
 
 const urlsToCache = [

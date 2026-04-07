@@ -233,9 +233,7 @@ function drawBrick(brick) {
 
     // Renderizado específico del tipo (usando Strategy pattern)
     const behavior = BrickRegistry.get(brick.type);
-    if (behavior && behavior.render) {
-        behavior.render(ctx, brick, renderHelpers);
-    }
+    behavior.render(ctx, brick, renderHelpers);
 
     // HP text
     ctx.fillStyle = 'white';
@@ -245,7 +243,7 @@ function drawBrick(brick) {
     ctx.textBaseline = 'middle';
 
     // Ajustar posición del texto si tiene emoji
-    const hasEmoji = behavior && behavior.emoji;
+    const hasEmoji = behavior.emoji;
     const textY = hasEmoji
         ? brick.y + 2 + brick.height / 2 + 8 * getScale()
         : brick.y + 2 + brick.height / 2;
@@ -263,10 +261,7 @@ function drawBricks() {
  * Renderiza un bonus usando su behavior registrado
  */
 function drawBonus(bonus) {
-    const behavior = BonusRegistry.get(bonus.type);
-    if (behavior && behavior.render) {
-        behavior.render(ctx, bonus, renderHelpers);
-    }
+    BonusRegistry.get(bonus.type).render(ctx, bonus, renderHelpers);
 }
 
 function drawBonuses() {
@@ -318,11 +313,7 @@ function drawLaserEffect(leftBorder, rightBorder) {
  */
 function drawBall(ball) {
     if (!ball.active) return;
-
-    const behavior = BallRegistry.get(ball.ballType);
-    if (behavior && behavior.render) {
-        behavior.render(ctx, ball, renderHelpers);
-    }
+    BallRegistry.get(ball.ballType).render(ctx, ball, renderHelpers);
 }
 
 function drawBalls() {
