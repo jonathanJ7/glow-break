@@ -62,13 +62,9 @@ const NormalBallBehavior = {
             active: true,
             hasGoneUp: false,
             ballType: 'normal',
-            fireball: false,
-            splitter: false,
-            strength: false,
-            hasSplit: false,
             damage: this.damage,
-            hitBricks: null,
-            lifetime: 0
+            lifetime: 0,
+            state: {},
         };
     },
 
@@ -106,8 +102,8 @@ const FireballBehavior = {
         const brickId = `${brick.x},${brick.y}`;
 
         // Fireball atraviesa, no rebota
-        if (!ball.hitBricks.has(brickId)) {
-            ball.hitBricks.add(brickId);
+        if (!ball.state.hitBricks.has(brickId)) {
+            ball.state.hitBricks.add(brickId);
 
             if (speedMultiplier === 1) {
                 createParticles(ball.x, ball.y, getBrickColor(brick.hp, brick.maxHp), 3);
@@ -130,8 +126,8 @@ const FireballBehavior = {
     // Limpiar registro cuando sale del bloque
     onExitBrick(ball, brick) {
         const brickId = `${brick.x},${brick.y}`;
-        if (ball.hitBricks && ball.hitBricks.has(brickId)) {
-            ball.hitBricks.delete(brickId);
+        if (ball.state.hitBricks.has(brickId)) {
+            ball.state.hitBricks.delete(brickId);
         }
     },
 
@@ -141,13 +137,9 @@ const FireballBehavior = {
             active: true,
             hasGoneUp: false,
             ballType: 'fireball',
-            fireball: true,
-            splitter: false,
-            strength: false,
-            hasSplit: false,
             damage: this.damage,
-            hitBricks: new Set(),
-            lifetime: 0
+            lifetime: 0,
+            state: { hitBricks: new Set() },
         };
     },
 
@@ -188,9 +180,9 @@ const SplitterBehavior = {
         const { createParticles, getBrickColor, speedMultiplier } = helpers;
 
         // Incrementar contador de impactos
-        ball.hitCount = (ball.hitCount || 0) + 1;
+        ball.state.hitCount += 1;
 
-        if (ball.hitCount >= this.hitsToSplit) {
+        if (ball.state.hitCount >= this.hitsToSplit) {
             // Dividirse en 2 bolas splitter
             ball.active = false;
 
@@ -239,14 +231,9 @@ const SplitterBehavior = {
             active: true,
             hasGoneUp: false,
             ballType: 'splitter',
-            fireball: false,
-            splitter: true,
-            strength: false,
-            hasSplit: false,
-            hitCount: 0,
             damage: this.damage,
-            hitBricks: null,
-            lifetime: 0
+            lifetime: 0,
+            state: { hitCount: 0 },
         };
     },
 
@@ -293,13 +280,9 @@ const StrengthBallBehavior = {
             active: true,
             hasGoneUp: false,
             ballType: 'strength',
-            fireball: false,
-            splitter: false,
-            strength: true,
-            hasSplit: false,
             damage: this.damage,
-            hitBricks: null,
-            lifetime: 0
+            lifetime: 0,
+            state: {},
         };
     },
 

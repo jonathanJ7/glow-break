@@ -183,7 +183,7 @@ export function updateBalls() {
             if (!ball.active) continue;
 
             const ballBehavior = BallRegistry.get(ball.ballType);
-            const isFireball = ball.fireball || ball.ballType === 'fireball';
+            const isFireball = ball.ballType === 'fireball';
 
             // Callback para manejar colisiones con bloques
             const onBrickHit = (ball, brick, collision) => {
@@ -191,10 +191,8 @@ export function updateBalls() {
 
                 // Fireball atraviesa bloques y solo daña una vez por bloque
                 if (isFireball) {
-                    if (!ball.hitBricks) ball.hitBricks = new Set();
-
-                    if (!ball.hitBricks.has(brickId)) {
-                        ball.hitBricks.add(brickId);
+                    if (!ball.state.hitBricks.has(brickId)) {
+                        ball.state.hitBricks.add(brickId);
 
                         const brickBehavior = BrickRegistry.get(brick.type);
                         const damage = brickBehavior.onDamage(brick, ball.damage || 1, gameState);
@@ -240,12 +238,12 @@ export function updateBalls() {
             ball.vy = physicsResult.newVy;
 
             // Limpiar registro de fireball cuando sale de bloques
-            if (isFireball && ball.hitBricks) {
-                for (const brickId of ball.hitBricks) {
+            if (isFireball) {
+                for (const brickId of ball.state.hitBricks) {
                     const [bx, by] = brickId.split(',').map(Number);
                     const brick = gameState.bricks.find(b => b.x === bx && b.y === by);
                     if (brick && !circleRectOverlap(ball.x, ball.y, radius, brick.x + 2, brick.y + 2, brick.width, brick.height)) {
-                        ball.hitBricks.delete(brickId);
+                        ball.state.hitBricks.delete(brickId);
                     }
                 }
             }

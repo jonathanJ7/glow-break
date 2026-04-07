@@ -321,35 +321,14 @@ export function shootNextBall() {
     const vx = Math.cos(gameState.aimAngle) * BALL_SPEED;
     const vy = Math.sin(gameState.aimAngle) * BALL_SPEED;
 
-    // Usar el behavior de la bola para crearla
-    const behavior = BallRegistry.get(ballType);
-    let ball;
-
-    if (behavior && behavior.createBall) {
-        ball = behavior.createBall(
-            gameState.launchX,
-            gameState.launchY - getBallRadius() - 1,
-            vx,
-            vy
-        );
-    } else {
-        // Fallback para tipos desconocidos
-        ball = {
-            x: gameState.launchX,
-            y: gameState.launchY - getBallRadius() - 1,
-            vx: vx,
-            vy: vy,
-            active: true,
-            hasGoneUp: false,
-            ballType: ballType,
-            fireball: ballType === 'fireball',
-            splitter: ballType === 'splitter',
-            strength: ballType === 'strength',
-            hasSplit: false,
-            damage: ballType === 'strength' ? 3 : 1,
-            hitBricks: ballType === 'fireball' ? new Set() : null
-        };
-    }
+    // El registry valida que cada ball type tenga createBall (Fase 2),
+    // por lo que esta es la unica via canonica de creacion.
+    const ball = BallRegistry.get(ballType).createBall(
+        gameState.launchX,
+        gameState.launchY - getBallRadius() - 1,
+        vx,
+        vy
+    );
 
     gameState.balls.push(ball);
 

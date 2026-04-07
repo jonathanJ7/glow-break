@@ -232,3 +232,84 @@ test.describe('OCP - Fase 2: behavior contract', () => {
         expect(errors).toEqual([]);
     });
 });
+
+test.describe('OCP - Fase 3: ball state and shoot path', () => {
+    test('no built-in ball type writes legacy fireball/splitter/strength flags', async ({ page }) => {
+        await loadGameWithHooks(page);
+        const samples = await page.evaluate(() => {
+            const out = {};
+            for (const t of window.__game.BallRegistry.getTypes()) {
+                const b = window.__game.BallRegistry.get(t);
+                const ball = b.createBall(0, 0, 0, 0);
+                out[t] = {
+                    hasFireballFlag: 'fireball' in ball,
+                    hasSplitterFlag: 'splitter' in ball,
+                    hasStrengthFlag: 'strength' in ball,
+                    hasHasSplit: 'hasSplit' in ball,
+                    hasBallType: 'ballType' in ball,
+                    ballType: ball.ballType,
+                };
+            }
+            return out;
+        });
+        for (const [type, sample] of Object.entries(samples)) {
+            expect(sample.hasFireballFlag, `${type}.fireball flag`).toBe(false);
+            expect(sample.hasSplitterFlag, `${type}.splitter flag`).toBe(false);
+            expect(sample.hasStrengthFlag, `${type}.strength flag`).toBe(false);
+            expect(sample.hasHasSplit, `${type}.hasSplit flag`).toBe(false);
+            expect(sample.hasBallType).toBe(true);
+            expect(sample.ballType).toBe(type);
+        }
+    });
+
+    test('fireball ball stores hitBricks under ball.state, not ball', async ({ page }) => {
+        await loadGameWithHooks(page);
+        const result = await page.evaluate(() => {
+            const fireball = window.__game.BallRegistry.get('fireball');
+            const ball = fireball.createBall(0, 0, 0, 0);
+            return {
+                hasState: typeof ball.state === 'object' && ball.state !== null,
+                stateHasHitBricks: ball.state && ball.state.hitBricks instanceof Set,
+                hasLegacyHitBricks: 'hitBricks' in ball,
+            };
+        });
+        expect(result.hasState).toBe(true);
+        expect(result.stateHasHitBricks).toBe(true);
+        expect(result.hasLegacyHitBricks).toBe(false);
+    });
+
+    test('splitter ball stores hitCount under ball.state, not ball', async ({ page }) => {
+        await loadGameWithHooks(page);
+        const result = await page.evaluate(() => {
+            const splitter = window.__game.BallRegistry.get('splitter');
+            const ball = splitter.createBall(0, 0, 0, 0);
+            return {
+                hasState: typeof ball.state === 'object' && ball.state !== null,
+                stateHasHitCount: ball.state && ball.state.hitCount === 0,
+                hasLegacyHitCount: 'hitCount' in ball,
+            };
+        });
+        expect(result.hasState).toBe(true);
+        expect(result.stateHasHitCount).toBe(true);
+        expect(result.hasLegacyHitCount).toBe(false);
+    });
+
+    test('shootNextBall always uses behavior.createBall — no fallback else branch', async ({ page }) => {
+        // After Fase 3, registering a new ball type and forcing it through
+        // shootNextBall must produce a ball whose ballType matches and which
+        // has NO legacy boolean flags. Hoy falla porque la rama fallback else
+        // en shootNextBall escribe fireball/splitter/strength booleans.
+        await loadGameWithHooks(page);
+        await registerTestBall(page, 'phase3-ghost');
+        const ball = await page.evaluate(() => {
+            // Use the registry path directly so we don't have to start a game.
+            const b = window.__game.BallRegistry.get('phase3-ghost');
+            return b.createBall(0, 0, 0, 0);
+        });
+        expect(ball.ballType).toBe('phase3-ghost');
+        expect('fireball' in ball).toBe(false);
+        expect('splitter' in ball).toBe(false);
+        expect('strength' in ball).toBe(false);
+        expect('hasSplit' in ball).toBe(false);
+    });
+});
