@@ -7,7 +7,11 @@
       "Write",
       "WebFetch",
       "WebSearch",
-      "Bash(npm test*)"
+      "Bash(npm test*)",
+      "Bash(git add *)",
+      "Bash(git commit -m *)",
+      "Bash(ls *)",
+      "Bash(rm *)"
     ]
   }
 }
