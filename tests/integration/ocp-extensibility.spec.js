@@ -661,7 +661,9 @@ test.describe('OCP - Fase 9: end-to-end acceptance', () => {
             });
         });
 
-        // Start a real game so initGame -> generateNewRow runs.
+        // Start at turn 30 so initGame pre-genera 6 rows (~42 celdas) y
+        // el spawn del phantom-brick es estadisticamente garantizado.
+        await setStartingTurn(page, 30);
         await page.locator('#easyBtn').evaluate((el) => /** @type {HTMLElement} */ (el).click());
         await page.waitForFunction(() => window.__game.gameState.gameStarted === true);
 
