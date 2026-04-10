@@ -6,13 +6,13 @@ import { FAST_SPEED_MULTIPLIER } from './config.js';
 // SISTEMA DE APUNTADO UNIFICADO: slowdown progresivo → congelación
 // - Toque inicial: apunta en la dirección del dedo, velocidad total
 // - Al mantener el dedo quieto, el puntero se ralentiza progresivamente
-//   (sensibilidad = 1 - progreso) hasta congelarse a los 3 segundos
+//   (sensibilidad = 1 - progreso) hasta congelarse a los 5 segundos
 // - La línea punteada actúa como barra de carga del congelamiento
 // - Al alejar el dedo >80px del punto de congelación, se recupera la
 //   velocidad total para apuntar a otro lugar
 // ============================================
 
-const FREEZE_TIME_MS = 3000;            // Tiempo total para llegar a congelación
+const FREEZE_TIME_MS = 5000;            // Tiempo total para llegar a congelación
 const ACTIVITY_RAW_THRESHOLD = 0.04;    // Delta crudo (~2.3°) que resetea el progreso
 const UNFREEZE_DISTANCE = 80;           // Píxeles para romper el congelamiento
 
