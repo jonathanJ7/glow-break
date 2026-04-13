@@ -117,8 +117,10 @@ export function handlePointerMove(e) {
         return;
     }
 
-    // No congelado: integración incremental con sensibilidad = 1 - progress
-    const sensitivity = 1 - aimState.slowdownProgress;
+    // No congelado: integración incremental con sensibilidad cuadrática
+    // La curva (1-p)² hace que la sensibilidad baje más rápido al inicio,
+    // permitiendo ajustes finos antes sin cambiar el tiempo total de congelación
+    const sensitivity = (1 - aimState.slowdownProgress) ** 2;
     let next = gameState.aimAngle + rawDelta * sensitivity;
     if (next > -0.2) next = -0.2;
     if (next < -Math.PI + 0.2) next = -Math.PI + 0.2;
