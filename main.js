@@ -1,6 +1,6 @@
 import { initCanvas, resizeCanvas, handleResize, draw } from './rendering.js';
 import { setupEventListeners } from './input.js';
-import { createMenuBalls, gameLoop } from './game.js';
+import { gameLoop } from './game.js';
 
 // Initialize canvas
 initCanvas();
@@ -20,7 +20,6 @@ function animate() {
 }
 
 // Start
-createMenuBalls();
 animate();
 
 // Register Service Worker for PWA with update detection
