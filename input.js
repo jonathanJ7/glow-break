@@ -209,12 +209,8 @@ export function setupEventListeners() {
     document.getElementById('restartBtn').addEventListener('click', () => initGame(currentDifficulty || 'medium'));
     document.getElementById('menuBtn').addEventListener('click', showMainMenu);
 
-    // Turn input listener
-    document.getElementById('startTurnInput').addEventListener('input', updateBallsPreview);
-    document.getElementById('startTurnInput').addEventListener('change', function() {
-        this.value = Math.max(1, Math.min(500, parseInt(this.value) || 1));
-        updateBallsPreview();
-    });
+    // Turn swipe selector
+    setupTurnSwipeSelector();
 
     // Skip button
     document.getElementById('skipBtn').addEventListener('click', function() {
@@ -228,5 +224,156 @@ export function setupEventListeners() {
             }
             endTurn();
         }
+    });
+}
+
+// ============================================
+// SWIPE SELECTOR — Turn picker sin teclado
+// ============================================
+
+function setupTurnSwipeSelector() {
+    const hiddenInput = document.getElementById('startTurnInput');
+    const track = document.getElementById('turnSwipeTrack');
+    const valueEl = document.getElementById('turnSwipeValue');
+    const decreaseBtn = document.getElementById('turnDecrease');
+    const increaseBtn = document.getElementById('turnIncrease');
+
+    const MIN = 1;
+    const MAX = 500;
+    // Pixels of horizontal drag per +1 turn
+    const PX_PER_STEP = 12;
+
+    let currentValue = parseInt(hiddenInput.value) || 1;
+    let dragging = false;
+    let startX = 0;
+    let accumulated = 0;
+    let lastVelocity = 0;
+    let lastX = 0;
+    let lastTime = 0;
+    let momentumRAF = 0;
+
+    function setValue(v) {
+        currentValue = Math.max(MIN, Math.min(MAX, Math.round(v)));
+        hiddenInput.value = currentValue;
+        valueEl.textContent = currentValue;
+        updateBallsPreview();
+    }
+
+    // Arrow buttons — tap and hold support
+    let holdInterval = null;
+    let holdTimeout = null;
+
+    function startHold(delta) {
+        setValue(currentValue + delta);
+        holdTimeout = setTimeout(() => {
+            let speed = 80;
+            holdInterval = setInterval(() => {
+                setValue(currentValue + delta);
+                // Accelerate
+                if (speed > 20) {
+                    clearInterval(holdInterval);
+                    speed = Math.max(20, speed - 10);
+                    holdInterval = setInterval(() => setValue(currentValue + delta), speed);
+                }
+            }, speed);
+        }, 400);
+    }
+
+    function stopHold() {
+        clearTimeout(holdTimeout);
+        clearInterval(holdInterval);
+        holdTimeout = null;
+        holdInterval = null;
+    }
+
+    decreaseBtn.addEventListener('mousedown', (e) => { e.preventDefault(); startHold(-1); });
+    decreaseBtn.addEventListener('touchstart', (e) => { e.preventDefault(); startHold(-1); });
+    increaseBtn.addEventListener('mousedown', (e) => { e.preventDefault(); startHold(1); });
+    increaseBtn.addEventListener('touchstart', (e) => { e.preventDefault(); startHold(1); });
+
+    document.addEventListener('mouseup', stopHold);
+    document.addEventListener('touchend', stopHold);
+
+    // Swipe / drag on the track
+    function onStart(x) {
+        cancelAnimationFrame(momentumRAF);
+        dragging = true;
+        startX = x;
+        accumulated = 0;
+        lastX = x;
+        lastTime = performance.now();
+        lastVelocity = 0;
+    }
+
+    function onMove(x) {
+        if (!dragging) return;
+        const dx = lastX - x; // drag left = increase
+        const now = performance.now();
+        const dt = now - lastTime;
+        if (dt > 0) lastVelocity = dx / dt;
+        lastX = x;
+        lastTime = now;
+
+        accumulated += dx;
+        const steps = Math.trunc(accumulated / PX_PER_STEP);
+        if (steps !== 0) {
+            setValue(currentValue + steps);
+            accumulated -= steps * PX_PER_STEP;
+        }
+    }
+
+    function onEnd() {
+        if (!dragging) return;
+        dragging = false;
+
+        // Momentum — coast based on velocity
+        const v = lastVelocity; // px/ms
+        if (Math.abs(v) > 0.3) {
+            let velocity = v * PX_PER_STEP; // steps/ms scaled
+            const friction = 0.92;
+            let remainder = 0;
+
+            function tick() {
+                velocity *= friction;
+                if (Math.abs(velocity) < 0.05) return;
+                remainder += velocity;
+                const steps = Math.trunc(remainder);
+                if (steps !== 0) {
+                    setValue(currentValue + steps);
+                    remainder -= steps;
+                }
+                momentumRAF = requestAnimationFrame(tick);
+            }
+            momentumRAF = requestAnimationFrame(tick);
+        }
+    }
+
+    // Touch events on track
+    track.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        onStart(e.touches[0].clientX);
+    });
+    track.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        onMove(e.touches[0].clientX);
+    });
+    track.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        onEnd();
+    });
+
+    // Mouse events on track
+    track.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        onStart(e.clientX);
+
+        const moveHandler = (ev) => onMove(ev.clientX);
+        const upHandler = () => {
+            onEnd();
+            document.removeEventListener('mousemove', moveHandler);
+            document.removeEventListener('mouseup', upHandler);
+        };
+        document.addEventListener('mousemove', moveHandler);
+        document.addEventListener('mouseup', upHandler);
     });
 }
