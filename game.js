@@ -448,21 +448,11 @@ events.on('inventoryChanged', () => updateUI());
 // MENÚ
 // ====================================
 
-export function createMenuBalls() {
-    const container = document.getElementById('menuBalls');
-    container.innerHTML = '';
-
-    for (let i = 0; i < 15; i++) {
-        const ball = document.createElement('div');
-        ball.className = 'menu-ball';
-        const size = 20 + Math.random() * 60;
-        ball.style.width = size + 'px';
-        ball.style.height = size + 'px';
-        ball.style.left = Math.random() * 100 + '%';
-        ball.style.top = Math.random() * 100 + '%';
-        ball.style.background = ['#4ecca3', '#f9ed69', '#e94560', '#a855f7', '#3b82f6'][Math.floor(Math.random() * 5)];
-        container.appendChild(ball);
-    }
+export function setMenuDifficulty(diff) {
+    document.querySelectorAll('.diff-chip').forEach(c => c.classList.remove('diff-chip--active'));
+    const chip = document.querySelector(`.diff-chip[data-diff="${diff}"]`);
+    if (chip) chip.classList.add('diff-chip--active');
+    document.getElementById('playBtn').dataset.diff = diff;
 }
 
 // ====================================
@@ -546,8 +536,8 @@ export function showMainMenu() {
     document.getElementById('ui').style.display = 'none';
     document.getElementById('instructions').style.display = 'none';
 
+    setMenuDifficulty(currentDifficulty);
     updateBallsPreview();
-    createMenuBalls();
 }
 
 // ====================================

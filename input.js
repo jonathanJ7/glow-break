@@ -1,4 +1,4 @@
-import { gameState, startShooting, shootTimeout, endTurn, initGame, showMainMenu, updateBallsPreview, currentDifficulty } from './game.js';
+import { gameState, startShooting, shootTimeout, endTurn, initGame, showMainMenu, updateBallsPreview, setMenuDifficulty, currentDifficulty } from './game.js';
 import { canvas } from './rendering.js';
 import { FAST_SPEED_MULTIPLIER } from './config.js';
 
@@ -184,11 +184,29 @@ export function setupEventListeners() {
         handlePointerUp(e);
     });
 
-    // Menu buttons
-    document.getElementById('easyBtn').addEventListener('click', () => initGame('easy'));
-    document.getElementById('mediumBtn').addEventListener('click', () => initGame('medium'));
-    document.getElementById('hardBtn').addEventListener('click', () => initGame('hard'));
-    document.getElementById('restartBtn').addEventListener('click', () => initGame(currentDifficulty || 'easy'));
+    // Play button — starts game with currently selected difficulty
+    document.getElementById('playBtn').addEventListener('click', () => {
+        const active = document.querySelector('.diff-chip--active');
+        const diff = active ? active.dataset.diff : 'medium';
+        initGame(diff);
+    });
+
+    // Difficulty chips — select difficulty (updates play button color)
+    document.querySelectorAll('.diff-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+            setMenuDifficulty(chip.dataset.diff);
+            updateBallsPreview();
+        });
+    });
+
+    // Advanced toggle — show/hide turn selector
+    document.getElementById('advancedToggle').addEventListener('click', () => {
+        document.getElementById('advancedPanel').classList.toggle('open');
+        document.querySelector('.toggle-arrow').classList.toggle('open');
+    });
+
+    // Game over buttons
+    document.getElementById('restartBtn').addEventListener('click', () => initGame(currentDifficulty || 'medium'));
     document.getElementById('menuBtn').addEventListener('click', showMainMenu);
 
     // Turn input listener

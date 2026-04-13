@@ -28,29 +28,52 @@
 
         <!-- Main Menu -->
         <div id="mainMenu">
-            <div class="menu-balls" id="menuBalls"></div>
-            <h1>BALLZ</h1>
-            <p class="subtitle">Brick Breaker</p>
-
-            <div class="turn-selector">
-                <label>Empezar en turno:</label>
-                <input type="number" id="startTurnInput" value="1" min="1" max="500">
-                <span class="balls-preview" id="ballsPreview">🔵 1 bola</span>
+            <div class="menu-orbs" aria-hidden="true">
+                <div class="orb"></div>
+                <div class="orb"></div>
+                <div class="orb"></div>
+                <div class="orb"></div>
+                <div class="orb"></div>
+                <div class="orb"></div>
             </div>
 
-            <h2>Selecciona la dificultad</h2>
-            <button class="difficulty-btn" id="easyBtn">
-                😊 FÁCIL
-                <span class="desc">Para empezar tranquilo</span>
-            </button>
-            <button class="difficulty-btn" id="mediumBtn">
-                😤 MEDIO
-                <span class="desc">Un verdadero desafío</span>
-            </button>
-            <button class="difficulty-btn" id="hardBtn">
-                💀 DIFÍCIL
-                <span class="desc">Solo para valientes</span>
-            </button>
+            <div class="menu-content">
+                <div class="menu-header">
+                    <h1 class="menu-title">BALLZ</h1>
+                    <p class="menu-subtitle">Brick Breaker</p>
+                </div>
+
+                <button class="play-btn" id="playBtn" data-diff="medium">
+                    <span class="play-btn-ring"></span>
+                    <span class="play-btn-ring play-btn-ring--delayed"></span>
+                    <span class="play-btn-inner">&#9654;</span>
+                </button>
+
+                <div class="diff-bar">
+                    <button class="diff-chip" data-diff="easy">
+                        <span class="diff-chip-emoji">😊</span>
+                        <span class="diff-chip-label">Fácil</span>
+                    </button>
+                    <button class="diff-chip diff-chip--active" data-diff="medium">
+                        <span class="diff-chip-emoji">😤</span>
+                        <span class="diff-chip-label">Medio</span>
+                    </button>
+                    <button class="diff-chip" data-diff="hard">
+                        <span class="diff-chip-emoji">💀</span>
+                        <span class="diff-chip-label">Difícil</span>
+                    </button>
+                </div>
+
+                <button class="menu-advanced-toggle" id="advancedToggle">
+                    Turno inicial <span class="toggle-arrow">&#9662;</span>
+                </button>
+                <div class="menu-advanced-panel" id="advancedPanel">
+                    <div class="turn-row">
+                        <input type="number" id="startTurnInput" value="1" min="1" max="500">
+                        <span class="balls-preview" id="ballsPreview">🔵 1 bola</span>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Game UI -->
@@ -72,7 +95,7 @@
         </div>
 
         <!-- Version indicator -->
-        <div id="versionInfo">v2.5.0</div>
+        <div id="versionInfo">v2.6.0</div>
 
         <!-- Game Over -->
         <div id="gameOver">
