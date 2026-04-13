@@ -8,7 +8,7 @@
  * solo necesitas registrar nuevos behaviors.
  */
 
-import { DIFFICULTY_SETTINGS, COLS, SHOOT_DELAY, MAX_BALLS_ON_SCREEN, FAST_SPEED_MULTIPLIER, BASE_BALL_RADIUS, BALL_SPEED } from './config.js';
+import { DIFFICULTY_SETTINGS, SPAWN_SCHEDULE, COLS, SHOOT_DELAY, MAX_BALLS_ON_SCREEN, FAST_SPEED_MULTIPLIER, BASE_BALL_RADIUS, BALL_SPEED } from './config.js';
 import { getWidth, getHeight, getCellSize, getLeftBorder, getTopOffset, getBottomLine, getScale, getBallRadius } from './rendering.js';
 import { updateBalls, updateParticles, createParticles } from './physics.js';
 import { BrickRegistry, BallRegistry, BonusRegistry } from './js/behaviors/index.js';
@@ -88,6 +88,47 @@ export function getTotalBalls() {
     return sum;
 }
 
+// ====================================
+// SPAWN DETERMINISTA
+// ====================================
+
+/**
+ * Devuelve los bonuses programados para un turno y dificultad dados.
+ * Resultado puro (sin azar): mismo turn + difficulty = mismo resultado siempre.
+ *
+ * @returns {{ ballBonus: {type,value}|null, powerup: {type}|null }}
+ */
+export function getScheduledSpawns(turn, difficulty) {
+    const schedule = SPAWN_SCHEDULE[difficulty];
+    const result = { ballBonus: null, powerup: null };
+
+    // Ball bonuses — el orden en el config define la prioridad (más raro primero).
+    // El primer tipo que coincida gana; 'ball' (default) se chequea al final.
+    for (const [type, cfg] of Object.entries(schedule.ballBonuses)) {
+        if (type === 'ball') continue;
+        if (turn >= cfg.first && (turn - cfg.first) % cfg.interval === 0) {
+            result.ballBonus = { type, value: 1 };
+            break;
+        }
+    }
+    if (!result.ballBonus) {
+        const ballCfg = schedule.ballBonuses.ball;
+        if (ballCfg && turn >= ballCfg.first && (turn - ballCfg.first) % ballCfg.interval === 0) {
+            result.ballBonus = { type: 'ball', value: 1 };
+        }
+    }
+
+    // Powerups — primer match gana
+    for (const [type, cfg] of Object.entries(schedule.powerups)) {
+        if (turn >= cfg.first && (turn - cfg.first) % cfg.interval === 0) {
+            result.powerup = { type };
+            break;
+        }
+    }
+
+    return result;
+}
+
 export function calculateStartingBalls(turn, difficulty) {
     const defaultType = BallRegistry.defaultType;
 
@@ -95,39 +136,30 @@ export function calculateStartingBalls(turn, difficulty) {
         return { inventory: { [defaultType]: 1 }, total: 1 };
     }
 
-    const ballsPerTurn = {
-        easy: 1.2,
-        medium: 0.9,
-        hard: 0.5
-    };
+    // Simular todos los turnos previos usando el schedule determinista.
+    // Asumimos que el jugador recolecta todos los bonuses.
+    const inventory = { [defaultType]: 1 }; // 1 bola inicial
 
-    const rate = ballsPerTurn[difficulty];
-    const baseBalls = Math.floor((turn - 1) * rate);
+    for (let t = 1; t < turn; t++) {
+        const scheduled = getScheduledSpawns(t, difficulty);
 
-    const variance = Math.floor(baseBalls * 0.15);
-    const totalBalls = Math.max(1, baseBalls + Math.floor(Math.random() * variance * 2) - variance);
+        if (scheduled.ballBonus) {
+            const behavior = BonusRegistry.get(scheduled.ballBonus.type);
+            const ballType = behavior.targetBallType || defaultType;
+            const count = scheduled.ballBonus.value || 1;
+            inventory[ballType] = (inventory[ballType] || 0) + count;
+        }
 
-    // Distribuir por tipo iterando el registry: cada behavior con
-    // startingShare en su getConfig() reclama su porcion segun el turno.
-    // El remainder cae al defaultType.
-    const inventory = {};
-    let remaining = totalBalls;
-
-    for (const [type, behavior] of BallRegistry.getAll()) {
-        if (type === defaultType) continue;
-        const cfg = behavior.getConfig();
-        if (turn < (cfg.minTurn || 0)) continue;
-        if (!cfg.startingShare) continue;
-        const count = Math.floor(totalBalls * cfg.startingShare);
-        if (count > 0) {
-            inventory[type] = count;
-            remaining -= count;
+        if (scheduled.powerup) {
+            const behavior = BonusRegistry.get(scheduled.powerup.type);
+            if (behavior.targetBallType) {
+                inventory[behavior.targetBallType] = (inventory[behavior.targetBallType] || 0) + 1;
+            }
         }
     }
 
-    inventory[defaultType] = Math.max(0, remaining);
-
-    return { inventory, total: totalBalls };
+    const total = Object.values(inventory).reduce((a, b) => a + b, 0);
+    return { inventory, total };
 }
 
 export function updateBallsPreview() {
@@ -150,44 +182,6 @@ export function updateBallsPreview() {
 // GENERACIÓN DE FILAS (usando behaviors)
 // ====================================
 
-/**
- * Elige un bonus type del BonusRegistry filtrando por category
- * ('ball' o 'powerup') y respetando minTurn de cada behavior.
- *
- * Para 'ball' usa los `probability` declarados en getConfig() (acumulativo).
- * Para 'powerup' es uniform random entre los candidatos elegibles.
- *
- * Reemplaza los antiguos hardcoded if (turn >= 8) ... fireballBall
- * y los arrays ['horizontal', 'strength'].
- */
-function pickBonusByCategory(category, turn) {
-    const candidates = [];
-    let cumulative = 0;
-    for (const [type, behavior] of BonusRegistry.getAll()) {
-        const cfg = behavior.getConfig();
-        if (cfg.category !== category) continue;
-        if (turn < (cfg.minTurn || 0)) continue;
-        candidates.push({ type, behavior, cfg });
-    }
-    if (candidates.length === 0) return null;
-
-    if (category === 'ball') {
-        // Pesos via cfg.probability acumulativo. El default (sin probability)
-        // captura el remainder para garantizar siempre un resultado.
-        const roll = Math.random();
-        for (const c of candidates) {
-            if (!c.cfg.probability) continue;
-            const threshold = cumulative + c.cfg.probability;
-            if (roll >= cumulative && roll < threshold) return c.type;
-            cumulative = threshold;
-        }
-        return BonusRegistry.defaultType;
-    }
-
-    // 'powerup': uniform pick
-    return candidates[Math.floor(Math.random() * candidates.length)].type;
-}
-
 export function generateNewRow() {
     const cellSize = getCellSize();
     const topOffset = getTopOffset();
@@ -201,20 +195,12 @@ export function generateNewRow() {
     const isReinforcedRow = config.reinforcedRows && turn % 10 === 0;
     const rowHpMultiplier = isReinforcedRow ? 2.0 : 1.0;
 
-    let bonusPlaced = false;
-    let powerupPlaced = false;
-
+    // Paso 1: generar ladrillos (posición aleatoria, tipo probabilístico)
     for (let col = 0; col < COLS; col++) {
-        const rand = Math.random();
-
-        if (rand < density) {
+        if (Math.random() < density) {
             const hpVariation = config.hpVariationMin + Math.random() * (config.hpVariationMax - config.hpVariationMin);
             const hp = Math.max(1, Math.floor(baseHP * hpVariation * rowHpMultiplier));
 
-            // Determinar tipo de bloque iterando los behaviors registrados.
-            // Cada behavior expone su propia baseChance + difficultyMultiplier
-            // en getConfig(); la dificultad solo escala. Cero hardcoded keys
-            // por dificultad en config.js.
             let type = BrickRegistry.defaultType;
             const specialRoll = Math.random();
             let cumulativeProbability = 0;
@@ -249,44 +235,33 @@ export function generateNewRow() {
                 type: type,
                 isReinforced: isReinforcedRow
             });
-        } else if (rand < density + config.bonusChance && !bonusPlaced) {
-            // Tipo de bola bonus iterando BonusRegistry filtrando category 'ball'.
-            const ballType = pickBonusByCategory('ball', turn);
-
-            const bonusCount = Math.random() < config.multiBallChance && turn > 10 ? 2 : 1;
-            gameState.bonuses.push({
-                x: leftBorder + col * cellSize + cellSize / 2,
-                y: topOffset + cellSize / 2,
-                radius: Math.max(8, 12 * getScale()),
-                type: ballType,
-                value: bonusCount
-            });
-            bonusPlaced = true;
-        } else if (rand < density + config.bonusChance + config.powerupChance && !powerupPlaced && turn > 3) {
-            // Power-ups especiales — itera la categoria 'powerup' del BonusRegistry.
-            const ptype = pickBonusByCategory('powerup', turn);
-            if (!ptype) continue;
-            gameState.bonuses.push({
-                x: leftBorder + col * cellSize + cellSize / 2,
-                y: topOffset + cellSize / 2,
-                radius: Math.max(10, 14 * getScale()),
-                type: ptype
-            });
-            powerupPlaced = true;
         }
     }
 
-    // Garantizar bonus
-    const guaranteedBonusChance = currentDifficulty === 'easy' ? 0.9 : currentDifficulty === 'medium' ? 0.6 : 0.35;
-    if (!bonusPlaced && Math.random() < guaranteedBonusChance) {
+    // Paso 2: colocar bonuses deterministas según el schedule
+    const scheduled = getScheduledSpawns(turn, currentDifficulty);
+
+    if (scheduled.ballBonus) {
         const emptyCol = findEmptyColumn();
         if (emptyCol !== -1) {
             gameState.bonuses.push({
                 x: leftBorder + emptyCol * cellSize + cellSize / 2,
                 y: topOffset + cellSize / 2,
                 radius: Math.max(8, 12 * getScale()),
-                type: 'ball',
-                value: 1
+                type: scheduled.ballBonus.type,
+                value: scheduled.ballBonus.value || 1
+            });
+        }
+    }
+
+    if (scheduled.powerup) {
+        const emptyCol = findEmptyColumn();
+        if (emptyCol !== -1) {
+            gameState.bonuses.push({
+                x: leftBorder + emptyCol * cellSize + cellSize / 2,
+                y: topOffset + cellSize / 2,
+                radius: Math.max(10, 14 * getScale()),
+                type: scheduled.powerup.type
             });
         }
     }
@@ -544,6 +519,10 @@ export function initGame(difficulty) {
     const rowsToGenerate = Math.min(6, Math.floor(startingTurn / 3) + 1);
 
     for (let i = 0; i < rowsToGenerate; i++) {
+        // Cada fila usa el turno que le correspondería históricamente
+        // para que el schedule determinista genere los bonuses correctos.
+        const rowTurn = Math.max(1, startingTurn - (rowsToGenerate - 1 - i));
+        gameState.turn = rowTurn;
         generateNewRow();
         if (i < rowsToGenerate - 1) {
             const cellSize = getCellSize();
@@ -555,6 +534,7 @@ export function initGame(difficulty) {
             }
         }
     }
+    gameState.turn = startingTurn;
 
     updateUI();
 }

@@ -32,9 +32,6 @@ export const DIFFICULTY_SETTINGS = {
         densityBase: 0.28,
         densityGrowth: 0.005,
         maxDensity: 0.55,
-        bonusChance: 0.12,
-        powerupChance: 0.05,
-        multiBallChance: 0.2,
         startingBalls: 1,
         hpVariationMin: 0.3,
         hpVariationMax: 1.0,
@@ -47,9 +44,6 @@ export const DIFFICULTY_SETTINGS = {
         densityBase: 0.38,
         densityGrowth: 0.008,
         maxDensity: 0.70,
-        bonusChance: 0.08,
-        powerupChance: 0.035,
-        multiBallChance: 0.1,
         startingBalls: 1,
         hpVariationMin: 0.5,
         hpVariationMax: 1.5,
@@ -62,12 +56,52 @@ export const DIFFICULTY_SETTINGS = {
         densityBase: 0.50,
         densityGrowth: 0.012,
         maxDensity: 0.85,
-        bonusChance: 0.05,
-        powerupChance: 0.025,
-        multiBallChance: 0.05,
         startingBalls: 1,
         hpVariationMin: 0.7,
         hpVariationMax: 2.0,
         reinforcedRows: true,
+    }
+};
+
+// ====================================
+// SPAWN SCHEDULE DETERMINISTA
+// ====================================
+// Define en qué turnos aparecen bolas y poderes de forma fija.
+// Orden en ballBonuses = prioridad (el más raro primero).
+// first: turno en que aparece por primera vez.
+// interval: cada cuántos turnos reaparece después del primero.
+export const SPAWN_SCHEDULE = {
+    easy: {
+        ballBonuses: {
+            splitterBall: { first: 20, interval: 15 },
+            fireballBall: { first: 8, interval: 10 },
+            ball:         { first: 1, interval: 1 },
+        },
+        powerups: {
+            strength:   { first: 5, interval: 8 },
+            horizontal: { first: 3, interval: 6 },
+        },
+    },
+    medium: {
+        ballBonuses: {
+            splitterBall: { first: 35, interval: 20 },
+            fireballBall: { first: 15, interval: 15 },
+            ball:         { first: 1, interval: 2 },
+        },
+        powerups: {
+            strength:   { first: 10, interval: 12 },
+            horizontal: { first: 5, interval: 10 },
+        },
+    },
+    hard: {
+        ballBonuses: {
+            splitterBall: { first: 50, interval: 30 },
+            fireballBall: { first: 25, interval: 20 },
+            ball:         { first: 1, interval: 3 },
+        },
+        powerups: {
+            strength:   { first: 20, interval: 18 },
+            horizontal: { first: 10, interval: 15 },
+        },
     }
 };
