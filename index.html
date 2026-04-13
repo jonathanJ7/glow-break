@@ -69,7 +69,14 @@
                 </button>
                 <div class="menu-advanced-panel" id="advancedPanel">
                     <div class="turn-row">
-                        <input type="number" id="startTurnInput" value="1" min="1" max="500">
+                        <input type="hidden" id="startTurnInput" value="1">
+                        <div class="swipe-selector" id="turnSwipeSelector">
+                            <button class="swipe-arrow swipe-arrow-left" id="turnDecrease" aria-label="Decrease turn">&#8249;</button>
+                            <div class="swipe-track" id="turnSwipeTrack">
+                                <span class="swipe-value" id="turnSwipeValue">1</span>
+                            </div>
+                            <button class="swipe-arrow swipe-arrow-right" id="turnIncrease" aria-label="Increase turn">&#8250;</button>
+                        </div>
                         <span class="balls-preview" id="ballsPreview">🔵 1 bola</span>
                     </div>
                 </div>
@@ -95,7 +102,7 @@
         </div>
 
         <!-- Version indicator -->
-        <div id="versionInfo">v2.6.0</div>
+        <div id="versionInfo">v2.6.1</div>
 
         <!-- Game Over -->
         <div id="gameOver">
