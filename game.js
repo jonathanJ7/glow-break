@@ -238,6 +238,15 @@ export function generateNewRow() {
         }
     }
 
+    // Asegurar que siempre haya al menos una columna libre en la fila
+    const topOffset0 = topOffset;
+    const newRowBricks = gameState.bricks.filter(b => b.y === topOffset0);
+    if (newRowBricks.length >= COLS) {
+        const removeIdx = Math.floor(Math.random() * newRowBricks.length);
+        const toRemove = newRowBricks[removeIdx];
+        gameState.bricks.splice(gameState.bricks.indexOf(toRemove), 1);
+    }
+
     // Paso 2: colocar bonuses deterministas según el schedule
     const scheduled = getScheduledSpawns(turn, currentDifficulty);
 
