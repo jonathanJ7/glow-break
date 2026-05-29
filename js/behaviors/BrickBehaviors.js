@@ -337,7 +337,8 @@ export {
     ExplosiveBrickBehavior,
     ArmoredBrickBehavior,
     SpawnerBrickBehavior,
-    RegeneratorBrickBehavior
+    RegeneratorBrickBehavior,
+    MovingBrickBehavior
 };
 
 export default BrickRegistry;
