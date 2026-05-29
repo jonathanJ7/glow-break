@@ -261,6 +261,7 @@ BonusRegistry.register('shield', ShieldBonusBehavior);
 | `armored` | (border) | Takes 50% less damage | `armoredChance` |
 | `spawner` | 👾 | Spawns 1-2 new bricks on destroy | `poisonBrickChance` |
 | `regenerator` | 💚 | Heals to 90% at turn end | `regeneratorChance` |
+| `moving` | ↔️ | Slides one cell horizontally each turn, bouncing off edges/blocks | behavior `baseChance` |
 
 ### Ball Types
 | Type | Color | Effect | Inventory Key |

@@ -14,6 +14,7 @@
  */
 
 import { BrickRegistry } from '../core/Registry.js';
+import { COLS } from '../../config.js';
 
 // ============================================
 // BASE BEHAVIOR - Comportamiento por defecto
@@ -321,6 +322,81 @@ const RegeneratorBrickBehavior = {
 };
 
 // ============================================
+// MOVING BRICK - Se desliza horizontalmente cada turno
+// ============================================
+const MovingBrickBehavior = {
+    type: 'moving',
+    emoji: '↔️',
+    overlayColor: 'rgba(80, 180, 255, 0.3)',
+
+    render(ctx, brick, helpers) {
+        const { getFontSize, getScale } = helpers;
+
+        // Overlay azul
+        ctx.fillStyle = this.overlayColor;
+        ctx.beginPath();
+        ctx.roundRect(brick.x + 2, brick.y + 2, brick.width, brick.height, 6);
+        ctx.fill();
+
+        // Emoji
+        ctx.fillStyle = 'rgba(255,255,255,0.9)';
+        ctx.font = `${getFontSize(12)}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.fillText(this.emoji, brick.x + 2 + brick.width / 2, brick.y + 15 * getScale());
+    },
+
+    onDestroy(brick, gameState, helpers) {
+        return null;
+    },
+
+    onDamage(brick, damage, gameState) {
+        return damage;
+    },
+
+    onTurnEnd(brick, gameState) {
+        // Derivamos la geometría del propio bloque para no acoplar este
+        // behavior al módulo de rendering (evita imports circulares).
+        const cellSize = brick.width + 4;
+        const leftBorder = brick.x - brick.col * cellSize;
+
+        // Inicializa la dirección la primera vez (izquierda/derecha al azar)
+        if (brick.moveDir !== 1 && brick.moveDir !== -1) {
+            brick.moveDir = Math.random() < 0.5 ? -1 : 1;
+        }
+
+        const tryMove = (dir) => {
+            const newCol = brick.col + dir;
+            if (newCol < 0 || newCol >= COLS) return false;
+
+            // No invadir una celda ocupada por otro bloque de la misma fila
+            const blocked = gameState.bricks.some(b =>
+                b !== brick && b.col === newCol && Math.abs(b.y - brick.y) < 1
+            );
+            if (blocked) return false;
+
+            brick.col = newCol;
+            brick.x = leftBorder + newCol * cellSize;
+            return true;
+        };
+
+        // Avanza en su dirección; si choca, rebota e intenta el lado opuesto
+        if (!tryMove(brick.moveDir)) {
+            brick.moveDir = -brick.moveDir;
+            tryMove(brick.moveDir);
+        }
+    },
+
+    getConfig() {
+        return {
+            minTurn: 6,
+            category: 'challenging',
+            baseChance: 0.05,
+            difficultyMultiplier: { easy: 1.0, medium: 1.4, hard: 1.8 },
+        };
+    }
+};
+
+// ============================================
 // REGISTRO DE TODOS LOS TIPOS
 // ============================================
 BrickRegistry
@@ -329,7 +405,8 @@ BrickRegistry
     .register('explosive', ExplosiveBrickBehavior)
     .register('armored', ArmoredBrickBehavior)
     .register('spawner', SpawnerBrickBehavior)
-    .register('regenerator', RegeneratorBrickBehavior);
+    .register('regenerator', RegeneratorBrickBehavior)
+    .register('moving', MovingBrickBehavior);
 
 // Exportar para uso directo si es necesario
 export {
