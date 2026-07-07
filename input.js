@@ -1,4 +1,4 @@
-import { gameState, startShooting, shootTimeout, endTurn, initGame, showMainMenu, updateBallsPreview, setMenuDifficulty, currentDifficulty } from './game.js';
+import { gameState, difficultyConfig, startShooting, shootTimeout, endTurn, initGame, showMainMenu, updateBallsPreview, setMenuDifficulty, currentDifficulty } from './game.js';
 import { canvas } from './rendering.js';
 import { FAST_SPEED_MULTIPLIER } from './config.js';
 
@@ -126,8 +126,13 @@ export function handlePointerMove(e) {
     if (next < -Math.PI + 0.2) next = -Math.PI + 0.2;
     gameState.aimAngle = next;
 
-    // Actualizar progreso según la actividad cruda del dedo
-    if (Math.abs(rawDelta) > ACTIVITY_RAW_THRESHOLD) {
+    // Actualizar progreso según la actividad cruda del dedo.
+    // El apuntado fino con congelación es una ayuda por dificultad
+    // (assists.freezeAim): sin ella, el progreso nunca acumula y el
+    // puntero mantiene siempre la sensibilidad total.
+    if (!difficultyConfig.assists?.freezeAim) {
+        aimState.slowdownProgress = 0;
+    } else if (Math.abs(rawDelta) > ACTIVITY_RAW_THRESHOLD) {
         aimState.lastMoveTime = now;
         aimState.slowdownProgress = 0;
     } else {

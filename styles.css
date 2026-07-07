@@ -433,6 +433,35 @@ body {
     padding: 0 10px;
 }
 
+/* Inventario de bolas especiales: fila de píldoras centrada en la franja
+   bajo la línea inferior. DOM + flexbox para que funcione en cualquier
+   ratio: las píldoras se auto-dimensionan a su contenido, la fila se
+   centra, y los márgenes laterales despejan el número de versión (izq)
+   y el botón de saltar turno (der). Si no entra, envuelve hacia arriba. */
+#ballInventory {
+    position: absolute;
+    bottom: 6px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: none;
+    flex-wrap: wrap-reverse;
+    justify-content: center;
+    align-items: center;
+    gap: 4px 6px;
+    max-width: calc(100% - 130px);
+    pointer-events: none;
+    z-index: 5;
+}
+
+.inv-pill {
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: clamp(9px, 2.4vmin, 12px);
+    font-weight: 600;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
 /* Version indicator */
 #versionInfo {
     position: absolute;
@@ -551,7 +580,20 @@ body {
 }
 #guideBackBtn:hover { background: rgba(255,255,255,0.16); }
 
+/* El reset global pone touch-action:none en todo (necesario para el
+   canvas del juego), pero eso mata el scroll táctil de la guía. El pan
+   se decide mirando el elemento tocado Y sus ancestros, así que hay que
+   re-habilitarlo en la pantalla entera y todos sus descendientes. */
+#guideScreen, #guideScreen * {
+    touch-action: pan-y;
+}
+.guide-table-wrap, .guide-table-wrap * {
+    touch-action: pan-x pan-y; /* las tablas también scrollean de costado */
+}
+
 .guide-content {
+    flex: 1 1 auto;
+    min-height: 0;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     padding: 4px 14px calc(30px + env(safe-area-inset-bottom));
