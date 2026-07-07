@@ -569,6 +569,30 @@ export function updateUI() {
     if (shieldDisplay) {
         shieldDisplay.textContent = gameState.shieldCharges;
     }
+    updateBallInventoryHud();
+}
+
+/**
+ * HUD de bolas especiales (#ballInventory): píldoras DOM centradas bajo
+ * la línea inferior. Iteramos el registry: cualquier ball type con
+ * showInInventoryHud y count > 0 aparece — cero hardcoded keys, agregar
+ * una bola nueva solo requiere showInInventoryHud: true en su behavior.
+ */
+function updateBallInventoryHud() {
+    const el = document.getElementById('ballInventory');
+    if (!el) return;
+
+    let html = '';
+    for (const [type, behavior] of BallRegistry.getAll()) {
+        if (!behavior.showInInventoryHud) continue;
+        const count = gameState.ballInventory[type] || 0;
+        if (count <= 0) continue;
+
+        const bg = behavior.bgColor || 'rgba(255,255,255,0.5)';
+        const fg = behavior.textColor || 'white';
+        html += `<span class="inv-pill" style="background:${bg};color:${fg}">${behavior.icon || '?'} ${count}</span>`;
+    }
+    el.innerHTML = html;
 }
 
 // physics.js emite 'inventoryChanged' al recolectar bonuses; aqui
@@ -634,6 +658,7 @@ export function initGame(difficulty) {
     document.getElementById('mainMenu').style.display = 'none';
     document.getElementById('gameOver').style.display = 'none';
     document.getElementById('ui').style.display = 'flex';
+    document.getElementById('ballInventory').style.display = 'flex';
     document.getElementById('instructions').style.display = 'block';
     document.getElementById('instructions').style.opacity = '1';
     document.getElementById('speedIndicator').style.display = 'none';
@@ -672,6 +697,7 @@ export function showMainMenu() {
     document.getElementById('mainMenu').style.display = 'flex';
     document.getElementById('gameOver').style.display = 'none';
     document.getElementById('ui').style.display = 'none';
+    document.getElementById('ballInventory').style.display = 'none';
     document.getElementById('instructions').style.display = 'none';
 
     setMenuDifficulty(currentDifficulty);

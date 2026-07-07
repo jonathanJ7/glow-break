@@ -59,6 +59,17 @@ export const BRICK_COLORS = [
 // ====================================
 // CONFIGURACIÓN DE DIFICULTADES
 // ====================================
+// Además de los números (HP, densidad), cada dificultad define `assists`:
+// las ayudas de información que recibe el jugador. La dificultad no solo
+// sube los números, también reduce cuánto "sabe" el jugador:
+//   - aimBounces:  rebotes que simula la línea de puntería
+//   - aimLength:   largo de la línea como fracción del alto del área de
+//                  juego (null = sin límite extra, tope interno de 1200px)
+//   - freezeAim:   si el apuntado fino con congelación está disponible
+//   - hpRoundStep: el HP mostrado se redondea HACIA ARRIBA a múltiplos de
+//                  este valor (1 = exacto; los valores menores al step se
+//                  muestran exactos)
+// La guía del juego genera su tabla de ayudas desde estos campos.
 export const DIFFICULTY_SETTINGS = {
     easy: {
         name: 'FÁCIL',
@@ -71,6 +82,12 @@ export const DIFFICULTY_SETTINGS = {
         startingBalls: 1,
         hpVariationMin: 0.3,
         hpVariationMax: 1.0,
+        assists: {
+            aimBounces: 5,
+            aimLength: null,
+            freezeAim: true,
+            hpRoundStep: 1,
+        },
     },
     medium: {
         name: 'MEDIO',
@@ -83,6 +100,12 @@ export const DIFFICULTY_SETTINGS = {
         startingBalls: 1,
         hpVariationMin: 0.5,
         hpVariationMax: 1.5,
+        assists: {
+            aimBounces: 1,
+            aimLength: null,
+            freezeAim: true,
+            hpRoundStep: 1,
+        },
     },
     hard: {
         name: 'DIFÍCIL',
@@ -96,6 +119,12 @@ export const DIFFICULTY_SETTINGS = {
         hpVariationMin: 0.7,
         hpVariationMax: 2.0,
         reinforcedRows: true,
+        assists: {
+            aimBounces: 1,
+            aimLength: 0.35,
+            freezeAim: false,
+            hpRoundStep: 10,
+        },
     }
 };
 

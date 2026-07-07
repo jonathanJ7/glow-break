@@ -235,9 +235,15 @@ function drawBrick(brick) {
     const behavior = BrickRegistry.get(brick.type);
     behavior.render(ctx, brick, renderHelpers);
 
-    // HP text
+    // HP text — según la dificultad puede mostrarse redondeado hacia
+    // arriba (assists.hpRoundStep) en vez del valor exacto. Los valores
+    // menores al step se muestran exactos para no romper el early game.
+    const hpStep = difficultyConfig.assists?.hpRoundStep || 1;
+    const hpExact = Math.ceil(brick.hp);
+    const hpShown = hpExact < hpStep ? hpExact : Math.ceil(hpExact / hpStep) * hpStep;
+
     ctx.fillStyle = 'white';
-    const hpFontSize = getFontSize(brick.hp > 999 ? 10 : brick.hp > 99 ? 12 : 14);
+    const hpFontSize = getFontSize(hpShown > 999 ? 10 : hpShown > 99 ? 12 : 14);
     ctx.font = `bold ${hpFontSize}px Arial`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -248,7 +254,7 @@ function drawBrick(brick) {
         ? brick.y + 2 + brick.height / 2 + 8 * getScale()
         : brick.y + 2 + brick.height / 2;
 
-    ctx.fillText(Math.ceil(brick.hp), brick.x + 2 + brick.width / 2, textY);
+    ctx.fillText(hpShown, brick.x + 2 + brick.width / 2, textY);
 }
 
 function drawBricks() {
@@ -430,7 +436,12 @@ function drawLaunchIndicator() {
         ctx.fillStyle = 'rgba(255,255,255,0.6)';
         ctx.font = `bold ${getFontSize(11)}px Arial`;
         ctx.textAlign = 'center';
-        ctx.fillText('x' + totalBalls, gameState.launchX, gameState.launchY + 22 * getScale());
+        // Baseline explícito: si queda el 'top' que setea el indicador de
+        // ángulo del frame anterior, este texto salta al empezar a apuntar
+        ctx.textBaseline = 'bottom';
+        // Arriba del lanzador (no debajo de la línea): la franja inferior
+        // ya la ocupan las píldoras de inventario y el número de versión
+        ctx.fillText('x' + totalBalls, gameState.launchX, gameState.launchY - getBallRadius() - 6);
     }
 }
 
@@ -516,11 +527,21 @@ function drawAimLine() {
     // Use the actual ball spawn position for trajectory calculation
     // (balls spawn at launchY - radius - 1, matching shootNextBall in game.js)
     const ballSpawnY = gameState.launchY - radius - 1;
+
+    // Ayudas por dificultad: cuántos rebotes simula la línea y qué largo
+    // tiene (aimLength es fracción del alto del área de juego)
+    const assists = difficultyConfig.assists || {};
+    const aimBounces = assists.aimBounces ?? 5;
+    const maxDistance = assists.aimLength
+        ? (getBottomLine() - getTopOffset()) * assists.aimLength
+        : 1200;
+
     const trajectory = calculateTrajectory(
         gameState.launchX,
         ballSpawnY,
         gameState.aimAngle,
-        5
+        aimBounces,
+        maxDistance
     );
 
     // Replace the first point with the visual launcher position
@@ -676,47 +697,10 @@ function drawAimLine() {
     ctx.fillText(degFromVert.toFixed(1) + '°', getRightBorder() - 5, getBottomLine() + 5);
 }
 
-/**
- * Renderiza los indicadores de inventario de bolas especiales
- * Usa los behaviors registrados para obtener colores
- */
-function drawBallInventory(leftBorder) {
-    const inv = gameState.ballInventory;
-
-    // Iteramos el registry: cualquier ball type con showInInventoryHud
-    // y count > 0 aparece. Cero hardcoded keys, agregar una bola nueva
-    // solo requiere setear showInInventoryHud: true en su behavior.
-    let hasAny = false;
-    for (const [type, behavior] of BallRegistry.getAll()) {
-        if (!behavior.showInInventoryHud) continue;
-        if ((inv[type] || 0) > 0) { hasAny = true; break; }
-    }
-    if (!hasAny) return;
-
-    const scale = getScale();
-    let indicatorX = leftBorder + 10 * scale;
-    const indicatorY = getBottomLine() + 20 * scale;
-    const indicatorW = 50 * scale;
-    const indicatorH = 20 * scale;
-
-    for (const [type, behavior] of BallRegistry.getAll()) {
-        if (!behavior.showInInventoryHud) continue;
-        const count = inv[type] || 0;
-        if (count <= 0) continue;
-
-        ctx.fillStyle = behavior.bgColor || 'rgba(255,255,255,0.5)';
-        ctx.beginPath();
-        ctx.roundRect(indicatorX, indicatorY, indicatorW, indicatorH, 10 * scale);
-        ctx.fill();
-
-        ctx.fillStyle = behavior.textColor || 'white';
-        ctx.font = `${getFontSize(11)}px Arial`;
-        ctx.textAlign = 'center';
-        ctx.fillText(`${behavior.icon || '?'} ${count}`, indicatorX + indicatorW / 2, indicatorY + indicatorH * 0.7);
-
-        indicatorX += indicatorW + 10 * scale;
-    }
-}
+// El inventario de bolas especiales ya no se dibuja en el canvas: es el
+// elemento DOM #ballInventory (ver updateBallInventoryHud en game.js).
+// Con CSS flexbox el layout funciona en cualquier ratio de pantalla sin
+// pisar el número de versión ni moverse con el estado del contexto 2D.
 
 // ====================================
 // FUNCIÓN PRINCIPAL DE DIBUJO
@@ -753,7 +737,6 @@ export function draw() {
     drawBalls();
     drawLaunchIndicator();
     drawAimLine();
-    drawBallInventory(leftBorder);
     drawOverdriveMeter(leftBorder, rightBorder);
     drawComboCounter();
     drawFloatingTexts();

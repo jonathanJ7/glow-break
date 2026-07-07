@@ -436,9 +436,10 @@ function checkBonusCollisions(ball) {
  * @param {number} startY - Posición inicial Y
  * @param {number} angle - Ángulo de disparo
  * @param {number} maxBounces - Máximo de rebotes a mostrar
+ * @param {number} [maxDistance=1200] - Largo máximo de la línea en px
  * @returns {Array<{x: number, y: number, isBounce: boolean}>}
  */
-export function calculateTrajectory(startX, startY, angle, maxBounces) {
+export function calculateTrajectory(startX, startY, angle, maxBounces, maxDistance = 1200) {
     const bounds = {
         left: getLeftBorder(),
         right: getRightBorder(),
@@ -459,6 +460,6 @@ export function calculateTrajectory(startX, startY, angle, maxBounces) {
         gameState.bricks,
         bounds,
         maxBounces,
-        1200 // maxDistance
+        maxDistance
     );
 }

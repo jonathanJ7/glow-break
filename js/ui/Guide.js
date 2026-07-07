@@ -154,6 +154,26 @@ function buildDifficultySection() {
         </tr>`;
     }).join('');
 
+    // Tabla de ayudas: la dificultad no solo sube números, también reduce
+    // cuánta información recibes. Generada 100% desde assists en config.js.
+    const assistRows = diffs.map(d => {
+        const c = DIFFICULTY_SETTINGS[d];
+        const a = c.assists;
+        const aim = a.aimLength
+            ? `Corta: ${pct(a.aimLength)} del alto del área, ${a.aimBounces > 1 ? `hasta ${a.aimBounces} rebotes` : 'solo el primer rebote'}`
+            : (a.aimBounces > 1 ? `Completa (hasta ${a.aimBounces} rebotes)` : 'Hasta el primer rebote');
+        const freeze = a.freezeAim ? 'Sí' : 'No';
+        const hp = a.hpRoundStep > 1
+            ? `Redondeado hacia arriba de ${a.hpRoundStep} en ${a.hpRoundStep} (exacto si es menor a ${a.hpRoundStep})`
+            : 'Exacto';
+        return `<tr>
+            <td>${c.emoji} ${c.name}</td>
+            <td>${aim}</td>
+            <td>${freeze}</td>
+            <td>${hp}</td>
+        </tr>`;
+    }).join('');
+
     return `
         <p class="guide-note">Fórmula exacta del HP: en el turno T, el HP base es
         <b>⌊T × (1 + ln(T+1) × ${HP_LOG_FACTOR}) × multiplicador⌋</b>. Cada bloque individual
@@ -164,6 +184,17 @@ function buildDifficultySection() {
         <table class="guide-table">
             <tr><th>Dificultad</th><th>HP</th><th>Variación</th><th>Densidad</th><th>Extra</th></tr>
             ${rows}
+        </table>
+        </div>
+        <p class="guide-note"><b>Ayudas por dificultad</b>: además de los números, cada
+        dificultad limita cuánta información ves. En Medio la mira ya no revela los rebotes;
+        en Difícil la mira es corta, no hay apuntado congelado y la vida de los bloques se
+        muestra redondeada (un bloque con 34 de vida muestra "40" — sabes el techo, no el
+        valor exacto).</p>
+        <div class="guide-table-wrap">
+        <table class="guide-table">
+            <tr><th>Dificultad</th><th>Línea de puntería</th><th>Apuntado congelado</th><th>Vida mostrada</th></tr>
+            ${assistRows}
         </table>
         </div>`;
 }
@@ -193,14 +224,41 @@ function buildMechanicsSection() {
     return html;
 }
 
+// Etiqueta de la línea de puntería de una dificultad, generada desde assists
+function aimAssistLabel(a) {
+    if (a.aimLength) {
+        return `la línea mide solo el ${pct(a.aimLength)} del alto del área de juego`;
+    }
+    return a.aimBounces > 1
+        ? `la línea sigue la trayectoria completa con hasta ${a.aimBounces} rebotes`
+        : 'la línea llega hasta el primer rebote y apenas insinúa la dirección de salida';
+}
+
+// Lista "😊 Fácil y 😤 Medio" de las dificultades donde una ayuda está activa
+function difficultiesWhere(predicate) {
+    const names = ['easy', 'medium', 'hard']
+        .filter(d => predicate(DIFFICULTY_SETTINGS[d].assists))
+        .map(d => `${DIFFICULTY_SETTINGS[d].emoji} ${DIFFICULTY_SETTINGS[d].name.charAt(0)}${DIFFICULTY_SETTINGS[d].name.slice(1).toLowerCase()}`);
+    if (names.length === 0) return 'ninguna dificultad';
+    if (names.length === 1) return names[0];
+    return names.slice(0, -1).join(', ') + ' y ' + names[names.length - 1];
+}
+
 function buildControlsSection() {
+    const aimLines = ['easy', 'medium', 'hard'].map(d => {
+        const c = DIFFICULTY_SETTINGS[d];
+        return `${c.emoji} ${aimAssistLabel(c.assists)}`;
+    }).join('; ');
+
     let html = '';
     html += item('👆', 'Apuntar y disparar',
-        'Arrastra el dedo para apuntar (la línea punteada muestra la trayectoria real, con los '
-        + 'mismos rebotes que tendrá la bola). Suelta para disparar: las bolas salen una tras otra '
-        + `en el mismo ángulo. Máximo ${MAX_BALLS_ON_SCREEN} bolas por disparo.`);
+        'Arrastra el dedo para apuntar. La línea punteada usa la misma física que la bola real, '
+        + `pero cuánto te muestra depende de la dificultad: ${aimLines}. `
+        + 'Suelta para disparar: las bolas salen una tras otra en el mismo ángulo. '
+        + `Máximo ${MAX_BALLS_ON_SCREEN} bolas por disparo.`);
     html += item('❄️', 'Apuntado fino (congelación)',
-        `Mantén el dedo quieto mientras apuntas y el puntero se ralentiza progresivamente hasta `
+        `Disponible solo en ${difficultiesWhere(a => a.freezeAim)}. `
+        + `Mantén el dedo quieto mientras apuntas y el puntero se ralentiza progresivamente hasta `
         + `congelarse a los ${FREEZE_TIME_MS / 1000} segundos (la línea punteada hace de barra de `
         + `carga). Congelado, el ángulo queda bloqueado; para soltarlo, aleja el dedo más de `
         + `${UNFREEZE_DISTANCE} píxeles del punto donde se congeló.`);

@@ -292,6 +292,25 @@ BonusRegistry.register('shield', ShieldBonusBehavior);
 - **Feedback helpers** in `physicsHelpers`: `addFloatingText(x, y, text, {color, size})`, `addScreenShake(intensity)`, `addBallsToInventory(type, count)`, `addShieldCharge()`.
 - **Records**: best turn per difficulty stored in `localStorage` (`glowbreak_best_<difficulty>`), only counted when starting from turn 1.
 
+### Ayudas por dificultad (v2.8.0)
+
+Cada entrada de `DIFFICULTY_SETTINGS` tiene un objeto `assists` que controla cuánta **información** recibe el jugador (la dificultad no es solo números):
+
+| Campo | Efecto | Dónde se aplica |
+|-------|--------|-----------------|
+| `aimBounces` | Rebotes que simula la línea de puntería | `rendering.js` → `drawAimLine` |
+| `aimLength` | Largo de la mira como fracción del alto del área (`null` = sin límite) | `rendering.js` → `drawAimLine` |
+| `freezeAim` | Si el apuntado fino con congelación está disponible | `input.js` → `handlePointerMove` |
+| `hpRoundStep` | El HP mostrado se redondea HACIA ARRIBA a múltiplos de este valor (exacto si HP < step); el HP real no cambia | `rendering.js` → `drawBrick` |
+
+Valores actuales — Fácil: todas las ayudas (mira completa 5 rebotes, congelación, HP exacto). Medio: la mira solo llega al primer rebote. Difícil: mira corta (35% del área), sin congelación, HP redondeado a decenas.
+
+La guía (`js/ui/Guide.js`) genera su tabla de ayudas y los textos de controles desde `assists` — al cambiar un valor en config, la guía se actualiza sola.
+
+### HUD de inventario (v2.8.0)
+
+El inventario de bolas especiales es el elemento DOM `#ballInventory` (píldoras flexbox centradas bajo la línea inferior), regenerado por `updateBallInventoryHud()` en `game.js` dentro de `updateUI()`. Ya NO se dibuja en el canvas. Un ball type aparece si tiene `showInInventoryHud: true` y count > 0; usa `icon`, `bgColor` y `textColor` del behavior.
+
 ### In-Game Guide (v2.7.1)
 
 `js/ui/Guide.js` renders the "📖 Guía del juego" screen (opened from the main menu). Its content is **generated from the live registries and `config.js`** — never hardcode game numbers in the guide.
