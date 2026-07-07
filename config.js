@@ -10,6 +10,42 @@ export const MAX_BALLS_ON_SCREEN = 200;
 export const POINTER_DISPLAY_DELAY_MS = 100; // Delay para visualización suave del puntero
 
 // ====================================
+// MECÁNICAS DE DIVERSIÓN
+// ====================================
+// Combo: ladrillos destruidos en un mismo turno. Cada COMBO_BALLS_PER
+// destruidos dan +1 bola normal al final del turno (cap COMBO_MAX_REWARD).
+export const COMBO_BALLS_PER = 12;
+export const COMBO_MAX_REWARD = 8;
+
+// Overdrive: destruir ladrillos carga el medidor; al llenarse, el
+// siguiente turno todas las bolas hacen daño x2.
+export const OVERDRIVE_MAX = 40;
+export const OVERDRIVE_MULTIPLIER = 2;
+
+// Jefes: cada BOSS_INTERVAL turnos aparece un jefe de 3 columnas.
+export const BOSS_INTERVAL = 15;
+export const BOSS_HP_MULTIPLIER = 6;
+
+// Curva de HP: HP base del turno T = ⌊T × (1 + ln(T+1) × HP_LOG_FACTOR) × hpMultiplier⌋
+export const HP_LOG_FACTOR = 0.18;
+
+// Escudos: cargas de segunda oportunidad. Al llegar los ladrillos a la
+// línea, un escudo quema las SHIELD_BURN_ROWS filas de abajo en vez de
+// game over.
+export const STARTING_SHIELDS = 1;
+export const MAX_SHIELDS = 3;
+export const SHIELD_BURN_ROWS = 2;
+
+// El bonus de bolas normales escala: +1 bola extra por cada
+// BALL_BONUS_SCALE_TURNS turnos transcurridos.
+export const BALL_BONUS_SCALE_TURNS = 25;
+
+// Láser horizontal: daña a cada bloque de la fila con el mayor entre
+// (maxHp × LASER_MAXHP_RATIO) y (hp actual × LASER_CURRENT_HP_RATIO).
+export const LASER_MAXHP_RATIO = 0.5;
+export const LASER_CURRENT_HP_RATIO = 0.6;
+
+// ====================================
 // COLORES Y ESTILOS
 // ====================================
 export const BRICK_COLORS = [
@@ -28,8 +64,8 @@ export const DIFFICULTY_SETTINGS = {
         name: 'FÁCIL',
         emoji: '😊',
         color: '#4ecca3',
-        hpMultiplier: 0.8,
-        densityBase: 0.28,
+        hpMultiplier: 1.0,
+        densityBase: 0.30,
         densityGrowth: 0.005,
         maxDensity: 0.55,
         startingBalls: 1,
@@ -74,6 +110,7 @@ export const SPAWN_SCHEDULE = {
     easy: {
         ballBonuses: {
             splitterBall: { first: 20, interval: 15 },
+            bombBall:     { first: 12, interval: 12 },
             fireballBall: { first: 8, interval: 10 },
             ball:         { first: 1, interval: 1 },
         },
@@ -85,6 +122,7 @@ export const SPAWN_SCHEDULE = {
     medium: {
         ballBonuses: {
             splitterBall: { first: 35, interval: 20 },
+            bombBall:     { first: 18, interval: 14 },
             fireballBall: { first: 15, interval: 15 },
             ball:         { first: 1, interval: 2 },
         },
@@ -96,6 +134,7 @@ export const SPAWN_SCHEDULE = {
     hard: {
         ballBonuses: {
             splitterBall: { first: 50, interval: 30 },
+            bombBall:     { first: 28, interval: 18 },
             fireballBall: { first: 25, interval: 20 },
             ball:         { first: 1, interval: 3 },
         },

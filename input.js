@@ -12,9 +12,9 @@ import { FAST_SPEED_MULTIPLIER } from './config.js';
 //   velocidad total para apuntar a otro lugar
 // ============================================
 
-const FREEZE_TIME_MS = 5000;            // Tiempo total para llegar a congelación
-const ACTIVITY_RAW_THRESHOLD = 0.04;    // Delta crudo (~2.3°) que resetea el progreso
-const UNFREEZE_DISTANCE = 80;           // Píxeles para romper el congelamiento
+export const FREEZE_TIME_MS = 5000;            // Tiempo total para llegar a congelación
+const ACTIVITY_RAW_THRESHOLD = 0.04;           // Delta crudo (~2.3°) que resetea el progreso
+export const UNFREEZE_DISTANCE = 80;           // Píxeles para romper el congelamiento
 
 // Estado unificado del apuntado
 let aimState = {
@@ -245,6 +245,13 @@ function setupTurnSwipeSelector() {
 
     let currentValue = parseInt(hiddenInput.value) || 1;
     let dragging = false;
+
+    // Contrato programático: setear .value y disparar input/change en el
+    // hidden input se comporta como si el usuario eligiera ese turno
+    // (clamp incluido). Lo usan los tests y cualquier automatización.
+    const syncFromInput = () => setValue(parseInt(hiddenInput.value) || 1);
+    hiddenInput.addEventListener('input', syncFromInput);
+    hiddenInput.addEventListener('change', syncFromInput);
     let startX = 0;
     let accumulated = 0;
     let lastVelocity = 0;

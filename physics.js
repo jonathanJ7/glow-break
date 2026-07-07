@@ -11,7 +11,7 @@
  */
 
 import { gameState, endTurn, events } from './game.js';
-import { COLS, FAST_SPEED_MULTIPLIER, BALL_SPEED } from './config.js';
+import { COLS, FAST_SPEED_MULTIPLIER, BALL_SPEED, OVERDRIVE_MAX, OVERDRIVE_MULTIPLIER, MAX_SHIELDS, LASER_MAXHP_RATIO, LASER_CURRENT_HP_RATIO } from './config.js';
 import { getWidth, getHeight, getLeftBorder, getRightBorder, getTopOffset, getBottomLine, getCellSize, getBallRadius, getScale, getBrickColor } from './rendering.js';
 import { BrickRegistry, BallRegistry, BonusRegistry } from './js/behaviors/index.js';
 import { processPhysicsStep, simulateTrajectory } from './js/systems/CollisionSystem.js';
@@ -45,12 +45,53 @@ export function updateParticles() {
     }
     gameState.particles = gameState.particles.filter(p => p.life > 0);
 
+    // Textos flotantes de feedback (combos, escudos, premios...)
+    for (let t of gameState.floatingTexts) {
+        t.y -= 0.6;
+        t.life -= 0.012;
+    }
+    gameState.floatingTexts = gameState.floatingTexts.filter(t => t.life > 0);
+
+    // Screen shake decae exponencialmente
+    if (gameState.shake > 0) {
+        gameState.shake *= 0.88;
+        if (gameState.shake < 0.15) gameState.shake = 0;
+    }
+
     if (gameState.laserEffect) {
         gameState.laserEffect.alpha -= 0.05;
         if (gameState.laserEffect.alpha <= 0) {
             gameState.laserEffect = null;
         }
     }
+}
+
+// ====================================
+// FEEDBACK VISUAL Y RECOMPENSAS
+// ====================================
+
+export function addFloatingText(x, y, text, { color = '#fff', size = 14 } = {}) {
+    gameState.floatingTexts.push({ x, y, text, color, size, life: 1 });
+}
+
+export function addScreenShake(intensity) {
+    gameState.shake = Math.max(gameState.shake, intensity);
+}
+
+/**
+ * Agrega bolas al inventario desde un behavior (ladrillo dorado, jefe,
+ * caja misteriosa...) y notifica al HUD.
+ */
+export function addBallsToInventory(type, count) {
+    gameState.ballInventory[type] = (gameState.ballInventory[type] || 0) + count;
+    events.emit('inventoryChanged');
+}
+
+export function addShieldCharge() {
+    if (gameState.shieldCharges < MAX_SHIELDS) {
+        gameState.shieldCharges++;
+    }
+    events.emit('inventoryChanged');
 }
 
 // ====================================
@@ -70,6 +111,10 @@ const physicsHelpers = Object.freeze({
     getScale,
     createParticles,
     fireHorizontalLaser,
+    addFloatingText,
+    addScreenShake,
+    addBallsToInventory,
+    addShieldCharge,
     COLS,
     get speedMultiplier() {
         return gameState.speedMultiplier;
@@ -140,7 +185,10 @@ export function fireHorizontalLaser(ballY) {
     for (let brick of gameState.bricks) {
         const brickCenterY = brick.y + brick.height / 2;
         if (Math.abs(brickCenterY - targetY) < cellSize / 2) {
-            const damage = Math.max(Math.ceil(brick.maxHp * 0.5), Math.ceil(brick.hp * 0.6));
+            const damage = Math.max(
+                Math.ceil(brick.maxHp * LASER_MAXHP_RATIO),
+                Math.ceil(brick.hp * LASER_CURRENT_HP_RATIO)
+            );
 
             // Aplicar modificador de daño del behavior
             const behavior = BrickRegistry.get(brick.type);
@@ -193,8 +241,18 @@ export function updateBalls() {
             const onBrickHit = (ball, brick, collision) => {
                 const result = ballBehavior.onCollision(ball, brick, gameState, physicsHelpers);
                 const brickBehavior = BrickRegistry.get(brick.type);
-                const damage = brickBehavior.onDamage(brick, result.damage, gameState);
+                // En turnos OVERDRIVE todo el daño se multiplica
+                const overdrive = gameState.overdriveActive ? OVERDRIVE_MULTIPLIER : 1;
+                const damage = brickBehavior.onDamage(brick, result.damage * overdrive, gameState);
                 brick.hp -= damage;
+
+                // Daño en área devuelto por el behavior (ej: bola bomba)
+                if (result.damagedBricks) {
+                    for (const { brick: targetBrick, damage: aoeDamage } of result.damagedBricks) {
+                        const targetBehavior = BrickRegistry.get(targetBrick.type);
+                        targetBrick.hp -= targetBehavior.onDamage(targetBrick, aoeDamage * overdrive, gameState);
+                    }
+                }
 
                 if (result.spawnBalls) {
                     newBalls.push(...result.spawnBalls);
@@ -276,7 +334,32 @@ export function updateBalls() {
         for (let brick of destroyedBricks) {
             processBrickDestruction(brick);
         }
+        // Contar también los muertos en cadena (explosiones, ondas) que
+        // cayeron durante el procesamiento de arriba
+        const totalDead = gameState.bricks.filter(b => b.hp <= 0).length;
         gameState.bricks = gameState.bricks.filter(b => b.hp > 0);
+
+        // Combo + carga de overdrive por ladrillo destruido
+        if (totalDead > 0) {
+            const before = gameState.combo;
+            gameState.combo += totalDead;
+            gameState.overdriveCharge = Math.min(
+                OVERDRIVE_MAX,
+                gameState.overdriveCharge + totalDead
+            );
+
+            // Aviso en pantalla cada 10 de combo
+            if (Math.floor(before / 10) < Math.floor(gameState.combo / 10)) {
+                const last = destroyedBricks[destroyedBricks.length - 1];
+                const milestone = Math.floor(gameState.combo / 10) * 10;
+                addFloatingText(
+                    last.x + last.width / 2,
+                    last.y + last.height / 2,
+                    `🔥 COMBO ${milestone}`,
+                    { color: '#f9ed69', size: Math.min(26, 14 + milestone / 5) }
+                );
+            }
+        }
     }
 
     checkTurnEnd();

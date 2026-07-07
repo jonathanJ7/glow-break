@@ -22,9 +22,10 @@ test.describe('Glow-Break - mobile drag-to-aim', () => {
         await expect(mainMenu).toBeVisible();
         await expect(ui).toBeHidden();
 
-        // 2. Tap "EASY" to start a game. Playwright uses touchscreen.tap
-        //    automatically for .tap() on a hasTouch device.
-        await page.locator('#easyBtn').tap();
+        // 2. Tap "EASY" chip + play button to start a game. Playwright uses
+        //    touchscreen.tap automatically for .tap() on a hasTouch device.
+        await page.locator('.diff-chip[data-diff="easy"]').tap();
+        await page.locator('#playBtn').tap();
 
         await expect(mainMenu).toBeHidden();
         await expect(ui).toBeVisible();

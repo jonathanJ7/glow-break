@@ -1,5 +1,5 @@
 // Version: Update this when deploying new versions
-const APP_VERSION = '2.6.2';
+const APP_VERSION = '2.7.1';
 const CACHE_NAME = `ballz-${APP_VERSION}`;
 
 const urlsToCache = [
@@ -22,6 +22,8 @@ const urlsToCache = [
   './js/behaviors/BonusBehaviors.js',
   // Systems
   './js/systems/CollisionSystem.js',
+  // UI
+  './js/ui/Guide.js',
   // Assets
   './icon-192.png',
   './icon-512.png'

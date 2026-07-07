@@ -79,15 +79,14 @@ export async function setStartingTurn(page, turn) {
  * @param {'easy'|'medium'|'hard'} difficulty
  */
 export async function startGame(page, difficulty) {
-    const btnId = difficulty === 'easy'
-        ? '#easyBtn'
-        : difficulty === 'medium'
-            ? '#mediumBtn'
-            : '#hardBtn';
+    // La home actual usa chips de dificultad + un botón de play único.
+    const chip = page.locator(`.diff-chip[data-diff="${difficulty}"]`);
+    await expect(chip).toBeVisible();
+    await chip.evaluate((el) => /** @type {HTMLElement} */ (el).click());
 
-    const btn = page.locator(btnId);
-    await expect(btn).toBeVisible();
-    await btn.evaluate((el) => /** @type {HTMLElement} */ (el).click());
+    const playBtn = page.locator('#playBtn');
+    await expect(playBtn).toBeVisible();
+    await playBtn.evaluate((el) => /** @type {HTMLElement} */ (el).click());
 
     await expect(page.locator('#mainMenu')).toBeHidden({ timeout: 5_000 });
     await expect(page.locator('#ui')).toBeVisible({ timeout: 5_000 });

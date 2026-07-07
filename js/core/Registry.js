@@ -92,6 +92,7 @@ const brickBase = {
     onTurnStart() {},
     onTurnEnd() {},
     getConfig() { return {}; },
+    describe() { return ''; },
 };
 
 const ballBase = {
@@ -102,6 +103,7 @@ const ballBase = {
     onExitBrick() {},
     onPostStep() {},
     getConfig() { return {}; },
+    describe() { return ''; },
 };
 
 const bonusBase = {
@@ -109,6 +111,7 @@ const bonusBase = {
     onCollect() { return null; },
     getText() { return ''; },
     getConfig() { return {}; },
+    describe() { return ''; },
 };
 
 // ============================================

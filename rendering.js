@@ -9,7 +9,7 @@
  */
 
 import { gameState, difficultyConfig, getTotalBalls } from './game.js';
-import { COLS, BRICK_COLORS, BASE_BALL_RADIUS } from './config.js';
+import { COLS, BRICK_COLORS, BASE_BALL_RADIUS, OVERDRIVE_MAX } from './config.js';
 import { calculateTrajectory } from './physics.js';
 import { BrickRegistry, BallRegistry, BonusRegistry } from './js/behaviors/index.js';
 import { getSlowdownProgress } from './input.js';
@@ -314,12 +314,106 @@ function drawLaserEffect(leftBorder, rightBorder) {
 function drawBall(ball) {
     if (!ball.active) return;
     BallRegistry.get(ball.ballType).render(ctx, ball, renderHelpers);
+
+    // En OVERDRIVE todas las bolas llevan un anillo dorado
+    if (gameState.overdriveActive) {
+        ctx.strokeStyle = 'rgba(251, 191, 36, 0.9)';
+        ctx.lineWidth = 2;
+        ctx.shadowColor = '#fbbf24';
+        ctx.shadowBlur = 6;
+        ctx.beginPath();
+        ctx.arc(ball.x, ball.y, getBallRadius() + 3, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+    }
 }
 
 function drawBalls() {
     for (const ball of gameState.balls) {
         drawBall(ball);
     }
+}
+
+// ====================================
+// FEEDBACK: TEXTOS FLOTANTES, OVERDRIVE, COMBO
+// ====================================
+
+function drawFloatingTexts() {
+    for (const t of gameState.floatingTexts) {
+        ctx.globalAlpha = Math.min(1, t.life * 1.5);
+        ctx.fillStyle = t.color;
+        ctx.font = `bold ${getFontSize(t.size)}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.shadowColor = 'rgba(0,0,0,0.8)';
+        ctx.shadowBlur = 4;
+        ctx.fillText(t.text, t.x, t.y);
+        ctx.shadowBlur = 0;
+    }
+    ctx.globalAlpha = 1;
+}
+
+function drawOverdriveMeter(leftBorder, rightBorder) {
+    // La línea de peligro inferior duplica como medidor de overdrive:
+    // la carga la va pintando de dorado de izquierda a derecha.
+    const ratio = Math.min(1, gameState.overdriveCharge / OVERDRIVE_MAX);
+    if (ratio <= 0) return;
+
+    const y = getBottomLine();
+    const full = ratio >= 1;
+    const pulse = full ? 0.6 + Math.sin(performance.now() * 0.008) * 0.4 : 0.85;
+
+    ctx.globalAlpha = pulse;
+    ctx.strokeStyle = '#fbbf24';
+    ctx.lineWidth = 3;
+    ctx.shadowColor = '#fbbf24';
+    ctx.shadowBlur = full ? 12 : 5;
+    ctx.setLineDash(full ? [] : [5, 5]);
+    ctx.beginPath();
+    ctx.moveTo(leftBorder, y);
+    ctx.lineTo(leftBorder + (rightBorder - leftBorder) * ratio, y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
+
+    if (full && !gameState.isShooting) {
+        ctx.fillStyle = '#fbbf24';
+        ctx.font = `bold ${getFontSize(10)}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText('⚡ ¡OVERDRIVE LISTO! El próximo disparo hace x2', (leftBorder + rightBorder) / 2, y - 6);
+    }
+}
+
+function drawComboCounter() {
+    if (!gameState.isShooting || gameState.combo < 4) return;
+
+    const pop = 1 + Math.min(0.5, gameState.combo * 0.01);
+    ctx.fillStyle = gameState.combo >= 20 ? '#f9ed69' : 'rgba(255,255,255,0.85)';
+    ctx.font = `bold ${Math.round(getFontSize(16) * pop)}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.shadowColor = 'rgba(0,0,0,0.7)';
+    ctx.shadowBlur = 4;
+    ctx.fillText(`Combo x${gameState.combo}`, getWidth() / 2, getTopOffset() + 4);
+    ctx.shadowBlur = 0;
+}
+
+function drawOverdriveActiveFrame(leftBorder, rightBorder) {
+    if (!gameState.overdriveActive) return;
+
+    // Marco dorado pulsante alrededor del área de juego durante el turno x2
+    const topY = getTopOffset() - 15;
+    const areaHeight = getBottomLine() - topY + 10;
+    const pulse = 0.5 + Math.sin(performance.now() * 0.006) * 0.3;
+
+    ctx.strokeStyle = `rgba(251, 191, 36, ${pulse})`;
+    ctx.lineWidth = 3;
+    ctx.shadowColor = '#fbbf24';
+    ctx.shadowBlur = 12;
+    ctx.strokeRect(leftBorder, topY, rightBorder - leftBorder, areaHeight);
+    ctx.shadowBlur = 0;
 }
 
 function drawLaunchIndicator() {
@@ -638,7 +732,18 @@ export function draw() {
 
     if (!gameState.gameStarted) return;
 
+    // Screen shake: desplaza todo el frame mientras haya intensidad
+    const shaking = gameState.shake > 0;
+    if (shaking) {
+        ctx.save();
+        ctx.translate(
+            (Math.random() - 0.5) * gameState.shake * 2,
+            (Math.random() - 0.5) * gameState.shake * 2
+        );
+    }
+
     drawPlayArea(leftBorder, rightBorder);
+    drawOverdriveActiveFrame(leftBorder, rightBorder);
     drawBottomLine(leftBorder, rightBorder);
     drawGrid(leftBorder);
     drawBricks();
@@ -649,4 +754,11 @@ export function draw() {
     drawLaunchIndicator();
     drawAimLine();
     drawBallInventory(leftBorder);
+    drawOverdriveMeter(leftBorder, rightBorder);
+    drawComboCounter();
+    drawFloatingTexts();
+
+    if (shaking) {
+        ctx.restore();
+    }
 }
