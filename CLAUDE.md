@@ -270,7 +270,7 @@ BonusRegistry.register('shield', ShieldBonusBehavior);
 |------|-------|--------|---------------|
 | `normal` | White | Standard bounce | `normal` |
 | `fireball` | Red | Passes through bricks | `fireball` |
-| `splitter` | Yellow | Splits into 5 balls on hit | `splitter` |
+| `splitter` | Yellow | Splits into 2 balls (±30°) on its 5th hit; children can split again | `splitter` |
 | `strength` | Orange | Does 3 damage instead of 1 | `strength` |
 | `bomb` | Red/orange | AoE damage (15% of hit brick's maxHp) to bricks within 1.5 cells on every hit | `bomb` |
 
@@ -291,6 +291,17 @@ BonusRegistry.register('shield', ShieldBonusBehavior);
 - **Ball AoE contract**: a ball behavior's `onCollision` may return `damagedBricks: [{brick, damage}]` — the engine applies it (used by `bomb`, mirrors brick `onDestroy`).
 - **Feedback helpers** in `physicsHelpers`: `addFloatingText(x, y, text, {color, size})`, `addScreenShake(intensity)`, `addBallsToInventory(type, count)`, `addShieldCharge()`.
 - **Records**: best turn per difficulty stored in `localStorage` (`glowbreak_best_<difficulty>`), only counted when starting from turn 1.
+
+### In-Game Guide (v2.7.1)
+
+`js/ui/Guide.js` renders the "📖 Guía del juego" screen (opened from the main menu). Its content is **generated from the live registries and `config.js`** — never hardcode game numbers in the guide.
+
+**Contract for new types**: every registered behavior should define:
+- `displayName` — Spanish display name shown in the guide
+- `describe()` — precise description with EXACT numbers. Derive them from the behavior's own properties (e.g. `this.damage`, `this.healRatio`) or `config.js` constants, so guide and engine can never disagree. Ambiguous wording ("mucho daño", "a veces") is not allowed.
+- Optional `guideIcon` — guide-only icon for types without `emoji`/`icon` (do NOT set `emoji` on bricks that shouldn't offset their HP text in rendering).
+
+The `guide.spec.js` test fails if any registered type is missing from the guide.
 
 ---
 

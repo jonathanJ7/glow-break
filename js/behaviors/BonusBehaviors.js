@@ -12,15 +12,24 @@
  */
 
 import { BonusRegistry } from '../core/Registry.js';
+import { BALL_BONUS_SCALE_TURNS, LASER_MAXHP_RATIO, LASER_CURRENT_HP_RATIO } from '../../config.js';
 
 // ============================================
 // BALL BONUS - Agrega bolas normales
 // ============================================
 const BallBonusBehavior = {
     type: 'ball',
+    displayName: 'Bolas extra (+N)',
     color: '#4ecca3',
     icon: null,
     targetBallType: 'normal',
+
+    describe() {
+        return 'Suma N bolas normales a tu inventario para siempre. '
+            + `N escala con el turno: N = 1 + (turno ÷ ${BALL_BONUS_SCALE_TURNS}, redondeado hacia abajo). `
+            + `Es decir: +1 hasta el turno ${BALL_BONUS_SCALE_TURNS - 1}, +2 del ${BALL_BONUS_SCALE_TURNS} al `
+            + `${BALL_BONUS_SCALE_TURNS * 2 - 1}, +3 del ${BALL_BONUS_SCALE_TURNS * 2} en adelante, y así sucesivamente.`;
+    },
 
     render(ctx, bonus, helpers) {
         const { getFontSize } = helpers;
@@ -68,9 +77,14 @@ const BallBonusBehavior = {
 // ============================================
 const FireballBonusBehavior = {
     type: 'fireballBall',
+    displayName: 'Bola de fuego',
     color: '#ff6b6b',
     icon: '🔥',
     targetBallType: 'fireball',
+
+    describe() {
+        return 'Suma +1 bola de fuego a tu inventario para siempre.';
+    },
 
     render(ctx, bonus, helpers) {
         const { getFontSize } = helpers;
@@ -119,9 +133,14 @@ const FireballBonusBehavior = {
 // ============================================
 const SplitterBonusBehavior = {
     type: 'splitterBall',
+    displayName: 'Bola divisora',
     color: '#f9ed69',
     icon: '💥',
     targetBallType: 'splitter',
+
+    describe() {
+        return 'Suma +1 bola divisora a tu inventario para siempre.';
+    },
 
     render(ctx, bonus, helpers) {
         const { getFontSize } = helpers;
@@ -170,8 +189,16 @@ const SplitterBonusBehavior = {
 // ============================================
 const HorizontalLaserBehavior = {
     type: 'horizontal',
+    displayName: 'Láser horizontal',
     color: '#3b82f6',
     icon: '⚡',
+
+    describe() {
+        return 'Efecto inmediato (no se guarda): dispara un láser horizontal a la fila de bloques '
+            + 'más cercana a la bola que lo recogió. Daña a cada bloque de esa fila con el MAYOR entre '
+            + `${Math.round(LASER_MAXHP_RATIO * 100)}% de su HP máximo y ${Math.round(LASER_CURRENT_HP_RATIO * 100)}% `
+            + 'de su HP actual — nunca mata de un solo golpe a un bloque sano, pero remata a los dañados.';
+    },
 
     render(ctx, bonus, helpers) {
         const { getFontSize } = helpers;
@@ -219,9 +246,14 @@ const HorizontalLaserBehavior = {
 // ============================================
 const StrengthBonusBehavior = {
     type: 'strength',
+    displayName: 'Bola de fuerza',
     color: '#ff8c00',
     icon: '💪',
     targetBallType: 'strength',
+
+    describe() {
+        return 'Suma +1 bola de fuerza a tu inventario para siempre.';
+    },
 
     render(ctx, bonus, helpers) {
         const { getFontSize } = helpers;
@@ -268,9 +300,14 @@ const StrengthBonusBehavior = {
 // ============================================
 const BombBonusBehavior = {
     type: 'bombBall',
+    displayName: 'Bola bomba',
     color: '#f87171',
     icon: '💣',
     targetBallType: 'bomb',
+
+    describe() {
+        return 'Suma +1 bola bomba a tu inventario para siempre.';
+    },
 
     render(ctx, bonus, helpers) {
         const { getFontSize } = helpers;

@@ -8,7 +8,7 @@
  * solo necesitas registrar nuevos behaviors.
  */
 
-import { DIFFICULTY_SETTINGS, SPAWN_SCHEDULE, COLS, SHOOT_DELAY, MAX_BALLS_ON_SCREEN, FAST_SPEED_MULTIPLIER, BASE_BALL_RADIUS, BALL_SPEED, COMBO_BALLS_PER, COMBO_MAX_REWARD, OVERDRIVE_MAX, BOSS_INTERVAL, BOSS_HP_MULTIPLIER, STARTING_SHIELDS } from './config.js';
+import { DIFFICULTY_SETTINGS, SPAWN_SCHEDULE, COLS, SHOOT_DELAY, MAX_BALLS_ON_SCREEN, FAST_SPEED_MULTIPLIER, BASE_BALL_RADIUS, BALL_SPEED, COMBO_BALLS_PER, COMBO_MAX_REWARD, OVERDRIVE_MAX, BOSS_INTERVAL, BOSS_HP_MULTIPLIER, STARTING_SHIELDS, SHIELD_BURN_ROWS, BALL_BONUS_SCALE_TURNS, HP_LOG_FACTOR } from './config.js';
 import { getWidth, getHeight, getCellSize, getLeftBorder, getTopOffset, getBottomLine, getScale, getBallRadius } from './rendering.js';
 import { updateBalls, updateParticles, createParticles, addFloatingText } from './physics.js';
 import { BrickRegistry, BallRegistry, BonusRegistry } from './js/behaviors/index.js';
@@ -121,9 +121,9 @@ export function getScheduledSpawns(turn, difficulty) {
     if (!result.ballBonus) {
         const ballCfg = schedule.ballBonuses.ball;
         if (ballCfg && turn >= ballCfg.first && (turn - ballCfg.first) % ballCfg.interval === 0) {
-            // El valor escala con el turno (+1 cada 25 turnos) para que el
-            // poder de fuego no quede atrás de la curva de HP en runs largas.
-            result.ballBonus = { type: 'ball', value: 1 + Math.floor(turn / 25) };
+            // El valor escala con el turno para que el poder de fuego no
+            // quede atrás de la curva de HP en runs largas.
+            result.ballBonus = { type: 'ball', value: 1 + Math.floor(turn / BALL_BONUS_SCALE_TURNS) };
         }
     }
 
@@ -198,9 +198,9 @@ export function generateNewRow() {
     const turn = gameState.turn;
     const config = difficultyConfig;
 
-    // La curva de HP usa un factor logarítmico suave (0.18) para que el
-    // poder de fuego del jugador pueda seguirle el ritmo en runs largas.
-    const baseHP = Math.floor(turn * (1 + Math.log(turn + 1) * 0.18) * config.hpMultiplier);
+    // La curva de HP usa un factor logarítmico suave para que el poder
+    // de fuego del jugador pueda seguirle el ritmo en runs largas.
+    const baseHP = Math.floor(turn * (1 + Math.log(turn + 1) * HP_LOG_FACTOR) * config.hpMultiplier);
     const density = Math.min(config.densityBase + turn * config.densityGrowth, config.maxDensity);
 
     const isBossTurn = turn >= BOSS_INTERVAL && turn % BOSS_INTERVAL === 0;
@@ -357,7 +357,7 @@ export function moveBricksDown() {
     if (crossed) {
         if (gameState.shieldCharges > 0) {
             gameState.shieldCharges--;
-            const burnLine = dangerLine - cellSize * 2;
+            const burnLine = dangerLine - cellSize * SHIELD_BURN_ROWS;
             const burned = gameState.bricks.filter(b => b.y + b.height > burnLine);
             for (const b of burned) {
                 createParticles(b.x + b.width / 2, b.y + b.height / 2, '#38bdf8', 10);

@@ -11,7 +11,7 @@
  */
 
 import { gameState, endTurn, events } from './game.js';
-import { COLS, FAST_SPEED_MULTIPLIER, BALL_SPEED, OVERDRIVE_MAX, OVERDRIVE_MULTIPLIER, MAX_SHIELDS } from './config.js';
+import { COLS, FAST_SPEED_MULTIPLIER, BALL_SPEED, OVERDRIVE_MAX, OVERDRIVE_MULTIPLIER, MAX_SHIELDS, LASER_MAXHP_RATIO, LASER_CURRENT_HP_RATIO } from './config.js';
 import { getWidth, getHeight, getLeftBorder, getRightBorder, getTopOffset, getBottomLine, getCellSize, getBallRadius, getScale, getBrickColor } from './rendering.js';
 import { BrickRegistry, BallRegistry, BonusRegistry } from './js/behaviors/index.js';
 import { processPhysicsStep, simulateTrajectory } from './js/systems/CollisionSystem.js';
@@ -185,7 +185,10 @@ export function fireHorizontalLaser(ballY) {
     for (let brick of gameState.bricks) {
         const brickCenterY = brick.y + brick.height / 2;
         if (Math.abs(brickCenterY - targetY) < cellSize / 2) {
-            const damage = Math.max(Math.ceil(brick.maxHp * 0.5), Math.ceil(brick.hp * 0.6));
+            const damage = Math.max(
+                Math.ceil(brick.maxHp * LASER_MAXHP_RATIO),
+                Math.ceil(brick.hp * LASER_CURRENT_HP_RATIO)
+            );
 
             // Aplicar modificador de daño del behavior
             const behavior = BrickRegistry.get(brick.type);

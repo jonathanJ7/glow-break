@@ -19,9 +19,15 @@ import { circleRectOverlap } from '../systems/CollisionSystem.js';
 // ============================================
 const NormalBallBehavior = {
     type: 'normal',
+    displayName: 'Bola normal',
     color: '#fff',
     glowColor: null,
     damage: 1,
+
+    describe() {
+        return `Hace ${this.damage} de daño por golpe y rebota. Es la munición base: `
+            + 'consigues más con los bonus verdes "+N" y con las recompensas de combo.';
+    },
 
     render(ctx, ball, helpers) {
         const { getBallRadius } = helpers;
@@ -83,6 +89,7 @@ const NormalBallBehavior = {
 // ============================================
 const FireballBehavior = {
     type: 'fireball',
+    displayName: 'Bola de fuego',
     color: '#ff6b6b',
     glowColor: '#ff6b6b',
     damage: 1,
@@ -90,6 +97,12 @@ const FireballBehavior = {
     bgColor: 'rgba(255, 107, 107, 0.8)',
     textColor: 'white',
     showInInventoryHud: true,
+
+    describe() {
+        return `Atraviesa los bloques en lugar de rebotar, haciendo ${this.damage} de daño a cada uno. `
+            + 'Daña cada bloque una sola vez mientras lo cruza; si sale y vuelve a entrar '
+            + '(por rebote en una pared), lo daña de nuevo. Solo rebota contra paredes y techo.';
+    },
 
     render(ctx, ball, helpers) {
         const { getBallRadius } = helpers;
@@ -176,6 +189,7 @@ const FireballBehavior = {
 // ============================================
 const SplitterBehavior = {
     type: 'splitter',
+    displayName: 'Bola divisora',
     color: '#f9ed69',
     glowColor: '#f9ed69',
     damage: 1,
@@ -186,6 +200,14 @@ const SplitterBehavior = {
     bgColor: 'rgba(249, 237, 105, 0.8)',
     textColor: '#333',
     showInInventoryHud: true,
+
+    describe() {
+        const deg = Math.round(this.splitAngles[1] * 180 / Math.PI);
+        return `Rebota haciendo ${this.damage} de daño. En su impacto número ${this.hitsToSplit} `
+            + `contra un bloque desaparece y se divide en ${this.splitAngles.length} bolas divisoras `
+            + `(a ±${deg}° de su dirección), cada una con el contador de impactos en 0 — `
+            + 'así que cada hija también puede dividirse. En un buen turno una sola divisora se multiplica varias veces.';
+    },
 
     render(ctx, ball, helpers) {
         const { getBallRadius } = helpers;
@@ -276,6 +298,7 @@ const SplitterBehavior = {
 // ============================================
 const StrengthBallBehavior = {
     type: 'strength',
+    displayName: 'Bola de fuerza',
     color: '#ff8c00',
     glowColor: '#ff8c00',
     damage: 3,
@@ -283,6 +306,10 @@ const StrengthBallBehavior = {
     bgColor: 'rgba(255, 140, 0, 0.8)',
     textColor: 'white',
     showInInventoryHud: true,
+
+    describe() {
+        return `Igual que la bola normal pero hace ${this.damage} de daño por golpe.`;
+    },
 
     render(ctx, ball, helpers) {
         const { getBallRadius } = helpers;
@@ -330,6 +357,7 @@ const StrengthBallBehavior = {
 // ============================================
 const BombBallBehavior = {
     type: 'bomb',
+    displayName: 'Bola bomba',
     color: '#f87171',
     glowColor: '#fb923c',
     damage: 2,
@@ -339,6 +367,13 @@ const BombBallBehavior = {
     bgColor: 'rgba(248, 113, 113, 0.8)',
     textColor: 'white',
     showInInventoryHud: true,
+
+    describe() {
+        return `Hace ${this.damage} de daño al bloque golpeado y rebota. Además, en CADA impacto `
+            + `genera una onda que daña a todos los bloques a menos de ${this.aoeRadiusCells} celdas `
+            + `con el ${Math.round(this.aoeMaxHpRatio * 100)}% del HP máximo del bloque golpeado (mínimo 1). `
+            + 'Como el daño de la onda escala con el HP de los bloques, sigue siendo útil en turnos altos.';
+    },
 
     render(ctx, ball, helpers) {
         const { getBallRadius } = helpers;

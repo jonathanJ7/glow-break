@@ -26,10 +26,24 @@ export const OVERDRIVE_MULTIPLIER = 2;
 export const BOSS_INTERVAL = 15;
 export const BOSS_HP_MULTIPLIER = 6;
 
+// Curva de HP: HP base del turno T = ⌊T × (1 + ln(T+1) × HP_LOG_FACTOR) × hpMultiplier⌋
+export const HP_LOG_FACTOR = 0.18;
+
 // Escudos: cargas de segunda oportunidad. Al llegar los ladrillos a la
-// línea, un escudo quema las 2 filas de abajo en vez de game over.
+// línea, un escudo quema las SHIELD_BURN_ROWS filas de abajo en vez de
+// game over.
 export const STARTING_SHIELDS = 1;
 export const MAX_SHIELDS = 3;
+export const SHIELD_BURN_ROWS = 2;
+
+// El bonus de bolas normales escala: +1 bola extra por cada
+// BALL_BONUS_SCALE_TURNS turnos transcurridos.
+export const BALL_BONUS_SCALE_TURNS = 25;
+
+// Láser horizontal: daña a cada bloque de la fila con el mayor entre
+// (maxHp × LASER_MAXHP_RATIO) y (hp actual × LASER_CURRENT_HP_RATIO).
+export const LASER_MAXHP_RATIO = 0.5;
+export const LASER_CURRENT_HP_RATIO = 0.6;
 
 // ====================================
 // COLORES Y ESTILOS

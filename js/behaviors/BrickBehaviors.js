@@ -14,12 +14,20 @@
  */
 
 import { BrickRegistry } from '../core/Registry.js';
+import { BOSS_INTERVAL, BOSS_HP_MULTIPLIER, MAX_SHIELDS } from '../../config.js';
 
 // ============================================
 // BASE BEHAVIOR - Comportamiento por defecto
 // ============================================
 const NormalBrickBehavior = {
     type: 'normal',
+    displayName: 'Normal',
+    guideIcon: '⬜',
+
+    describe() {
+        return 'Bloque estándar sin efectos especiales. El número que muestra es su HP: '
+            + 'pierde exactamente el daño de cada golpe y se destruye al llegar a 0.';
+    },
 
     /**
      * Renderiza el bloque en el canvas
@@ -69,8 +77,16 @@ const NormalBrickBehavior = {
 // ============================================
 const ExplosiveBrickBehavior = {
     type: 'explosive',
+    displayName: 'Explosivo',
     emoji: '💥',
     overlayColor: 'rgba(255,100,100,0.3)',
+    explosionRadiusCells: 1.5,
+
+    describe() {
+        return 'Al destruirse explota y daña a todos los bloques a menos de '
+            + `${this.explosionRadiusCells} celdas de distancia. El daño de la explosión `
+            + 'es igual al HP máximo del bloque explosivo (un blindado cercano recibe la mitad).';
+    },
 
     render(ctx, brick, helpers) {
         const { getFontSize, getScale } = helpers;
@@ -98,7 +114,7 @@ const ExplosiveBrickBehavior = {
         createParticles(centerX, centerY, '#ff6b6b', 16);
 
         // Dañar bloques adyacentes
-        const explosionRadius = cellSize * 1.5;
+        const explosionRadius = cellSize * this.explosionRadiusCells;
         const damagedBricks = [];
 
         for (const other of gameState.bricks) {
@@ -139,7 +155,15 @@ const ExplosiveBrickBehavior = {
 // ============================================
 const ArmoredBrickBehavior = {
     type: 'armored',
+    displayName: 'Blindado',
+    guideIcon: '🔲',
     damageReduction: 0.5,
+
+    describe() {
+        return `Recibe un ${Math.round((1 - this.damageReduction) * 100)}% menos de daño `
+            + 'de TODAS las fuentes (bolas, explosiones, ondas expansivas y láser). '
+            + 'Se reconoce por el borde interior blanco grueso.';
+    },
 
     render(ctx, brick, helpers) {
         // Borde interno grueso
@@ -177,8 +201,19 @@ const ArmoredBrickBehavior = {
 // ============================================
 const SpawnerBrickBehavior = {
     type: 'spawner',
+    displayName: 'Spawner',
     emoji: '👾',
     overlayColor: 'rgba(168, 85, 247, 0.3)',
+    minSpawn: 1,
+    maxSpawn: 2,
+    childHpRatio: 0.5,
+
+    describe() {
+        return `Al destruirse genera entre ${this.minSpawn} y ${this.maxSpawn} spawners nuevos `
+            + '(50% de probabilidad cada cantidad) en las celdas libres pegadas a él en su misma fila. '
+            + `Cada hijo nace con el ${Math.round(this.childHpRatio * 100)}% del HP máximo del padre. `
+            + 'Si no hay celdas libres al lado, no genera nada.';
+    },
 
     render(ctx, brick, helpers) {
         const { getFontSize, getScale } = helpers;
@@ -203,7 +238,7 @@ const SpawnerBrickBehavior = {
 
         createParticles(brick.x + brick.width/2, brick.y + brick.height/2, '#a855f7', 12);
 
-        const spawnCount = 1 + Math.floor(Math.random() * 2);
+        const spawnCount = this.minSpawn + Math.floor(Math.random() * (this.maxSpawn - this.minSpawn + 1));
         const nearbyPositions = [];
 
         for (let dc = -1; dc <= 1; dc++) {
@@ -228,7 +263,7 @@ const SpawnerBrickBehavior = {
             const pos = nearbyPositions[idx];
             nearbyPositions.splice(idx, 1);
 
-            const hp = Math.floor(brick.maxHp * 0.5);
+            const hp = Math.floor(brick.maxHp * this.childHpRatio);
             spawnedBricks.push({
                 x: pos.x,
                 y: pos.y,
@@ -267,9 +302,16 @@ const SpawnerBrickBehavior = {
 // ============================================
 const RegeneratorBrickBehavior = {
     type: 'regenerator',
+    displayName: 'Regenerador',
     emoji: '💚',
     overlayColor: 'rgba(34, 197, 94, 0.3)',
     healRatio: 0.9,
+
+    describe() {
+        return `Al final de cada turno se cura hasta el ${Math.round(this.healRatio * 100)}% `
+            + 'del HP que tenía al INICIO de ese turno (si ya está por encima, no cambia). '
+            + 'En la práctica: o lo destruyes dentro del mismo turno, o recupera casi todo el daño.';
+    },
 
     render(ctx, brick, helpers) {
         const { getFontSize, getScale } = helpers;
@@ -325,8 +367,15 @@ const RegeneratorBrickBehavior = {
 // ============================================
 const GoldBrickBehavior = {
     type: 'gold',
+    displayName: 'Dorado',
     emoji: '🪙',
     overlayColor: 'rgba(251, 191, 36, 0.45)',
+
+    describe() {
+        const hpFactor = this.getConfig().hpFactor;
+        return `Aparece con el ${Math.round(hpFactor * 100)}% del HP que le tocaría a un bloque `
+            + 'normal en ese turno. Al destruirlo suma +1 bola normal a tu inventario al instante.';
+    },
 
     render(ctx, brick, helpers) {
         const { getFontSize, getScale } = helpers;
@@ -374,8 +423,31 @@ const GoldBrickBehavior = {
 // ============================================
 const MysteryBrickBehavior = {
     type: 'mystery',
+    displayName: 'Misterioso',
     emoji: '🎁',
     overlayColor: 'rgba(236, 72, 153, 0.35)',
+
+    // Ruleta de premios: probabilidad de cada uno = weight / suma de weights.
+    // La guía del juego lee esta tabla, así que label debe describir el
+    // premio con exactitud.
+    rewardTable: [
+        { weight: 3, label: '+2 bolas normales', flyText: '🎁 +2 🔵', color: '#4ecca3', apply: (h) => h.addBallsToInventory('normal', 2) },
+        { weight: 2, label: '+1 bola de fuego', flyText: '🎁 +1 🔥', color: '#ff6b6b', apply: (h) => h.addBallsToInventory('fireball', 1) },
+        { weight: 2, label: '+1 bola de fuerza', flyText: '🎁 +1 💪', color: '#ff8c00', apply: (h) => h.addBallsToInventory('strength', 1) },
+        { weight: 1, label: '+1 bola divisora', flyText: '🎁 +1 💥', color: '#f9ed69', apply: (h) => h.addBallsToInventory('splitter', 1) },
+        { weight: 1, label: '+1 bola bomba', flyText: '🎁 +1 💣', color: '#f87171', apply: (h) => h.addBallsToInventory('bomb', 1) },
+        { weight: 2, label: 'láser horizontal inmediato', flyText: '🎁 ⚡ ¡LÁSER!', color: '#3b82f6', apply: (h, cx, cy) => h.fireHorizontalLaser(cy) },
+    ],
+
+    describe() {
+        const total = this.rewardTable.reduce((sum, r) => sum + r.weight, 0);
+        const hpFactor = this.getConfig().hpFactor;
+        const list = this.rewardTable
+            .map(r => `${r.label} (${Math.round((r.weight / total) * 100)}%)`)
+            .join(' · ');
+        return `Aparece con el ${Math.round(hpFactor * 100)}% del HP normal. `
+            + `Al destruirlo da exactamente uno de estos premios al azar: ${list}.`;
+    },
 
     render(ctx, brick, helpers) {
         const { getFontSize, getScale } = helpers;
@@ -392,28 +464,19 @@ const MysteryBrickBehavior = {
     },
 
     onDestroy(brick, gameState, helpers) {
-        const { createParticles, addBallsToInventory, addFloatingText, fireHorizontalLaser } = helpers;
+        const { createParticles, addFloatingText } = helpers;
         const cx = brick.x + brick.width / 2;
         const cy = brick.y + brick.height / 2;
 
         createParticles(cx, cy, '#ec4899', 14);
 
-        // Ruleta de premios
-        const rewards = [
-            { weight: 3, apply: () => { addBallsToInventory('normal', 2); addFloatingText(cx, cy, '🎁 +2 🔵', { color: '#4ecca3', size: 16 }); } },
-            { weight: 2, apply: () => { addBallsToInventory('fireball', 1); addFloatingText(cx, cy, '🎁 +1 🔥', { color: '#ff6b6b', size: 16 }); } },
-            { weight: 2, apply: () => { addBallsToInventory('strength', 1); addFloatingText(cx, cy, '🎁 +1 💪', { color: '#ff8c00', size: 16 }); } },
-            { weight: 1, apply: () => { addBallsToInventory('splitter', 1); addFloatingText(cx, cy, '🎁 +1 💥', { color: '#f9ed69', size: 16 }); } },
-            { weight: 1, apply: () => { addBallsToInventory('bomb', 1); addFloatingText(cx, cy, '🎁 +1 💣', { color: '#f87171', size: 16 }); } },
-            { weight: 2, apply: () => { fireHorizontalLaser(cy); addFloatingText(cx, cy, '🎁 ⚡ ¡LÁSER!', { color: '#3b82f6', size: 16 }); } },
-        ];
-
-        const totalWeight = rewards.reduce((sum, r) => sum + r.weight, 0);
+        const totalWeight = this.rewardTable.reduce((sum, r) => sum + r.weight, 0);
         let roll = Math.random() * totalWeight;
-        for (const reward of rewards) {
+        for (const reward of this.rewardTable) {
             roll -= reward.weight;
             if (roll <= 0) {
-                reward.apply();
+                reward.apply(helpers, cx, cy);
+                addFloatingText(cx, cy, reward.flyText, { color: reward.color, size: 16 });
                 break;
             }
         }
@@ -437,7 +500,20 @@ const MysteryBrickBehavior = {
 // ============================================
 const BossBrickBehavior = {
     type: 'boss',
+    displayName: 'Jefe',
     emoji: '👑',
+    shockRadiusCells: 3,
+    shockDamageRatio: 0.3,
+    lootBalls: 2,
+
+    describe() {
+        return `Aparece cada ${BOSS_INTERVAL} turnos exactos (turnos ${BOSS_INTERVAL}, ${BOSS_INTERVAL * 2}, `
+            + `${BOSS_INTERVAL * 3}...) ocupando 3 columnas; su fila no genera ningún otro bloque. `
+            + `Su HP es ${BOSS_HP_MULTIPLIER}× el HP base de ese turno y muestra una barra de vida. `
+            + `Al destruirlo: +${this.lootBalls} bolas normales, +1 escudo (máximo ${MAX_SHIELDS}) y una onda `
+            + `expansiva que daña a todos los bloques a menos de ${this.shockRadiusCells} celdas con el `
+            + `${Math.round(this.shockDamageRatio * 100)}% de su HP máximo. No aparece nunca por azar.`;
+    },
 
     render(ctx, brick, helpers) {
         const { getFontSize, getScale } = helpers;
@@ -488,11 +564,11 @@ const BossBrickBehavior = {
         addScreenShake(10);
 
         // Botín: bolas, un escudo, y onda expansiva que daña a los vecinos
-        addBallsToInventory('normal', 2);
+        addBallsToInventory('normal', this.lootBalls);
         addShieldCharge();
-        addFloatingText(cx, cy, '👑 ¡JEFE DERROTADO! +2🔵 +1🛡️', { color: '#ffd700', size: 20 });
+        addFloatingText(cx, cy, `👑 ¡JEFE DERROTADO! +${this.lootBalls}🔵 +1🛡️`, { color: '#ffd700', size: 20 });
 
-        const shockRadius = cellSize * 3;
+        const shockRadius = cellSize * this.shockRadiusCells;
         const damagedBricks = [];
         for (const other of gameState.bricks) {
             if (other === brick) continue;
@@ -501,7 +577,7 @@ const BossBrickBehavior = {
                 cy - (other.y + other.height / 2)
             );
             if (dist < shockRadius) {
-                damagedBricks.push({ brick: other, damage: Math.ceil(brick.maxHp * 0.3) });
+                damagedBricks.push({ brick: other, damage: Math.ceil(brick.maxHp * this.shockDamageRatio) });
             }
         }
 

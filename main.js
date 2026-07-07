@@ -1,6 +1,7 @@
 import { initCanvas, resizeCanvas, handleResize, draw } from './rendering.js';
 import { setupEventListeners } from './input.js';
 import { gameLoop } from './game.js';
+import { setupGuide } from './js/ui/Guide.js';
 
 // Initialize canvas
 initCanvas();
@@ -11,6 +12,9 @@ window.addEventListener('resize', handleResize);
 
 // Setup event listeners
 setupEventListeners();
+
+// Guía del juego (botón en el menú principal)
+setupGuide();
 
 // Game loop
 function animate() {
