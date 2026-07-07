@@ -321,6 +321,203 @@ const RegeneratorBrickBehavior = {
 };
 
 // ============================================
+// GOLD BRICK - Poco HP, da +1 bola al destruirlo
+// ============================================
+const GoldBrickBehavior = {
+    type: 'gold',
+    emoji: '🪙',
+    overlayColor: 'rgba(251, 191, 36, 0.45)',
+
+    render(ctx, brick, helpers) {
+        const { getFontSize, getScale } = helpers;
+
+        // Overlay dorado con brillo
+        ctx.shadowColor = '#fbbf24';
+        ctx.shadowBlur = 8;
+        ctx.fillStyle = this.overlayColor;
+        ctx.beginPath();
+        ctx.roundRect(brick.x + 2, brick.y + 2, brick.width, brick.height, 6);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        ctx.fillStyle = 'rgba(255,255,255,0.9)';
+        ctx.font = `${getFontSize(12)}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.fillText(this.emoji, brick.x + 2 + brick.width / 2, brick.y + 15 * getScale());
+    },
+
+    onDestroy(brick, gameState, helpers) {
+        const { createParticles, addBallsToInventory, addFloatingText } = helpers;
+        const cx = brick.x + brick.width / 2;
+        const cy = brick.y + brick.height / 2;
+
+        createParticles(cx, cy, '#fbbf24', 14);
+        addBallsToInventory('normal', 1);
+        addFloatingText(cx, cy, '+1 🔵', { color: '#fbbf24', size: 16 });
+
+        return null;
+    },
+
+    getConfig() {
+        return {
+            minTurn: 4,
+            category: 'helpful',
+            baseChance: 0.05,
+            hpFactor: 0.5, // La mitad de HP: es un premio, no un obstáculo
+            difficultyMultiplier: { easy: 1.0, medium: 1.0, hard: 1.2 },
+        };
+    }
+};
+
+// ============================================
+// MYSTERY BRICK - Premio aleatorio al destruirlo
+// ============================================
+const MysteryBrickBehavior = {
+    type: 'mystery',
+    emoji: '🎁',
+    overlayColor: 'rgba(236, 72, 153, 0.35)',
+
+    render(ctx, brick, helpers) {
+        const { getFontSize, getScale } = helpers;
+
+        ctx.fillStyle = this.overlayColor;
+        ctx.beginPath();
+        ctx.roundRect(brick.x + 2, brick.y + 2, brick.width, brick.height, 6);
+        ctx.fill();
+
+        ctx.fillStyle = 'rgba(255,255,255,0.9)';
+        ctx.font = `${getFontSize(12)}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.fillText(this.emoji, brick.x + 2 + brick.width / 2, brick.y + 15 * getScale());
+    },
+
+    onDestroy(brick, gameState, helpers) {
+        const { createParticles, addBallsToInventory, addFloatingText, fireHorizontalLaser } = helpers;
+        const cx = brick.x + brick.width / 2;
+        const cy = brick.y + brick.height / 2;
+
+        createParticles(cx, cy, '#ec4899', 14);
+
+        // Ruleta de premios
+        const rewards = [
+            { weight: 3, apply: () => { addBallsToInventory('normal', 2); addFloatingText(cx, cy, '🎁 +2 🔵', { color: '#4ecca3', size: 16 }); } },
+            { weight: 2, apply: () => { addBallsToInventory('fireball', 1); addFloatingText(cx, cy, '🎁 +1 🔥', { color: '#ff6b6b', size: 16 }); } },
+            { weight: 2, apply: () => { addBallsToInventory('strength', 1); addFloatingText(cx, cy, '🎁 +1 💪', { color: '#ff8c00', size: 16 }); } },
+            { weight: 1, apply: () => { addBallsToInventory('splitter', 1); addFloatingText(cx, cy, '🎁 +1 💥', { color: '#f9ed69', size: 16 }); } },
+            { weight: 1, apply: () => { addBallsToInventory('bomb', 1); addFloatingText(cx, cy, '🎁 +1 💣', { color: '#f87171', size: 16 }); } },
+            { weight: 2, apply: () => { fireHorizontalLaser(cy); addFloatingText(cx, cy, '🎁 ⚡ ¡LÁSER!', { color: '#3b82f6', size: 16 }); } },
+        ];
+
+        const totalWeight = rewards.reduce((sum, r) => sum + r.weight, 0);
+        let roll = Math.random() * totalWeight;
+        for (const reward of rewards) {
+            roll -= reward.weight;
+            if (roll <= 0) {
+                reward.apply();
+                break;
+            }
+        }
+
+        return null;
+    },
+
+    getConfig() {
+        return {
+            minTurn: 6,
+            category: 'helpful',
+            baseChance: 0.04,
+            hpFactor: 0.75,
+            difficultyMultiplier: { easy: 1.0, medium: 1.0, hard: 1.25 },
+        };
+    }
+};
+
+// ============================================
+// BOSS BRICK - Jefe de 3 columnas cada 15 turnos
+// ============================================
+const BossBrickBehavior = {
+    type: 'boss',
+    emoji: '👑',
+
+    render(ctx, brick, helpers) {
+        const { getFontSize, getScale } = helpers;
+
+        // Aura pulsante
+        const pulse = 0.5 + Math.sin(performance.now() * 0.004) * 0.3;
+        ctx.shadowColor = '#e94560';
+        ctx.shadowBlur = 18 * pulse;
+        ctx.fillStyle = 'rgba(233, 69, 96, 0.35)';
+        ctx.beginPath();
+        ctx.roundRect(brick.x + 2, brick.y + 2, brick.width, brick.height, 6);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        ctx.strokeStyle = `rgba(255, 215, 0, ${0.5 + pulse * 0.4})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.roundRect(brick.x + 2, brick.y + 2, brick.width, brick.height, 6);
+        ctx.stroke();
+
+        // Corona
+        ctx.fillStyle = 'rgba(255,255,255,0.95)';
+        ctx.font = `${getFontSize(14)}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.fillText(this.emoji, brick.x + 2 + brick.width / 2, brick.y + 15 * getScale());
+
+        // Barra de vida sobre el jefe
+        const barW = brick.width - 10;
+        const barH = 4;
+        const barX = brick.x + 7;
+        const barY = brick.y - 4;
+        const ratio = Math.max(0, brick.hp / brick.maxHp);
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(barX, barY, barW, barH);
+        ctx.fillStyle = ratio > 0.5 ? '#4ecca3' : ratio > 0.25 ? '#f9ed69' : '#e94560';
+        ctx.fillRect(barX, barY, barW * ratio, barH);
+    },
+
+    onDestroy(brick, gameState, helpers) {
+        const { getCellSize, createParticles, addBallsToInventory, addShieldCharge, addFloatingText, addScreenShake } = helpers;
+        const cellSize = getCellSize();
+        const cx = brick.x + brick.width / 2;
+        const cy = brick.y + brick.height / 2;
+
+        // Fiesta de partículas + temblor
+        createParticles(cx, cy, '#ffd700', 24);
+        createParticles(cx, cy, '#e94560', 16);
+        addScreenShake(10);
+
+        // Botín: bolas, un escudo, y onda expansiva que daña a los vecinos
+        addBallsToInventory('normal', 2);
+        addShieldCharge();
+        addFloatingText(cx, cy, '👑 ¡JEFE DERROTADO! +2🔵 +1🛡️', { color: '#ffd700', size: 20 });
+
+        const shockRadius = cellSize * 3;
+        const damagedBricks = [];
+        for (const other of gameState.bricks) {
+            if (other === brick) continue;
+            const dist = Math.hypot(
+                cx - (other.x + other.width / 2),
+                cy - (other.y + other.height / 2)
+            );
+            if (dist < shockRadius) {
+                damagedBricks.push({ brick: other, damage: Math.ceil(brick.maxHp * 0.3) });
+            }
+        }
+
+        return { damagedBricks };
+    },
+
+    getConfig() {
+        return {
+            minTurn: 0,
+            category: 'boss',
+            baseChance: 0, // Nunca sale por azar: lo coloca generateNewRow en turnos de jefe
+        };
+    }
+};
+
+// ============================================
 // REGISTRO DE TODOS LOS TIPOS
 // ============================================
 BrickRegistry
@@ -329,7 +526,10 @@ BrickRegistry
     .register('explosive', ExplosiveBrickBehavior)
     .register('armored', ArmoredBrickBehavior)
     .register('spawner', SpawnerBrickBehavior)
-    .register('regenerator', RegeneratorBrickBehavior);
+    .register('regenerator', RegeneratorBrickBehavior)
+    .register('gold', GoldBrickBehavior)
+    .register('mystery', MysteryBrickBehavior)
+    .register('boss', BossBrickBehavior);
 
 // Exportar para uso directo si es necesario
 export {
@@ -337,7 +537,10 @@ export {
     ExplosiveBrickBehavior,
     ArmoredBrickBehavior,
     SpawnerBrickBehavior,
-    RegeneratorBrickBehavior
+    RegeneratorBrickBehavior,
+    GoldBrickBehavior,
+    MysteryBrickBehavior,
+    BossBrickBehavior
 };
 
 export default BrickRegistry;

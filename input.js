@@ -245,6 +245,13 @@ function setupTurnSwipeSelector() {
 
     let currentValue = parseInt(hiddenInput.value) || 1;
     let dragging = false;
+
+    // Contrato programático: setear .value y disparar input/change en el
+    // hidden input se comporta como si el usuario eligiera ese turno
+    // (clamp incluido). Lo usan los tests y cualquier automatización.
+    const syncFromInput = () => setValue(parseInt(hiddenInput.value) || 1);
+    hiddenInput.addEventListener('input', syncFromInput);
+    hiddenInput.addEventListener('change', syncFromInput);
     let startX = 0;
     let accumulated = 0;
     let lastVelocity = 0;

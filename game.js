@@ -8,9 +8,9 @@
  * solo necesitas registrar nuevos behaviors.
  */
 
-import { DIFFICULTY_SETTINGS, SPAWN_SCHEDULE, COLS, SHOOT_DELAY, MAX_BALLS_ON_SCREEN, FAST_SPEED_MULTIPLIER, BASE_BALL_RADIUS, BALL_SPEED } from './config.js';
+import { DIFFICULTY_SETTINGS, SPAWN_SCHEDULE, COLS, SHOOT_DELAY, MAX_BALLS_ON_SCREEN, FAST_SPEED_MULTIPLIER, BASE_BALL_RADIUS, BALL_SPEED, COMBO_BALLS_PER, COMBO_MAX_REWARD, OVERDRIVE_MAX, BOSS_INTERVAL, BOSS_HP_MULTIPLIER, STARTING_SHIELDS } from './config.js';
 import { getWidth, getHeight, getCellSize, getLeftBorder, getTopOffset, getBottomLine, getScale, getBallRadius } from './rendering.js';
-import { updateBalls, updateParticles, createParticles } from './physics.js';
+import { updateBalls, updateParticles, createParticles, addFloatingText } from './physics.js';
 import { BrickRegistry, BallRegistry, BonusRegistry } from './js/behaviors/index.js';
 
 // ====================================
@@ -68,7 +68,14 @@ export let gameState = {
     gameOver: false,
     gameStarted: false,
     showInstructions: true,
-    speedMultiplier: 1
+    speedMultiplier: 1,
+    // Mecánicas de diversión
+    combo: 0,               // Ladrillos destruidos este turno
+    overdriveCharge: 0,     // 0..OVERDRIVE_MAX; lleno = próximo turno x2
+    overdriveActive: false, // Este turno las bolas hacen daño x2
+    shieldCharges: STARTING_SHIELDS, // Segundas oportunidades
+    floatingTexts: [],      // Textos flotantes de feedback
+    shake: 0                // Intensidad de screen shake
 };
 
 export let currentDifficulty = 'easy';
@@ -114,7 +121,9 @@ export function getScheduledSpawns(turn, difficulty) {
     if (!result.ballBonus) {
         const ballCfg = schedule.ballBonuses.ball;
         if (ballCfg && turn >= ballCfg.first && (turn - ballCfg.first) % ballCfg.interval === 0) {
-            result.ballBonus = { type: 'ball', value: 1 };
+            // El valor escala con el turno (+1 cada 25 turnos) para que el
+            // poder de fuego no quede atrás de la curva de HP en runs largas.
+            result.ballBonus = { type: 'ball', value: 1 + Math.floor(turn / 25) };
         }
     }
 
@@ -189,62 +198,90 @@ export function generateNewRow() {
     const turn = gameState.turn;
     const config = difficultyConfig;
 
-    const baseHP = Math.floor(turn * (1 + Math.log(turn + 1) * 0.25) * config.hpMultiplier);
+    // La curva de HP usa un factor logarítmico suave (0.18) para que el
+    // poder de fuego del jugador pueda seguirle el ritmo en runs largas.
+    const baseHP = Math.floor(turn * (1 + Math.log(turn + 1) * 0.18) * config.hpMultiplier);
     const density = Math.min(config.densityBase + turn * config.densityGrowth, config.maxDensity);
 
-    const isReinforcedRow = config.reinforcedRows && turn % 10 === 0;
-    const rowHpMultiplier = isReinforcedRow ? 2.0 : 1.0;
+    const isBossTurn = turn >= BOSS_INTERVAL && turn % BOSS_INTERVAL === 0;
 
-    // Paso 1: generar ladrillos (posición aleatoria, tipo probabilístico)
-    for (let col = 0; col < COLS; col++) {
-        if (Math.random() < density) {
-            const hpVariation = config.hpVariationMin + Math.random() * (config.hpVariationMax - config.hpVariationMin);
-            const hp = Math.max(1, Math.floor(baseHP * hpVariation * rowHpMultiplier));
+    if (isBossTurn) {
+        // Turno de jefe: un único ladrillo de 3 columnas con mucho HP.
+        // La fila queda libre alrededor para dar respiro al jugador.
+        const startCol = Math.floor(Math.random() * (COLS - 2));
+        const bossHp = Math.max(10, Math.floor(baseHP * BOSS_HP_MULTIPLIER));
+        gameState.bricks.push({
+            x: leftBorder + startCol * cellSize,
+            y: topOffset,
+            width: cellSize * 3 - 4,
+            height: cellSize - 4,
+            hp: bossHp,
+            maxHp: bossHp,
+            col: startCol,
+            type: 'boss',
+            isReinforced: false
+        });
+    } else {
+        const isReinforcedRow = config.reinforcedRows && turn % 10 === 0;
+        const rowHpMultiplier = isReinforcedRow ? 2.0 : 1.0;
 
-            let type = BrickRegistry.defaultType;
-            const specialRoll = Math.random();
-            let cumulativeProbability = 0;
+        // Paso 1: generar ladrillos (posición aleatoria, tipo probabilístico)
+        for (let col = 0; col < COLS; col++) {
+            if (Math.random() < density) {
+                const hpVariation = config.hpVariationMin + Math.random() * (config.hpVariationMax - config.hpVariationMin);
+                let hp = Math.max(1, Math.floor(baseHP * hpVariation * rowHpMultiplier));
 
-            for (const [brickType, behavior] of BrickRegistry.getAll()) {
-                if (brickType === BrickRegistry.defaultType) continue;
+                let type = BrickRegistry.defaultType;
+                const specialRoll = Math.random();
+                let cumulativeProbability = 0;
 
-                const brickConfig = behavior.getConfig();
-                const baseChance = brickConfig.baseChance || 0;
-                const mult = brickConfig.difficultyMultiplier?.[currentDifficulty] ?? 1;
-                const chance = baseChance * mult;
+                for (const [brickType, behavior] of BrickRegistry.getAll()) {
+                    if (brickType === BrickRegistry.defaultType) continue;
 
-                if (chance <= 0) continue;
-                if (turn <= (brickConfig.minTurn || 0)) continue;
+                    const brickConfig = behavior.getConfig();
+                    const baseChance = brickConfig.baseChance || 0;
+                    const mult = brickConfig.difficultyMultiplier?.[currentDifficulty] ?? 1;
+                    const chance = baseChance * mult;
 
-                const threshold = cumulativeProbability + chance;
-                if (specialRoll >= cumulativeProbability && specialRoll < threshold) {
-                    type = brickType;
-                    break;
+                    if (chance <= 0) continue;
+                    if (turn <= (brickConfig.minTurn || 0)) continue;
+
+                    const threshold = cumulativeProbability + chance;
+                    if (specialRoll >= cumulativeProbability && specialRoll < threshold) {
+                        type = brickType;
+                        break;
+                    }
+                    cumulativeProbability = threshold;
                 }
-                cumulativeProbability = threshold;
+
+                // Algunos tipos (ej: dorado) tienen menos HP que la base
+                const hpFactor = BrickRegistry.get(type).getConfig().hpFactor;
+                if (hpFactor) {
+                    hp = Math.max(1, Math.floor(hp * hpFactor));
+                }
+
+                gameState.bricks.push({
+                    x: leftBorder + col * cellSize,
+                    y: topOffset,
+                    width: cellSize - 4,
+                    height: cellSize - 4,
+                    hp: hp,
+                    maxHp: hp,
+                    col: col,
+                    type: type,
+                    isReinforced: isReinforcedRow
+                });
             }
-
-            gameState.bricks.push({
-                x: leftBorder + col * cellSize,
-                y: topOffset,
-                width: cellSize - 4,
-                height: cellSize - 4,
-                hp: hp,
-                maxHp: hp,
-                col: col,
-                type: type,
-                isReinforced: isReinforcedRow
-            });
         }
-    }
 
-    // Asegurar que siempre haya al menos una columna libre en la fila
-    const topOffset0 = topOffset;
-    const newRowBricks = gameState.bricks.filter(b => b.y === topOffset0);
-    if (newRowBricks.length >= COLS) {
-        const removeIdx = Math.floor(Math.random() * newRowBricks.length);
-        const toRemove = newRowBricks[removeIdx];
-        gameState.bricks.splice(gameState.bricks.indexOf(toRemove), 1);
+        // Asegurar que siempre haya al menos una columna libre en la fila
+        const topOffset0 = topOffset;
+        const newRowBricks = gameState.bricks.filter(b => b.y === topOffset0);
+        if (newRowBricks.length >= COLS) {
+            const removeIdx = Math.floor(Math.random() * newRowBricks.length);
+            const toRemove = newRowBricks[removeIdx];
+            gameState.bricks.splice(gameState.bricks.indexOf(toRemove), 1);
+        }
     }
 
     // Paso 2: colocar bonuses deterministas según el schedule
@@ -279,9 +316,16 @@ export function generateNewRow() {
 function findEmptyColumn() {
     const cellSize = getCellSize();
     const topOffset = getTopOffset();
-    const occupiedCols = new Set(gameState.bricks
-        .filter(b => b.y < topOffset + cellSize)
-        .map(b => b.col));
+    // Un ladrillo puede ocupar varias columnas (jefes son 3 de ancho),
+    // así que marcamos todas las columnas que cubre su ancho.
+    const occupiedCols = new Set();
+    for (const b of gameState.bricks) {
+        if (b.y >= topOffset + cellSize) continue;
+        const colSpan = Math.max(1, Math.round((b.width + 4) / cellSize));
+        for (let c = b.col; c < b.col + colSpan; c++) {
+            occupiedCols.add(c);
+        }
+    }
 
     const bonusCols = new Set(gameState.bonuses
         .filter(b => b.y < topOffset + cellSize)
@@ -301,11 +345,28 @@ function findEmptyColumn() {
 
 export function moveBricksDown() {
     const cellSize = getCellSize();
+    const dangerLine = getBottomLine() - 10;
 
     for (let brick of gameState.bricks) {
         brick.y += cellSize;
+    }
 
-        if (brick.y + brick.height > getBottomLine() - 10) {
+    // ¿Alguna fila cruzó la línea? Con escudo disponible, se consume y
+    // quema las 2 filas de abajo (segunda oportunidad). Sin escudo: fin.
+    const crossed = gameState.bricks.some(b => b.y + b.height > dangerLine);
+    if (crossed) {
+        if (gameState.shieldCharges > 0) {
+            gameState.shieldCharges--;
+            const burnLine = dangerLine - cellSize * 2;
+            const burned = gameState.bricks.filter(b => b.y + b.height > burnLine);
+            for (const b of burned) {
+                createParticles(b.x + b.width / 2, b.y + b.height / 2, '#38bdf8', 10);
+            }
+            gameState.bricks = gameState.bricks.filter(b => b.y + b.height <= burnLine);
+            addFloatingText(getWidth() / 2, dangerLine - cellSize * 2.5, '🛡️ ¡ESCUDO!', { color: '#38bdf8', size: 22 });
+            gameState.shake = Math.max(gameState.shake, 6);
+            updateUI();
+        } else {
             endGame();
             return;
         }
@@ -332,6 +393,13 @@ export function startShooting() {
     gameState.ballsLanded = 0;
     gameState.firstBallLanded = false;
     gameState.showInstructions = false;
+
+    // Medidor lleno → este turno es OVERDRIVE: todas las bolas hacen x2
+    if (gameState.overdriveCharge >= OVERDRIVE_MAX) {
+        gameState.overdriveActive = true;
+        gameState.overdriveCharge = 0;
+        addFloatingText(getWidth() / 2, getBottomLine() - 80, '⚡ ¡OVERDRIVE x2!', { color: '#fbbf24', size: 24 });
+    }
     document.getElementById('instructions').style.opacity = '0';
     document.getElementById('skipBtn').style.display = 'block';
 
@@ -400,6 +468,24 @@ export function endTurn() {
     gameState.totalBallsToShoot = 0;
     gameState.shootingTime = 0;
     gameState.launchX = gameState.nextLaunchX || getWidth() / 2;
+
+    // Recompensa de combo: cada COMBO_BALLS_PER ladrillos destruidos este
+    // turno dan +1 bola normal. Premia los turnos explosivos y le da al
+    // jugador un motor de catch-up contra la curva de HP.
+    const comboReward = Math.min(COMBO_MAX_REWARD, Math.floor(gameState.combo / COMBO_BALLS_PER));
+    if (comboReward > 0) {
+        const defaultType = BallRegistry.defaultType;
+        gameState.ballInventory[defaultType] = (gameState.ballInventory[defaultType] || 0) + comboReward;
+        addFloatingText(
+            gameState.launchX,
+            getBottomLine() - 60,
+            `🎯 COMBO x${gameState.combo} → +${comboReward} bola${comboReward > 1 ? 's' : ''}`,
+            { color: '#4ecca3', size: 16 }
+        );
+    }
+    gameState.combo = 0;
+    gameState.overdriveActive = false;
+
     gameState.turn++;
     gameState.speedMultiplier = 1;
     document.getElementById('speedIndicator').style.display = 'none';
@@ -427,6 +513,22 @@ export function endTurn() {
 // FIN DE JUEGO
 // ====================================
 
+export function getBestTurn(difficulty) {
+    try {
+        return parseInt(localStorage.getItem('glowbreak_best_' + difficulty)) || 0;
+    } catch (e) {
+        return 0;
+    }
+}
+
+function saveBestTurn(difficulty, turn) {
+    try {
+        localStorage.setItem('glowbreak_best_' + difficulty, String(turn));
+    } catch (e) {
+        // localStorage no disponible (modo privado, etc.) — sin récords
+    }
+}
+
 export function endGame() {
     gameState.gameOver = true;
     gameState.speedMultiplier = 1;
@@ -434,6 +536,23 @@ export function endGame() {
     document.getElementById('skipBtn').style.display = 'none';
     document.getElementById('finalTurn').textContent = gameState.turn;
     document.getElementById('finalBalls').textContent = getTotalBalls();
+
+    // Récord por dificultad (solo cuenta si empezaste desde el turno 1,
+    // para que arrancar en turno 200 no infle el récord)
+    const prevBest = getBestTurn(currentDifficulty);
+    const isRecord = startingTurn === 1 && gameState.turn > prevBest;
+    if (isRecord) {
+        saveBestTurn(currentDifficulty, gameState.turn);
+    }
+    const bestLine = document.getElementById('bestTurnLine');
+    if (bestLine) {
+        const best = Math.max(prevBest, isRecord ? gameState.turn : 0);
+        bestLine.textContent = best > 0 ? `Récord: turno ${best}` : '';
+    }
+    const recordBadge = document.getElementById('newRecordBadge');
+    if (recordBadge) {
+        recordBadge.style.display = isRecord && prevBest > 0 ? 'block' : 'none';
+    }
 
     const diffLabel = document.getElementById('finalDifficulty');
     diffLabel.textContent = difficultyConfig.emoji + ' ' + difficultyConfig.name;
@@ -446,6 +565,10 @@ export function endGame() {
 export function updateUI() {
     document.getElementById('turnDisplay').textContent = gameState.turn;
     document.getElementById('ballDisplay').textContent = getTotalBalls();
+    const shieldDisplay = document.getElementById('shieldDisplay');
+    if (shieldDisplay) {
+        shieldDisplay.textContent = gameState.shieldCharges;
+    }
 }
 
 // physics.js emite 'inventoryChanged' al recolectar bonuses; aqui
@@ -501,6 +624,12 @@ export function initGame(difficulty) {
     gameState.gameStarted = true;
     gameState.showInstructions = true;
     gameState.speedMultiplier = 1;
+    gameState.combo = 0;
+    gameState.overdriveCharge = 0;
+    gameState.overdriveActive = false;
+    gameState.shieldCharges = STARTING_SHIELDS;
+    gameState.floatingTexts = [];
+    gameState.shake = 0;
 
     document.getElementById('mainMenu').style.display = 'none';
     document.getElementById('gameOver').style.display = 'none';

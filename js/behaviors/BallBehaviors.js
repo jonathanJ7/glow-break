@@ -326,6 +326,99 @@ const StrengthBallBehavior = {
 };
 
 // ============================================
+// BOMB - Daño en área en cada impacto
+// ============================================
+const BombBallBehavior = {
+    type: 'bomb',
+    color: '#f87171',
+    glowColor: '#fb923c',
+    damage: 2,
+    aoeRadiusCells: 1.5,
+    aoeMaxHpRatio: 0.15,
+    icon: '💣',
+    bgColor: 'rgba(248, 113, 113, 0.8)',
+    textColor: 'white',
+    showInInventoryHud: true,
+
+    render(ctx, ball, helpers) {
+        const { getBallRadius } = helpers;
+
+        ctx.shadowColor = this.glowColor;
+        ctx.shadowBlur = 10;
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.arc(ball.x, ball.y, getBallRadius(), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        // Mecha: puntito naranja parpadeante
+        const spark = Math.sin(performance.now() * 0.02) > 0;
+        if (spark) {
+            ctx.fillStyle = '#fbbf24';
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y - getBallRadius() * 0.7, getBallRadius() * 0.3, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    },
+
+    onCollision(ball, brick, gameState, helpers) {
+        const { getCellSize, createParticles, speedMultiplier } = helpers;
+        const cellSize = getCellSize();
+        const cx = brick.x + brick.width / 2;
+        const cy = brick.y + brick.height / 2;
+
+        if (speedMultiplier === 1) {
+            createParticles(cx, cy, '#fb923c', 10);
+        }
+
+        // Onda expansiva: daño proporcional al maxHp del ladrillo golpeado,
+        // así la bomba sigue siendo útil cuando los HP crecen a cientos.
+        const aoeDamage = Math.max(1, Math.ceil(brick.maxHp * this.aoeMaxHpRatio));
+        const aoeRadius = cellSize * this.aoeRadiusCells;
+        const damagedBricks = [];
+
+        for (const other of gameState.bricks) {
+            if (other === brick) continue;
+            const dist = Math.hypot(
+                cx - (other.x + other.width / 2),
+                cy - (other.y + other.height / 2)
+            );
+            if (dist < aoeRadius) {
+                damagedBricks.push({ brick: other, damage: aoeDamage });
+            }
+        }
+
+        return {
+            bounce: true,
+            damage: this.damage,
+            continueChecking: false,
+            damagedBricks
+        };
+    },
+
+    createBall(x, y, vx, vy) {
+        return {
+            x, y, vx, vy,
+            active: true,
+            hasGoneUp: false,
+            ballType: 'bomb',
+            damage: this.damage,
+            lifetime: 0,
+            state: {},
+        };
+    },
+
+    getConfig() {
+        return {
+            minTurn: 12,
+            inventoryKey: 'bomb',
+            bonusType: 'bombBall',
+            shootPriority: 25,
+        };
+    }
+};
+
+// ============================================
 // REGISTRO DE TODOS LOS TIPOS
 // ============================================
 BallRegistry
@@ -333,14 +426,16 @@ BallRegistry
     .register('normal', NormalBallBehavior)
     .register('fireball', FireballBehavior)
     .register('splitter', SplitterBehavior)
-    .register('strength', StrengthBallBehavior);
+    .register('strength', StrengthBallBehavior)
+    .register('bomb', BombBallBehavior);
 
 // Exportar para uso directo
 export {
     NormalBallBehavior,
     FireballBehavior,
     SplitterBehavior,
-    StrengthBallBehavior
+    StrengthBallBehavior,
+    BombBallBehavior
 };
 
 export default BallRegistry;

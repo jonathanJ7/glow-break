@@ -140,7 +140,8 @@ test.describe('Fireball passthrough — engine integration', () => {
     test('a turn with only a fireball in inventory still advances', async ({ page }) => {
         await loadGameWithHooks(page);
         // Start a real game
-        await page.locator('#easyBtn').evaluate((el) => /** @type {HTMLElement} */ (el).click());
+        await page.locator('.diff-chip[data-diff="easy"]').evaluate((el) => /** @type {HTMLElement} */ (el).click());
+        await page.locator('#playBtn').evaluate((el) => /** @type {HTMLElement} */ (el).click());
         await expect(page.locator('#ui')).toBeVisible({ timeout: 5_000 });
 
         // Force a fireball-only inventory

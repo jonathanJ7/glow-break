@@ -88,6 +88,7 @@
             <span>Turno: <b id="turnDisplay">1</b></span>
             <span id="difficultyBadge">FÁCIL</span>
             <span id="speedIndicator">⚡ 5x</span>
+            <span>🛡️ <b id="shieldDisplay">1</b></span>
             <span>Bolas: <b id="ballDisplay">1</b></span>
         </div>
 
@@ -102,15 +103,17 @@
         </div>
 
         <!-- Version indicator -->
-        <div id="versionInfo">v2.6.2</div>
+        <div id="versionInfo">v2.7.0</div>
 
         <!-- Game Over -->
         <div id="gameOver">
             <h1>¡Game Over!</h1>
+            <div id="newRecordBadge">🏆 ¡NUEVO RÉCORD!</div>
             <p>Llegaste al turno</p>
             <div class="stat" id="finalTurn">1</div>
             <p>Bolas conseguidas</p>
             <div class="stat" id="finalBalls">1</div>
+            <p id="bestTurnLine"></p>
             <div class="difficulty-label" id="finalDifficulty">FÁCIL</div>
             <div class="game-over-buttons">
                 <button id="restartBtn">🔄 Jugar de Nuevo</button>

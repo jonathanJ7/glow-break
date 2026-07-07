@@ -326,32 +326,19 @@ test.describe('OCP - Fase 5: data-driven inventory', () => {
         expect(result.total).toBeGreaterThan(0);
     });
 
-    test('a registered ball type with startingShare appears in calculateStartingBalls', async ({ page }) => {
+    test('calculateStartingBalls follows the deterministic spawn schedule', async ({ page }) => {
+        // Desde v2.5.0 el inventario inicial se deriva del SPAWN_SCHEDULE
+        // determinista (no de startingShare). En easy, fireballBall aparece
+        // en los turnos 8 y 18, y bombBall en el 12 — así que empezar en el
+        // turno 20 debe otorgar ambos tipos.
         await loadGameWithHooks(page);
-        await page.evaluate(() => {
-            window.__game.BallRegistry.register('phase5-share', {
-                type: 'phase5-share',
-                color: 'magenta',
-                damage: 1,
-                render() {},
-                createBall(x, y, vx, vy) {
-                    return {
-                        x, y, vx, vy,
-                        active: true, hasGoneUp: false,
-                        ballType: 'phase5-share',
-                        damage: 1, lifetime: 0, state: {},
-                    };
-                },
-                getConfig() {
-                    return { minTurn: 1, startingShare: 0.5 };
-                },
-            });
-        });
         const inv = await page.evaluate(() => {
             const r = window.__game.game.calculateStartingBalls(20, 'easy');
             return r.inventory || r;
         });
-        expect(inv['phase5-share']).toBeGreaterThan(0);
+        expect(inv.fireball).toBeGreaterThan(0);
+        expect(inv.bomb).toBeGreaterThan(0);
+        expect(inv.normal).toBeGreaterThan(1);
     });
 
     test('built-in fireballBall bonus declares targetBallType: fireball', async ({ page }) => {
@@ -389,7 +376,8 @@ test.describe('OCP - Fase 5: data-driven inventory', () => {
             });
         });
         // Start a game so gameState.ballInventory exists
-        await page.locator('#easyBtn').evaluate((el) => /** @type {HTMLElement} */ (el).click());
+        await page.locator('.diff-chip[data-diff="easy"]').evaluate((el) => /** @type {HTMLElement} */ (el).click());
+        await page.locator('#playBtn').evaluate((el) => /** @type {HTMLElement} */ (el).click());
         await page.waitForFunction(() => window.__game.gameState.gameStarted === true);
 
         const result = await page.evaluate(() => {
@@ -446,7 +434,8 @@ test.describe('OCP - Fase 5: data-driven inventory', () => {
                 getConfig: () => ({}),
             });
         });
-        await page.locator('#easyBtn').evaluate((el) => /** @type {HTMLElement} */ (el).click());
+        await page.locator('.diff-chip[data-diff="easy"]').evaluate((el) => /** @type {HTMLElement} */ (el).click());
+        await page.locator('#playBtn').evaluate((el) => /** @type {HTMLElement} */ (el).click());
         await page.waitForFunction(() => window.__game.gameState.gameStarted === true);
 
         const errors = [];
@@ -515,7 +504,8 @@ test.describe('OCP - Fase 6: per-type config in behaviors', () => {
         // Even at the lowest density rolls, the chance of zero spawns is
         // negligible. Removes the ~10% flake rate of starting at turn 1.
         await setStartingTurn(page, 30);
-        await page.locator('#easyBtn').evaluate((el) => /** @type {HTMLElement} */ (el).click());
+        await page.locator('.diff-chip[data-diff="easy"]').evaluate((el) => /** @type {HTMLElement} */ (el).click());
+        await page.locator('#playBtn').evaluate((el) => /** @type {HTMLElement} */ (el).click());
         await page.waitForFunction(() => window.__game.gameState.gameStarted === true);
         const found = await page.evaluate(() => {
             return window.__game.gameState.bricks.some(b => b.type === 'phase6-saturate');
@@ -555,7 +545,8 @@ test.describe('OCP - Fase 6: per-type config in behaviors', () => {
 test.describe('OCP - Fase 8: events emitter for UI', () => {
     test('events.on("inventoryChanged") fires when a bonus is collected', async ({ page }) => {
         await loadGameWithHooks(page);
-        await page.locator('#easyBtn').evaluate((el) => /** @type {HTMLElement} */ (el).click());
+        await page.locator('.diff-chip[data-diff="easy"]').evaluate((el) => /** @type {HTMLElement} */ (el).click());
+        await page.locator('#playBtn').evaluate((el) => /** @type {HTMLElement} */ (el).click());
         await page.waitForFunction(() => window.__game.gameState.gameStarted === true);
 
         const result = await page.evaluate(() => {
@@ -664,7 +655,8 @@ test.describe('OCP - Fase 9: end-to-end acceptance', () => {
         // Start at turn 30 so initGame pre-genera 6 rows (~42 celdas) y
         // el spawn del phantom-brick es estadisticamente garantizado.
         await setStartingTurn(page, 30);
-        await page.locator('#easyBtn').evaluate((el) => /** @type {HTMLElement} */ (el).click());
+        await page.locator('.diff-chip[data-diff="easy"]').evaluate((el) => /** @type {HTMLElement} */ (el).click());
+        await page.locator('#playBtn').evaluate((el) => /** @type {HTMLElement} */ (el).click());
         await page.waitForFunction(() => window.__game.gameState.gameStarted === true);
 
         const result = await page.evaluate(() => {
@@ -688,7 +680,8 @@ test.describe('OCP - Fase 9: end-to-end acceptance', () => {
 test.describe('OCP - Fase 7: frozen physicsHelpers + laser regression', () => {
     test('physics.fireHorizontalLaser sets gameState.laserEffect', async ({ page }) => {
         await loadGameWithHooks(page);
-        await page.locator('#easyBtn').evaluate((el) => /** @type {HTMLElement} */ (el).click());
+        await page.locator('.diff-chip[data-diff="easy"]').evaluate((el) => /** @type {HTMLElement} */ (el).click());
+        await page.locator('#playBtn').evaluate((el) => /** @type {HTMLElement} */ (el).click());
         await page.waitForFunction(() => window.__game.gameState.gameStarted === true);
 
         const result = await page.evaluate(() => {

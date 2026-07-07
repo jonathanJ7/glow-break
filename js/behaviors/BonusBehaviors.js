@@ -264,6 +264,56 @@ const StrengthBonusBehavior = {
 };
 
 // ============================================
+// BOMB BONUS - Agrega bolas bomba
+// ============================================
+const BombBonusBehavior = {
+    type: 'bombBall',
+    color: '#f87171',
+    icon: '💣',
+    targetBallType: 'bomb',
+
+    render(ctx, bonus, helpers) {
+        const { getFontSize } = helpers;
+
+        ctx.shadowColor = this.color;
+        ctx.shadowBlur = 10;
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.arc(bonus.x, bonus.y, bonus.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        // Icono
+        ctx.fillStyle = 'white';
+        ctx.font = `${getFontSize(14)}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(this.icon, bonus.x, bonus.y + 1);
+    },
+
+    onCollect(bonus, ball, gameState, helpers) {
+        const count = bonus.value || 1;
+        const key = this.targetBallType;
+        gameState.ballInventory[key] = (gameState.ballInventory[key] || 0) + count;
+
+        return {
+            inventoryChange: { [key]: count }
+        };
+    },
+
+    getText(bonus) {
+        return this.icon;
+    },
+
+    getConfig() {
+        return {
+            minTurn: 12,
+            category: 'ball'
+        };
+    }
+};
+
+// ============================================
 // REGISTRO DE TODOS LOS TIPOS
 // ============================================
 BonusRegistry
@@ -272,7 +322,8 @@ BonusRegistry
     .register('fireballBall', FireballBonusBehavior)
     .register('splitterBall', SplitterBonusBehavior)
     .register('horizontal', HorizontalLaserBehavior)
-    .register('strength', StrengthBonusBehavior);
+    .register('strength', StrengthBonusBehavior)
+    .register('bombBall', BombBonusBehavior);
 
 // Exportar para uso directo
 export {
@@ -280,7 +331,8 @@ export {
     FireballBonusBehavior,
     SplitterBonusBehavior,
     HorizontalLaserBehavior,
-    StrengthBonusBehavior
+    StrengthBonusBehavior,
+    BombBonusBehavior
 };
 
 export default BonusRegistry;
