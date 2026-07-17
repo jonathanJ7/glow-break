@@ -9,7 +9,7 @@
  */
 
 import { DIFFICULTY_SETTINGS, SPAWN_SCHEDULE, COLS, SHOOT_DELAY, MAX_BALLS_ON_SCREEN, FAST_SPEED_MULTIPLIER, BASE_BALL_RADIUS, BALL_SPEED, COMBO_BALLS_PER, COMBO_MAX_REWARD, OVERDRIVE_MAX, BOSS_INTERVAL, BOSS_HP_MULTIPLIER, STARTING_SHIELDS, SHIELD_BURN_ROWS, BALL_BONUS_SCALE_TURNS, HP_LOG_FACTOR } from './config.js';
-import { getWidth, getHeight, getCellSize, getLeftBorder, getTopOffset, getBottomLine, getScale, getBallRadius } from './rendering.js';
+import { getWidth, getHeight, getCellSize, getLeftBorder, getRightBorder, getTopOffset, getBottomLine, getScale, getBallRadius } from './rendering.js';
 import { updateBalls, updateParticles, createParticles, addFloatingText } from './physics.js';
 import { BrickRegistry, BallRegistry, BonusRegistry } from './js/behaviors/index.js';
 
@@ -410,7 +410,6 @@ export function startShooting() {
 
     // Crear cola de bolas usando los behaviors registrados.
     // El orden viene del registry: shootPriority asc.
-    const shootQueue = [];
     const inv = gameState.ballInventory;
     const maxBalls = MAX_BALLS_ON_SCREEN;
 
@@ -420,9 +419,27 @@ export function startShooting() {
             (BallRegistry.get(a).getConfig().shootPriority ?? 100) -
             (BallRegistry.get(b).getConfig().shootPriority ?? 100));
 
+    // Cuando el inventario supera el tope de bolas en pantalla, las
+    // especiales tienen prioridad de SELECCIÓN (son pocas y valiosas) y
+    // las normales rellenan los lugares restantes. El ORDEN de disparo
+    // sigue siendo por shootPriority. Sin esta reserva, en turnos altos
+    // las normales (prioridad más baja, se encolan primero) llenaban el
+    // tope y las especiales no se disparaban nunca.
+    const defaultType = BallRegistry.defaultType;
+    const selectedCounts = {};
+    let slotsLeft = maxBalls;
     for (const ballType of shootOrder) {
-        const count = inv[ballType] || 0;
-        for (let i = 0; i < count && shootQueue.length < maxBalls; i++) {
+        if (ballType === defaultType) continue;
+        const take = Math.min(inv[ballType] || 0, slotsLeft);
+        selectedCounts[ballType] = take;
+        slotsLeft -= take;
+    }
+    selectedCounts[defaultType] = Math.min(inv[defaultType] || 0, slotsLeft);
+
+    const shootQueue = [];
+    for (const ballType of shootOrder) {
+        const count = selectedCounts[ballType] || 0;
+        for (let i = 0; i < count; i++) {
             shootQueue.push(ballType);
         }
     }
@@ -506,6 +523,8 @@ export function endTurn() {
     if (!gameState.gameOver) {
         generateNewRow();
         updateUI();
+        // Punto de guardado: inicio de turno, sin bolas en vuelo.
+        saveGame();
     }
 }
 
@@ -532,6 +551,8 @@ function saveBestTurn(difficulty, turn) {
 export function endGame() {
     gameState.gameOver = true;
     gameState.speedMultiplier = 1;
+    // Una partida terminada no se puede resumir
+    clearSavedGame();
     document.getElementById('speedIndicator').style.display = 'none';
     document.getElementById('skipBtn').style.display = 'none';
     document.getElementById('finalTurn').textContent = gameState.turn;
@@ -615,19 +636,19 @@ export function setMenuDifficulty(diff) {
 // INICIALIZACIÓN
 // ====================================
 
-export function initGame(difficulty) {
+/**
+ * Resetea el gameState y elige la dificultad activa. Compartido por
+ * initGame (partida nueva) y resumeGame (partida guardada), que después
+ * pisan turno/inventario/bricks según corresponda.
+ */
+function resetSessionState(difficulty) {
     currentDifficulty = difficulty;
     difficultyConfig = DIFFICULTY_SETTINGS[difficulty];
 
-    const turnInput = document.getElementById('startTurnInput');
-    startingTurn = Math.max(1, Math.min(500, parseInt(turnInput.value) || 1));
-
-    const startingBalls = calculateStartingBalls(startingTurn, difficulty);
-
     const width = getWidth();
 
-    gameState.turn = startingTurn;
-    gameState.ballInventory = { ...startingBalls.inventory };
+    gameState.turn = 1;
+    gameState.ballInventory = {};
     gameState.balls = [];
     gameState.bricks = [];
     gameState.bonuses = [];
@@ -668,6 +689,18 @@ export function initGame(difficulty) {
     badge.textContent = difficultyConfig.emoji + ' ' + difficultyConfig.name;
     badge.style.background = difficultyConfig.color;
     badge.style.color = difficulty === 'medium' ? '#333' : 'white';
+}
+
+export function initGame(difficulty) {
+    resetSessionState(difficulty);
+
+    const turnInput = document.getElementById('startTurnInput');
+    startingTurn = Math.max(1, Math.min(500, parseInt(turnInput.value) || 1));
+
+    const startingBalls = calculateStartingBalls(startingTurn, difficulty);
+
+    gameState.turn = startingTurn;
+    gameState.ballInventory = { ...startingBalls.inventory };
 
     const rowsToGenerate = Math.min(6, Math.floor(startingTurn / 3) + 1);
 
@@ -690,6 +723,7 @@ export function initGame(difficulty) {
     gameState.turn = startingTurn;
 
     updateUI();
+    saveGame();
 }
 
 export function showMainMenu() {
@@ -702,6 +736,157 @@ export function showMainMenu() {
 
     setMenuDifficulty(currentDifficulty);
     updateBallsPreview();
+    updateContinueButton();
+}
+
+// ====================================
+// PARTIDA GUARDADA (resumir tras crash/cierre)
+// ====================================
+// Se guarda un snapshot al inicio de cada turno (final de endTurn, cuando
+// no hay bolas en vuelo) y al iniciar partida. Si la app se cierra o
+// crashea a mitad de un turno, se reanuda desde el inicio de ese turno.
+// Las posiciones se guardan en coordenadas de grilla (col/row) para que
+// el snapshot sobreviva a cambios de tamaño de pantalla.
+
+const SAVE_KEY = 'glowbreak_save';
+const SAVE_VERSION = 1;
+
+export function saveGame() {
+    if (!gameState.gameStarted || gameState.gameOver) return;
+    try {
+        const cellSize = getCellSize();
+        const topOffset = getTopOffset();
+        const leftBorder = getLeftBorder();
+
+        const snapshot = {
+            version: SAVE_VERSION,
+            difficulty: currentDifficulty,
+            startingTurn: startingTurn,
+            turn: gameState.turn,
+            ballInventory: { ...gameState.ballInventory },
+            shieldCharges: gameState.shieldCharges,
+            overdriveCharge: gameState.overdriveCharge,
+            launchXRatio: gameState.launchX / getWidth(),
+            bricks: gameState.bricks.map(b => ({
+                col: b.col,
+                row: Math.round((b.y - topOffset) / cellSize),
+                widthCells: Math.max(1, Math.round((b.width + 4) / cellSize)),
+                hp: b.hp,
+                maxHp: b.maxHp,
+                type: b.type,
+                isReinforced: !!b.isReinforced
+            })),
+            bonuses: gameState.bonuses.map(b => ({
+                col: Math.floor((b.x - leftBorder) / cellSize),
+                row: Math.floor((b.y - topOffset) / cellSize),
+                type: b.type,
+                value: b.value
+            }))
+        };
+
+        localStorage.setItem(SAVE_KEY, JSON.stringify(snapshot));
+    } catch (e) {
+        // localStorage no disponible (modo privado, cuota llena) — sin guardado
+    }
+}
+
+export function loadSavedGame() {
+    try {
+        const raw = localStorage.getItem(SAVE_KEY);
+        if (!raw) return null;
+        const save = JSON.parse(raw);
+        if (save.version !== SAVE_VERSION) return null;
+        if (!DIFFICULTY_SETTINGS[save.difficulty]) return null;
+        if (!Number.isFinite(save.turn) || save.turn < 1) return null;
+        if (!Array.isArray(save.bricks) || typeof save.ballInventory !== 'object') return null;
+        return save;
+    } catch (e) {
+        return null;
+    }
+}
+
+export function clearSavedGame() {
+    try {
+        localStorage.removeItem(SAVE_KEY);
+    } catch (e) {
+        // sin localStorage no hay nada que limpiar
+    }
+}
+
+export function resumeGame() {
+    const save = loadSavedGame();
+    if (!save) return false;
+
+    resetSessionState(save.difficulty);
+
+    startingTurn = Math.max(1, parseInt(save.startingTurn) || 1);
+    gameState.turn = save.turn;
+    gameState.ballInventory = { ...save.ballInventory };
+    gameState.shieldCharges = Number.isFinite(save.shieldCharges)
+        ? save.shieldCharges : STARTING_SHIELDS;
+    gameState.overdriveCharge = Number.isFinite(save.overdriveCharge)
+        ? save.overdriveCharge : 0;
+
+    const cellSize = getCellSize();
+    const topOffset = getTopOffset();
+    const leftBorder = getLeftBorder();
+
+    if (Number.isFinite(save.launchXRatio)) {
+        const x = save.launchXRatio * getWidth();
+        gameState.launchX = Math.max(leftBorder + 20, Math.min(getRightBorder() - 20, x));
+        gameState.nextLaunchX = gameState.launchX;
+    }
+
+    gameState.bricks = save.bricks
+        .filter(b => Number.isFinite(b.col) && Number.isFinite(b.row) && b.hp > 0)
+        .map(b => {
+            const widthCells = Math.max(1, b.widthCells || 1);
+            return {
+                x: leftBorder + b.col * cellSize,
+                y: topOffset + b.row * cellSize,
+                width: cellSize * widthCells - 4,
+                height: cellSize - 4,
+                hp: b.hp,
+                maxHp: b.maxHp || b.hp,
+                col: b.col,
+                type: BrickRegistry.has(b.type) ? b.type : BrickRegistry.defaultType,
+                isReinforced: !!b.isReinforced
+            };
+        });
+
+    gameState.bonuses = (save.bonuses || [])
+        .filter(b => Number.isFinite(b.col) && Number.isFinite(b.row) && BonusRegistry.has(b.type))
+        .map(b => {
+            const isPowerup = BonusRegistry.get(b.type).getConfig().category === 'powerup';
+            return {
+                x: leftBorder + b.col * cellSize + cellSize / 2,
+                y: topOffset + b.row * cellSize + cellSize / 2,
+                radius: isPowerup ? Math.max(10, 14 * getScale()) : Math.max(8, 12 * getScale()),
+                type: b.type,
+                value: b.value
+            };
+        });
+
+    updateUI();
+    return true;
+}
+
+/**
+ * Muestra u oculta el botón "Continuar" del menú según haya o no una
+ * partida guardada, con el turno y la dificultad de esa partida.
+ */
+export function updateContinueButton() {
+    const btn = document.getElementById('continueBtn');
+    if (!btn) return;
+
+    const save = loadSavedGame();
+    if (save) {
+        const cfg = DIFFICULTY_SETTINGS[save.difficulty];
+        btn.textContent = `⏯️ Continuar — ${cfg.emoji} Turno ${save.turn}`;
+        btn.style.display = 'block';
+    } else {
+        btn.style.display = 'none';
+    }
 }
 
 // ====================================

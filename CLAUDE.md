@@ -311,6 +311,12 @@ La guía (`js/ui/Guide.js`) genera su tabla de ayudas y los textos de controles 
 
 El inventario de bolas especiales es el elemento DOM `#ballInventory` (píldoras flexbox centradas bajo la línea inferior), regenerado por `updateBallInventoryHud()` en `game.js` dentro de `updateUI()`. Ya NO se dibuja en el canvas. Un ball type aparece si tiene `showInInventoryHud: true` y count > 0; usa `icon`, `bgColor` y `textColor` del behavior.
 
+### Partida guardada y cola de disparo (v2.8.1)
+
+- **Guardado automático**: `saveGame()` en `game.js` persiste un snapshot de la partida en `localStorage` (`glowbreak_save`) al iniciar partida y al final de cada `endTurn` (inicio de turno, sin bolas en vuelo). Las posiciones se guardan en coordenadas de grilla (col/row) para sobrevivir a cambios de tamaño de pantalla. Si la app crashea a mitad de un turno, se reanuda desde el inicio de ese turno.
+- **Botón Continuar**: `#continueBtn` en el menú principal, visible solo si hay guardado (`updateContinueButton()`); `resumeGame()` restaura turno, inventario, bloques, bonuses, escudos y overdrive. `endGame()` borra el guardado (una partida terminada no se resume).
+- **Cola de disparo con inventario grande**: en `startShooting`, cuando el inventario total supera `MAX_BALLS_ON_SCREEN`, las bolas especiales tienen prioridad de SELECCIÓN (entran todas a la cola) y las normales rellenan el resto; el ORDEN de disparo sigue siendo por `shootPriority`. Sin esta reserva, las especiales no se disparaban nunca en turnos altos.
+
 ### In-Game Guide (v2.7.1)
 
 `js/ui/Guide.js` renders the "📖 Guía del juego" screen (opened from the main menu). Its content is **generated from the live registries and `config.js`** — never hardcode game numbers in the guide.

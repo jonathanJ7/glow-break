@@ -543,6 +543,27 @@ body {
     color: white;
 }
 
+/* Botón "Continuar" — oculto por defecto; updateContinueButton() lo
+   muestra cuando hay una partida guardada. */
+.menu-continue-btn {
+    display: none;
+    background: rgba(78, 204, 163, 0.15);
+    border: 1px solid rgba(78, 204, 163, 0.45);
+    color: #4ecca3;
+    font-size: clamp(13px, 3.2vmin, 15px);
+    font-weight: 600;
+    cursor: pointer;
+    padding: clamp(10px, 2.5vmin, 12px) clamp(20px, 6vmin, 30px);
+    border-radius: 22px;
+    margin-top: clamp(10px, 3vmin, 16px);
+    transition: background 0.2s, color 0.2s;
+    font-family: inherit;
+}
+.menu-continue-btn:hover {
+    background: rgba(78, 204, 163, 0.3);
+    color: white;
+}
+
 #guideScreen {
     position: absolute;
     inset: 0;

@@ -1,4 +1,4 @@
-import { gameState, difficultyConfig, startShooting, shootTimeout, endTurn, initGame, showMainMenu, updateBallsPreview, setMenuDifficulty, currentDifficulty } from './game.js';
+import { gameState, difficultyConfig, startShooting, shootTimeout, endTurn, initGame, resumeGame, updateContinueButton, showMainMenu, updateBallsPreview, setMenuDifficulty, currentDifficulty } from './game.js';
 import { canvas } from './rendering.js';
 import { FAST_SPEED_MULTIPLIER } from './config.js';
 
@@ -195,6 +195,15 @@ export function setupEventListeners() {
         const diff = active ? active.dataset.diff : 'medium';
         initGame(diff);
     });
+
+    // Continue button — resume the saved game (only visible when one exists)
+    document.getElementById('continueBtn').addEventListener('click', () => {
+        if (!resumeGame()) {
+            // Guardado corrupto o borrado en otra pestaña: ocultar el botón
+            updateContinueButton();
+        }
+    });
+    updateContinueButton();
 
     // Difficulty chips — select difficulty (updates play button color)
     document.querySelectorAll('.diff-chip').forEach(chip => {
