@@ -272,7 +272,7 @@ BonusRegistry.register('shield', ShieldBonusBehavior);
 | `fireball` | Red | Passes through bricks | `fireball` |
 | `splitter` | Yellow | Splits into 2 balls (±30°) on its 5th hit; children can split again | `splitter` |
 | `strength` | Orange | Does 3 damage instead of 1 | `strength` |
-| `bomb` | Red/orange | AoE damage (15% of hit brick's maxHp) to bricks within 1.5 cells on every hit | `bomb` |
+| `bomb` | Red/orange | AoE damage (15% of hit brick's maxHp) to bricks within 1.5 cells, but only every 3rd hit (fuse mechanic, `hitsPerFuse`) | `bomb` |
 
 ### Bonus Types
 | Type | Icon | Effect |

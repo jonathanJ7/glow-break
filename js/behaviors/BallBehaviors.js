@@ -353,7 +353,7 @@ const StrengthBallBehavior = {
 };
 
 // ============================================
-// BOMB - Daño en área en cada impacto
+// BOMB - Daño en área cada vez que recarga la mecha
 // ============================================
 const BombBallBehavior = {
     type: 'bomb',
@@ -363,16 +363,19 @@ const BombBallBehavior = {
     damage: 2,
     aoeRadiusCells: 1.5,
     aoeMaxHpRatio: 0.15,
+    hitsPerFuse: 3,
     icon: '💣',
     bgColor: 'rgba(248, 113, 113, 0.8)',
     textColor: 'white',
     showInInventoryHud: true,
 
     describe() {
-        return `Hace ${this.damage} de daño al bloque golpeado y rebota. Además, en CADA impacto `
-            + `genera una onda que daña a todos los bloques a menos de ${this.aoeRadiusCells} celdas `
-            + `con el ${Math.round(this.aoeMaxHpRatio * 100)}% del HP máximo del bloque golpeado (mínimo 1). `
-            + 'Como el daño de la onda escala con el HP de los bloques, sigue siendo útil en turnos altos.';
+        return `Hace ${this.damage} de daño al bloque golpeado y rebota. Tiene una mecha: necesita `
+            + `${this.hitsPerFuse} impactos para recargarla, y recién en ese impacto genera una onda que `
+            + `daña a todos los bloques a menos de ${this.aoeRadiusCells} celdas con el `
+            + `${Math.round(this.aoeMaxHpRatio * 100)}% del HP máximo del bloque golpeado (mínimo 1) — luego `
+            + 'la mecha se reinicia. Así no explota en cada rebote, aunque tengas varias en pantalla a la vez. '
+            + 'El daño de la onda escala con el HP de los bloques, así que sigue siendo útil en turnos altos.';
     },
 
     render(ctx, ball, helpers) {
@@ -386,8 +389,10 @@ const BombBallBehavior = {
         ctx.fill();
         ctx.shadowBlur = 0;
 
-        // Mecha: puntito naranja parpadeante
-        const spark = Math.sin(performance.now() * 0.02) > 0;
+        // Mecha: parpadea más rápido cuanto más cerca está de detonar
+        const fuseProgress = (ball.state.hitsSinceFuse || 0) / this.hitsPerFuse;
+        const blinkSpeed = 0.015 + fuseProgress * 0.05;
+        const spark = Math.sin(performance.now() * blinkSpeed) > 0;
         if (spark) {
             ctx.fillStyle = '#fbbf24';
             ctx.beginPath();
@@ -398,7 +403,6 @@ const BombBallBehavior = {
 
     onCollision(ball, brick, gameState, helpers) {
         const { getCellSize, createParticles, speedMultiplier } = helpers;
-        const cellSize = getCellSize();
         const cx = brick.x + brick.width / 2;
         const cy = brick.y + brick.height / 2;
 
@@ -406,20 +410,32 @@ const BombBallBehavior = {
             createParticles(cx, cy, '#fb923c', 10);
         }
 
-        // Onda expansiva: daño proporcional al maxHp del ladrillo golpeado,
-        // así la bomba sigue siendo útil cuando los HP crecen a cientos.
-        const aoeDamage = Math.max(1, Math.ceil(brick.maxHp * this.aoeMaxHpRatio));
-        const aoeRadius = cellSize * this.aoeRadiusCells;
+        // La onda expansiva solo detona cuando la mecha termina de recargar,
+        // no en cada rebote — así varias bombas en pantalla no acumulan
+        // ondas sin límite.
+        ball.state.hitsSinceFuse = (ball.state.hitsSinceFuse || 0) + 1;
         const damagedBricks = [];
 
-        for (const other of gameState.bricks) {
-            if (other === brick) continue;
-            const dist = Math.hypot(
-                cx - (other.x + other.width / 2),
-                cy - (other.y + other.height / 2)
-            );
-            if (dist < aoeRadius) {
-                damagedBricks.push({ brick: other, damage: aoeDamage });
+        if (ball.state.hitsSinceFuse >= this.hitsPerFuse) {
+            ball.state.hitsSinceFuse = 0;
+
+            const cellSize = getCellSize();
+            const aoeDamage = Math.max(1, Math.ceil(brick.maxHp * this.aoeMaxHpRatio));
+            const aoeRadius = cellSize * this.aoeRadiusCells;
+
+            for (const other of gameState.bricks) {
+                if (other === brick) continue;
+                const dist = Math.hypot(
+                    cx - (other.x + other.width / 2),
+                    cy - (other.y + other.height / 2)
+                );
+                if (dist < aoeRadius) {
+                    damagedBricks.push({ brick: other, damage: aoeDamage });
+                }
+            }
+
+            if (speedMultiplier === 1) {
+                createParticles(cx, cy, '#fbbf24', 14);
             }
         }
 
@@ -439,7 +455,7 @@ const BombBallBehavior = {
             ballType: 'bomb',
             damage: this.damage,
             lifetime: 0,
-            state: {},
+            state: { hitsSinceFuse: 0 },
         };
     },
 

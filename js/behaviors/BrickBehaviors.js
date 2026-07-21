@@ -81,11 +81,13 @@ const ExplosiveBrickBehavior = {
     emoji: '💥',
     overlayColor: 'rgba(255,100,100,0.3)',
     explosionRadiusCells: 1.5,
+    explosionDamageRatio: 0.4,
 
     describe() {
         return 'Al destruirse explota y daña a todos los bloques a menos de '
             + `${this.explosionRadiusCells} celdas de distancia. El daño de la explosión `
-            + 'es igual al HP máximo del bloque explosivo (un blindado cercano recibe la mitad).';
+            + `es el ${Math.round(this.explosionDamageRatio * 100)}% del HP máximo del bloque explosivo `
+            + '(un blindado cercano recibe la mitad de eso).';
     },
 
     render(ctx, brick, helpers) {
@@ -124,7 +126,7 @@ const ExplosiveBrickBehavior = {
             const dist = Math.hypot(centerX - otherCenterX, centerY - otherCenterY);
 
             if (dist < explosionRadius) {
-                const damage = brick.maxHp;
+                const damage = Math.max(1, Math.ceil(brick.maxHp * this.explosionDamageRatio));
                 damagedBricks.push({ brick: other, damage });
             }
         }
