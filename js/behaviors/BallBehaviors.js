@@ -364,17 +364,19 @@ const BombBallBehavior = {
     aoeRadiusCells: 1.5,
     aoeMaxHpRatio: 0.15,
     hitsPerFuse: 3,
+    fuseWear: 1,
     icon: '💣',
     bgColor: 'rgba(248, 113, 113, 0.8)',
     textColor: 'white',
     showInInventoryHud: true,
 
     describe() {
-        return `Hace ${this.damage} de daño al bloque golpeado y rebota. Tiene una mecha: necesita `
-            + `${this.hitsPerFuse} impactos para recargarla, y recién en ese impacto genera una onda que `
-            + `daña a todos los bloques a menos de ${this.aoeRadiusCells} celdas con el `
-            + `${Math.round(this.aoeMaxHpRatio * 100)}% del HP máximo del bloque golpeado (mínimo 1) — luego `
-            + 'la mecha se reinicia. Así no explota en cada rebote, aunque tengas varias en pantalla a la vez. '
+        return `Hace ${this.damage} de daño al bloque golpeado y rebota. Tiene una mecha que se desgasta: `
+            + `la primera onda necesita ${this.hitsPerFuse} impactos, y cada detonación encarece la siguiente `
+            + `mecha en ${this.fuseWear} impacto más (${this.hitsPerFuse}, ${this.hitsPerFuse + this.fuseWear}, `
+            + `${this.hitsPerFuse + this.fuseWear * 2}…). La onda daña a todos los bloques a menos de `
+            + `${this.aoeRadiusCells} celdas con el ${Math.round(this.aoeMaxHpRatio * 100)}% del HP máximo del `
+            + 'bloque golpeado (mínimo 1). Así no explota en cada rebote, aunque tengas varias en pantalla a la vez. '
             + 'El daño de la onda escala con el HP de los bloques, así que sigue siendo útil en turnos altos.';
     },
 
@@ -390,7 +392,8 @@ const BombBallBehavior = {
         ctx.shadowBlur = 0;
 
         // Mecha: parpadea más rápido cuanto más cerca está de detonar
-        const fuseProgress = (ball.state.hitsSinceFuse || 0) / this.hitsPerFuse;
+        const fuseCost = ball.state.fuseCost || this.hitsPerFuse;
+        const fuseProgress = (ball.state.hitsSinceFuse || 0) / fuseCost;
         const blinkSpeed = 0.015 + fuseProgress * 0.05;
         const spark = Math.sin(performance.now() * blinkSpeed) > 0;
         if (spark) {
@@ -402,22 +405,22 @@ const BombBallBehavior = {
     },
 
     onCollision(ball, brick, gameState, helpers) {
-        const { getCellSize, createParticles, speedMultiplier } = helpers;
+        const { getCellSize, createParticles, addScreenShake, addFloatingText, speedMultiplier } = helpers;
         const cx = brick.x + brick.width / 2;
         const cy = brick.y + brick.height / 2;
 
-        if (speedMultiplier === 1) {
-            createParticles(cx, cy, '#fb923c', 10);
-        }
-
         // La onda expansiva solo detona cuando la mecha termina de recargar,
         // no en cada rebote — así varias bombas en pantalla no acumulan
-        // ondas sin límite.
+        // ondas sin límite. Además la mecha se desgasta: cada detonación
+        // encarece la siguiente en fuseWear impactos (3, 4, 5…).
+        const fuseCost = ball.state.fuseCost || this.hitsPerFuse;
         ball.state.hitsSinceFuse = (ball.state.hitsSinceFuse || 0) + 1;
         const damagedBricks = [];
+        const detonates = ball.state.hitsSinceFuse >= fuseCost;
 
-        if (ball.state.hitsSinceFuse >= this.hitsPerFuse) {
+        if (detonates) {
             ball.state.hitsSinceFuse = 0;
+            ball.state.fuseCost = fuseCost + this.fuseWear;
 
             const cellSize = getCellSize();
             const aoeDamage = Math.max(1, Math.ceil(brick.maxHp * this.aoeMaxHpRatio));
@@ -435,8 +438,15 @@ const BombBallBehavior = {
             }
 
             if (speedMultiplier === 1) {
-                createParticles(cx, cy, '#fbbf24', 14);
+                createParticles(cx, cy, '#fbbf24', 24);
+                createParticles(cx, cy, '#f87171', 12);
+                addScreenShake(5);
+                addFloatingText(cx, cy, '💥', { color: '#fbbf24', size: 20 });
             }
+        } else if (speedMultiplier === 1) {
+            // Impacto sin detonar: solo unas chispas tenues de la mecha,
+            // bien distintas de la explosión real.
+            createParticles(cx, cy, '#9ca3af', 3);
         }
 
         return {
@@ -455,7 +465,7 @@ const BombBallBehavior = {
             ballType: 'bomb',
             damage: this.damage,
             lifetime: 0,
-            state: { hitsSinceFuse: 0 },
+            state: { hitsSinceFuse: 0, fuseCost: this.hitsPerFuse },
         };
     },
 
