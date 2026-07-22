@@ -402,21 +402,18 @@ const BombBallBehavior = {
     },
 
     onCollision(ball, brick, gameState, helpers) {
-        const { getCellSize, createParticles, speedMultiplier } = helpers;
+        const { getCellSize, createParticles, addScreenShake, addFloatingText, speedMultiplier } = helpers;
         const cx = brick.x + brick.width / 2;
         const cy = brick.y + brick.height / 2;
-
-        if (speedMultiplier === 1) {
-            createParticles(cx, cy, '#fb923c', 10);
-        }
 
         // La onda expansiva solo detona cuando la mecha termina de recargar,
         // no en cada rebote — así varias bombas en pantalla no acumulan
         // ondas sin límite.
         ball.state.hitsSinceFuse = (ball.state.hitsSinceFuse || 0) + 1;
         const damagedBricks = [];
+        const detonates = ball.state.hitsSinceFuse >= this.hitsPerFuse;
 
-        if (ball.state.hitsSinceFuse >= this.hitsPerFuse) {
+        if (detonates) {
             ball.state.hitsSinceFuse = 0;
 
             const cellSize = getCellSize();
@@ -435,8 +432,15 @@ const BombBallBehavior = {
             }
 
             if (speedMultiplier === 1) {
-                createParticles(cx, cy, '#fbbf24', 14);
+                createParticles(cx, cy, '#fbbf24', 24);
+                createParticles(cx, cy, '#f87171', 12);
+                addScreenShake(5);
+                addFloatingText(cx, cy, '💥', { color: '#fbbf24', size: 20 });
             }
+        } else if (speedMultiplier === 1) {
+            // Impacto sin detonar: solo unas chispas tenues de la mecha,
+            // bien distintas de la explosión real.
+            createParticles(cx, cy, '#9ca3af', 3);
         }
 
         return {
