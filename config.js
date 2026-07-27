@@ -30,15 +30,28 @@ export const BOSS_HP_MULTIPLIER = 6;
 export const HP_LOG_FACTOR = 0.18;
 
 // Escudos: cargas de segunda oportunidad. Al llegar los ladrillos a la
-// línea, un escudo quema las SHIELD_BURN_ROWS filas de abajo en vez de
-// game over.
+// línea, un escudo quema las SHIELD_BURN_ROWS filas más bajas (contando
+// desde la que cruzó hacia arriba) en vez de game over. Con 1, solo
+// desaparece la fila que efectivamente colisionó.
 export const STARTING_SHIELDS = 1;
 export const MAX_SHIELDS = 3;
-export const SHIELD_BURN_ROWS = 2;
+export const SHIELD_BURN_ROWS = 1;
 
 // El bonus de bolas normales escala: +1 bola extra por cada
 // BALL_BONUS_SCALE_TURNS turnos transcurridos.
 export const BALL_BONUS_SCALE_TURNS = 25;
+
+// Apuntado: el disparo siempre va hacia arriba, con un margen para que
+// nunca quede horizontal. Lo usan el input (clamp del dedo) y la
+// dispersión de puntería.
+export const AIM_ANGLE_MAX = -0.2;                // casi horizontal a la derecha
+export const AIM_ANGLE_MIN = -Math.PI + 0.2;      // casi horizontal a la izquierda
+
+// Dispersión de puntería: en las dificultades con `assists.aimScatter`,
+// cada bola tirada saca su propio dado y, si sale, se desvía un ángulo
+// aleatorio dentro de ±maxDegrees. Cada ball type puede declarar su
+// propio `aimScatter`; los que no, usan estos valores.
+export const DEFAULT_AIM_SCATTER = { chance: 0.25, maxDegrees: 5 };
 
 // Láser horizontal: daña a cada bloque de la fila con el mayor entre
 // (maxHp × LASER_MAXHP_RATIO) y (hp actual × LASER_CURRENT_HP_RATIO).
@@ -62,10 +75,15 @@ export const BRICK_COLORS = [
 // Además de los números (HP, densidad), cada dificultad define `assists`:
 // las ayudas de información que recibe el jugador. La dificultad no solo
 // sube los números, también reduce cuánto "sabe" el jugador:
-//   - aimBounces:  rebotes que simula la línea de puntería
+//   - aimBounces:  rebotes que simula la línea de puntería (0 = la línea
+//                  llega hasta el primer impacto y termina ahí, sin
+//                  mostrar hacia dónde rebota)
 //   - aimLength:   largo de la línea como fracción del alto del área de
 //                  juego (null = sin límite extra, tope interno de 1200px)
 //   - freezeAim:   si el apuntado fino con congelación está disponible
+//   - aimScatter:  si las bolas pueden desviarse del ángulo apuntado
+//                  (ver DEFAULT_AIM_SCATTER y el `aimScatter` de cada
+//                  ball type)
 //   - hpRoundStep: el HP mostrado se redondea HACIA ARRIBA a múltiplos de
 //                  este valor (1 = exacto; los valores menores al step se
 //                  muestran exactos)
@@ -86,6 +104,7 @@ export const DIFFICULTY_SETTINGS = {
             aimBounces: 5,
             aimLength: null,
             freezeAim: true,
+            aimScatter: false,
             hpRoundStep: 1,
         },
     },
@@ -104,6 +123,7 @@ export const DIFFICULTY_SETTINGS = {
             aimBounces: 1,
             aimLength: null,
             freezeAim: true,
+            aimScatter: false,
             hpRoundStep: 1,
         },
     },
@@ -120,9 +140,12 @@ export const DIFFICULTY_SETTINGS = {
         hpVariationMax: 2.0,
         reinforcedRows: true,
         assists: {
-            aimBounces: 1,
-            aimLength: 0.35,
-            freezeAim: false,
+            // La mira llega entera hasta el primer impacto, pero no
+            // muestra el rebote; a cambio, las bolas se dispersan.
+            aimBounces: 0,
+            aimLength: null,
+            freezeAim: true,
+            aimScatter: true,
             hpRoundStep: 10,
         },
     }

@@ -405,6 +405,21 @@ export function simulateTrajectory(startX, startY, angle, speed, radius, bricks,
     let dirX = Math.cos(angle);
     let dirY = Math.sin(angle);
 
+    // maxBounces = 0: la línea recorre todo el tramo hasta el primer
+    // impacto y termina ahí, sin revelar hacia dónde rebota. isBounce
+    // queda en false a propósito para no dibujar la marca de rebote.
+    if (maxBounces <= 0) {
+        const collision = findFirstCollision(
+            x, y, dirX * maxDistance, dirY * maxDistance, radius, bricks, bounds
+        );
+        if (collision && collision.t <= 1) {
+            points.push({ x: collision.hitX, y: collision.hitY, isBounce: false });
+        } else {
+            points.push({ x: x + dirX * maxDistance, y: y + dirY * maxDistance, isBounce: false });
+        }
+        return points;
+    }
+
     let bounces = 0;
     let totalDistance = 0;
 

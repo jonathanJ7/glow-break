@@ -603,13 +603,14 @@ body {
 
 /* El reset global pone touch-action:none en todo (necesario para el
    canvas del juego), pero eso mata el scroll táctil de la guía. El pan
-   se decide mirando el elemento tocado Y sus ancestros, así que hay que
-   re-habilitarlo en la pantalla entera y todos sus descendientes. */
+   se decide mirando el elemento tocado Y TODOS sus ancestros: si la
+   pantalla o el contenedor scrolleable declaran solo pan-y, el navegador
+   descarta el pan horizontal de las tablas aunque el wrap lo permita
+   (además `#guideScreen *` gana por especificidad a `.guide-table-wrap *`).
+   Por eso se habilitan ambos ejes en toda la cadena. */
+body, #gameContainer,
 #guideScreen, #guideScreen * {
-    touch-action: pan-y;
-}
-.guide-table-wrap, .guide-table-wrap * {
-    touch-action: pan-x pan-y; /* las tablas también scrollean de costado */
+    touch-action: pan-x pan-y;
 }
 
 .guide-content {
@@ -686,12 +687,27 @@ body {
 
 .guide-table-wrap {
     overflow-x: auto;
+    overflow-y: hidden;
+    /* evita que el gesto horizontal se convierta en "volver atrás" del navegador */
+    overscroll-behavior-x: contain;
     -webkit-overflow-scrolling: touch;
     margin-bottom: 10px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.25) transparent;
+}
+.guide-table-wrap::-webkit-scrollbar {
+    height: 6px;
+}
+.guide-table-wrap::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.25);
+    border-radius: 3px;
 }
 .guide-table {
     border-collapse: collapse;
-    width: 100%;
+    /* max-content + min-width:100% => ocupa todo si entra, y se desborda
+       (habilitando el scroll del wrap) cuando las celdas nowrap no entran */
+    width: max-content;
+    min-width: 100%;
     font-size: clamp(10px, 2.8vmin, 12px);
 }
 .guide-table th, .guide-table td {

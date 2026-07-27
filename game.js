@@ -8,7 +8,7 @@
  * solo necesitas registrar nuevos behaviors.
  */
 
-import { DIFFICULTY_SETTINGS, SPAWN_SCHEDULE, COLS, SHOOT_DELAY, MAX_BALLS_ON_SCREEN, FAST_SPEED_MULTIPLIER, BASE_BALL_RADIUS, BALL_SPEED, COMBO_BALLS_PER, COMBO_MAX_REWARD, OVERDRIVE_MAX, BOSS_INTERVAL, BOSS_HP_MULTIPLIER, STARTING_SHIELDS, SHIELD_BURN_ROWS, BALL_BONUS_SCALE_TURNS, HP_LOG_FACTOR } from './config.js';
+import { DIFFICULTY_SETTINGS, SPAWN_SCHEDULE, COLS, SHOOT_DELAY, MAX_BALLS_ON_SCREEN, FAST_SPEED_MULTIPLIER, BASE_BALL_RADIUS, BALL_SPEED, COMBO_BALLS_PER, COMBO_MAX_REWARD, OVERDRIVE_MAX, BOSS_INTERVAL, BOSS_HP_MULTIPLIER, STARTING_SHIELDS, SHIELD_BURN_ROWS, BALL_BONUS_SCALE_TURNS, HP_LOG_FACTOR, DEFAULT_AIM_SCATTER, AIM_ANGLE_MIN, AIM_ANGLE_MAX } from './config.js';
 import { getWidth, getHeight, getCellSize, getLeftBorder, getRightBorder, getTopOffset, getBottomLine, getScale, getBallRadius } from './rendering.js';
 import { updateBalls, updateParticles, createParticles, addFloatingText } from './physics.js';
 import { BrickRegistry, BallRegistry, BonusRegistry } from './js/behaviors/index.js';
@@ -352,17 +352,22 @@ export function moveBricksDown() {
     }
 
     // ¿Alguna fila cruzó la línea? Con escudo disponible, se consume y
-    // quema las 2 filas de abajo (segunda oportunidad). Sin escudo: fin.
-    const crossed = gameState.bricks.some(b => b.y + b.height > dangerLine);
-    if (crossed) {
+    // quema solo las SHIELD_BURN_ROWS filas más bajas — con el valor
+    // actual (1), únicamente la fila que colisionó. Sin escudo: fin.
+    const crossing = gameState.bricks.filter(b => b.y + b.height > dangerLine);
+    if (crossing.length > 0) {
         if (gameState.shieldCharges > 0) {
             gameState.shieldCharges--;
-            const burnLine = dangerLine - cellSize * SHIELD_BURN_ROWS;
-            const burned = gameState.bricks.filter(b => b.y + b.height > burnLine);
+            // Se cuenta desde la fila más baja que cruzó hacia arriba. El
+            // medio cell de margen absorbe el ruido de coma flotante sin
+            // llegar a alcanzar la fila siguiente.
+            const lowestRowY = Math.max(...crossing.map(b => b.y));
+            const burnTopY = lowestRowY - cellSize * (SHIELD_BURN_ROWS - 0.5);
+            const burned = new Set(gameState.bricks.filter(b => b.y >= burnTopY));
             for (const b of burned) {
                 createParticles(b.x + b.width / 2, b.y + b.height / 2, '#38bdf8', 10);
             }
-            gameState.bricks = gameState.bricks.filter(b => b.y + b.height <= burnLine);
+            gameState.bricks = gameState.bricks.filter(b => !burned.has(b));
             addFloatingText(getWidth() / 2, dangerLine - cellSize * 2.5, '🛡️ ¡ESCUDO!', { color: '#38bdf8', size: 22 });
             gameState.shake = Math.max(gameState.shake, 6);
             updateUI();
@@ -450,16 +455,35 @@ export function startShooting() {
     shootNextBall();
 }
 
+/**
+ * Dispersión de puntería: en las dificultades con `assists.aimScatter`,
+ * cada bola saca su propio dado. Si sale, el ángulo se desvía dentro de
+ * ±maxDegrees (los valores salen del `aimScatter` del ball type, o de
+ * DEFAULT_AIM_SCATTER). El resultado se recorta al mismo rango que el
+ * apuntado manual para que ninguna bola salga horizontal o hacia abajo.
+ */
+export function applyAimScatter(angle, behavior) {
+    if (!difficultyConfig.assists?.aimScatter) return angle;
+
+    const { chance, maxDegrees } = behavior.aimScatter || DEFAULT_AIM_SCATTER;
+    if (Math.random() >= chance) return angle;
+
+    const offset = (Math.random() * 2 - 1) * maxDegrees * Math.PI / 180;
+    return Math.max(AIM_ANGLE_MIN, Math.min(AIM_ANGLE_MAX, angle + offset));
+}
+
 export function shootNextBall() {
     if (gameState.ballsToShoot.length === 0 || gameState.gameOver) return;
 
     const ballType = gameState.ballsToShoot.shift();
-    const vx = Math.cos(gameState.aimAngle) * BALL_SPEED;
-    const vy = Math.sin(gameState.aimAngle) * BALL_SPEED;
+    const behavior = BallRegistry.get(ballType);
+    const angle = applyAimScatter(gameState.aimAngle, behavior);
+    const vx = Math.cos(angle) * BALL_SPEED;
+    const vy = Math.sin(angle) * BALL_SPEED;
 
     // El registry valida que cada ball type tenga createBall (Fase 2),
     // por lo que esta es la unica via canonica de creacion.
-    const ball = BallRegistry.get(ballType).createBall(
+    const ball = behavior.createBall(
         gameState.launchX,
         gameState.launchY - getBallRadius() - 1,
         vx,
