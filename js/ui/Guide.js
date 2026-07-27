@@ -179,7 +179,7 @@ function buildDifficultySection() {
         const s = scatterOf(b);
         return `<tr>
             <td>${iconOf(b)} ${b.displayName || t}</td>
-            <td>${pct(s.chance)} de los disparos</td>
+            <td>${pct(s.chance)} de los turnos</td>
             <td>±${s.maxDegrees}°</td>
         </tr>`;
     }).join('');
@@ -209,13 +209,15 @@ function buildDifficultySection() {
         </table>
         </div>
         <p class="guide-note"><b>Dispersión de puntería</b>: en las dificultades marcadas
-        arriba, cada bola tira su propio dado al salir. Si le toca, se desvía un ángulo
-        aleatorio dentro del rango de su tipo (distribución uniforme); si no, sale exacta
-        al ángulo apuntado. Las bolas más pesadas son las que peor puntería tienen. El
-        desvío nunca deja una bola horizontal ni hacia abajo.</p>
+        arriba, al empezar el turno se tira <b>un dado por cada tipo de bola</b>. El tipo al
+        que le toca se desvía un ángulo aleatorio dentro de su rango (distribución uniforme)
+        y ese desvío se aplica a <b>todas</b> sus bolas: las normales salen todas juntas por
+        un lado, las de fuego todas juntas por otro. El tipo al que no le toca sale exacto al
+        ángulo apuntado. Las bolas más pesadas son las que peor puntería tienen, y el desvío
+        nunca deja una bola horizontal ni hacia abajo.</p>
         <div class="guide-table-wrap">
         <table class="guide-table">
-            <tr><th>Tipo de bola</th><th>Probabilidad de desvío</th><th>Desvío máximo</th></tr>
+            <tr><th>Tipo de bola</th><th>Probabilidad por turno</th><th>Desvío máximo</th></tr>
             ${scatterRows}
         </table>
         </div>`;
@@ -293,7 +295,8 @@ function buildControlsSection() {
         + `pero cuánto te muestra depende de la dificultad: ${aimLines}. `
         + 'Suelta para disparar: las bolas salen una tras otra en el mismo ángulo, salvo en '
         + `las dificultades con dispersión (${difficultiesWhere(a => a.aimScatter)}), donde cada `
-        + 'bola puede desviarse un poco (ver la tabla de dispersión en la sección Dificultades). '
+        + 'tipo de bola puede salir desviado un poco — pero todas las bolas de un mismo tipo '
+        + 'salen juntas (ver la tabla de dispersión en la sección Dificultades). '
         + `Máximo ${MAX_BALLS_ON_SCREEN} bolas por disparo.`);
     html += item('❄️', 'Apuntado fino (congelación)',
         `Disponible en ${difficultiesWhere(a => a.freezeAim)}. `

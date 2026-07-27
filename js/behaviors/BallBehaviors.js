@@ -6,9 +6,11 @@
  * - onCollision(ball, brick, gameState, helpers): Qué pasa al colisionar
  * - createBall(x, y, vx, vy): Crea una instancia de la bola con sus propiedades
  * - getConfig(): Configuración del tipo
- * - aimScatter (opcional): { chance, maxDegrees } — cuánto se desvía del
- *   ángulo apuntado en las dificultades con `assists.aimScatter`. Si no
- *   se declara se usa DEFAULT_AIM_SCATTER (ver config.js).
+ * - aimScatter (opcional): { chance, maxDegrees } — con qué probabilidad
+ *   por turno se desvía este tipo del ángulo apuntado, y cuánto, en las
+ *   dificultades con `assists.aimScatter`. El dado se tira una vez por
+ *   tipo y por turno: todas las bolas del tipo salen juntas. Si no se
+ *   declara se usa DEFAULT_AIM_SCATTER (ver config.js).
  *
  * Principio Open/Closed: Para agregar un nuevo tipo de bola,
  * simplemente crea un nuevo behavior y regístralo.

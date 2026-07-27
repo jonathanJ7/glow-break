@@ -48,9 +48,11 @@ export const AIM_ANGLE_MAX = -0.2;                // casi horizontal a la derech
 export const AIM_ANGLE_MIN = -Math.PI + 0.2;      // casi horizontal a la izquierda
 
 // Dispersión de puntería: en las dificultades con `assists.aimScatter`,
-// cada bola tirada saca su propio dado y, si sale, se desvía un ángulo
-// aleatorio dentro de ±maxDegrees. Cada ball type puede declarar su
-// propio `aimScatter`; los que no, usan estos valores.
+// al empezar el turno se tira un dado POR TIPO de bola. El tipo al que le
+// toca desvía TODAS sus bolas el mismo ángulo aleatorio dentro de
+// ±maxDegrees (el chorro se mantiene junto, no se abre en abanico). Cada
+// ball type puede declarar su propio `aimScatter`; los que no, usan estos
+// valores.
 export const DEFAULT_AIM_SCATTER = { chance: 0.25, maxDegrees: 5 };
 
 // Láser horizontal: daña a cada bloque de la fila con el mayor entre
@@ -81,9 +83,9 @@ export const BRICK_COLORS = [
 //   - aimLength:   largo de la línea como fracción del alto del área de
 //                  juego (null = sin límite extra, tope interno de 1200px)
 //   - freezeAim:   si el apuntado fino con congelación está disponible
-//   - aimScatter:  si las bolas pueden desviarse del ángulo apuntado
-//                  (ver DEFAULT_AIM_SCATTER y el `aimScatter` de cada
-//                  ball type)
+//   - aimScatter:  si cada tipo de bola puede salir desviado del ángulo
+//                  apuntado (un dado por tipo y por turno; ver
+//                  DEFAULT_AIM_SCATTER y el `aimScatter` de cada ball type)
 //   - hpRoundStep: el HP mostrado se redondea HACIA ARRIBA a múltiplos de
 //                  este valor (1 = exacto; los valores menores al step se
 //                  muestran exactos)

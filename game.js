@@ -62,6 +62,7 @@ export let gameState = {
     isHolding: false,
     aimAngle: -Math.PI / 2,
     ballsToShoot: [],  // Cola de tipos de bola a disparar
+    aimScatterOffsets: {}, // Desvío de puntería de ESTE turno, por tipo de bola
     ballsLanded: 0,
     totalBallsToShoot: 0,
     firstBallLanded: false,
@@ -452,23 +453,43 @@ export function startShooting() {
     gameState.ballsToShoot = shootQueue;
     gameState.totalBallsToShoot = shootQueue.length;
 
+    // Un dado por tipo para todo el turno (ver rollAimScatter)
+    gameState.aimScatterOffsets = rollAimScatter();
+
     shootNextBall();
 }
 
 /**
  * Dispersión de puntería: en las dificultades con `assists.aimScatter`,
- * cada bola saca su propio dado. Si sale, el ángulo se desvía dentro de
- * ±maxDegrees (los valores salen del `aimScatter` del ball type, o de
- * DEFAULT_AIM_SCATTER). El resultado se recorta al mismo rango que el
- * apuntado manual para que ninguna bola salga horizontal o hacia abajo.
+ * se tira UN dado por TIPO de bola al empezar el turno. El tipo que saca
+ * desviación la aplica a TODAS sus bolas, así que el chorro se mantiene
+ * junto: todas las normales salen por un lado, todas las de fuego por
+ * otro. Los valores salen del `aimScatter` del ball type, o de
+ * DEFAULT_AIM_SCATTER.
+ *
+ * @returns {Object} desvío en radianes por tipo (0 = sale exacta)
  */
-export function applyAimScatter(angle, behavior) {
-    if (!difficultyConfig.assists?.aimScatter) return angle;
+export function rollAimScatter() {
+    const offsets = {};
+    if (!difficultyConfig.assists?.aimScatter) return offsets;
 
-    const { chance, maxDegrees } = behavior.aimScatter || DEFAULT_AIM_SCATTER;
-    if (Math.random() >= chance) return angle;
+    for (const type of BallRegistry.getTypes()) {
+        const { chance, maxDegrees } = BallRegistry.get(type).aimScatter || DEFAULT_AIM_SCATTER;
+        offsets[type] = Math.random() < chance
+            ? (Math.random() * 2 - 1) * maxDegrees * Math.PI / 180
+            : 0;
+    }
+    return offsets;
+}
 
-    const offset = (Math.random() * 2 - 1) * maxDegrees * Math.PI / 180;
+/**
+ * Ángulo real de salida de un tipo de bola: el apuntado más el desvío que
+ * le tocó a su tipo este turno, recortado al mismo rango que el apuntado
+ * manual para que ninguna bola salga horizontal o hacia abajo.
+ */
+export function applyAimScatter(angle, ballType) {
+    const offset = gameState.aimScatterOffsets[ballType] || 0;
+    if (offset === 0) return angle;
     return Math.max(AIM_ANGLE_MIN, Math.min(AIM_ANGLE_MAX, angle + offset));
 }
 
@@ -477,7 +498,7 @@ export function shootNextBall() {
 
     const ballType = gameState.ballsToShoot.shift();
     const behavior = BallRegistry.get(ballType);
-    const angle = applyAimScatter(gameState.aimAngle, behavior);
+    const angle = applyAimScatter(gameState.aimAngle, ballType);
     const vx = Math.cos(angle) * BALL_SPEED;
     const vy = Math.sin(angle) * BALL_SPEED;
 
@@ -686,6 +707,7 @@ function resetSessionState(difficulty) {
     gameState.isHolding = false;
     gameState.aimAngle = -Math.PI / 2;
     gameState.ballsToShoot = [];
+    gameState.aimScatterOffsets = {};
     gameState.totalBallsToShoot = 0;
     gameState.ballsLanded = 0;
     gameState.firstBallLanded = false;
