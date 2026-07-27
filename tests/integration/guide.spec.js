@@ -64,8 +64,53 @@ test.describe('Glow-Break - game guide', () => {
         expect(text).toContain('12 bloques');            // COMBO_BALLS_PER
         expect(text).toContain('40 puntos');             // OVERDRIVE_MAX
         expect(text).toContain('Cada 15 turnos');        // BOSS_INTERVAL
-        expect(text).toContain('2 filas');               // SHIELD_BURN_ROWS
+        expect(text).toContain('solo la que cruzó');     // SHIELD_BURN_ROWS = 1
         expect(text).toContain('0.18');                  // HP_LOG_FACTOR (fórmula visible)
         expect(text).toContain('200 bolas');             // MAX_BALLS_ON_SCREEN
+    });
+
+    test('guide tables scroll sideways on a phone viewport', async ({ page }) => {
+        await loadGame(page);
+        await page.locator('#guideBtn').evaluate((el) => /** @type {HTMLElement} */ (el).click());
+
+        const wraps = page.locator('.guide-table-wrap');
+        const count = await wraps.count();
+        expect(count).toBeGreaterThan(0);
+
+        let overflowing = 0;
+        for (let i = 0; i < count; i++) {
+            const wrap = wraps.nth(i);
+
+            // El pan horizontal se decide mirando el elemento tocado Y todos
+            // sus ancestros: si alguno prohíbe el eje X, el navegador ignora
+            // el gesto aunque el contenedor tenga overflow-x: auto.
+            const axisBlockedBy = await wrap.evaluate((el) => {
+                const blockers = [];
+                for (let node = el; node && node !== document.documentElement; node = node.parentElement) {
+                    const ta = getComputedStyle(node).touchAction;
+                    const allowsX = ta === 'auto' || ta === 'manipulation' || /\bpan-x\b/.test(ta);
+                    if (!allowsX) blockers.push(`${node.tagName}.${node.className} => ${ta}`);
+                }
+                return blockers;
+            });
+            expect(axisBlockedBy, 'ningún ancestro debe bloquear el pan horizontal').toEqual([]);
+
+            const { scrollWidth, clientWidth } = await wrap.evaluate((el) => ({
+                scrollWidth: el.scrollWidth,
+                clientWidth: el.clientWidth,
+            }));
+            if (scrollWidth <= clientWidth) continue; // esa tabla entra en pantalla
+            overflowing++;
+
+            const scrolled = await wrap.evaluate((el) => {
+                el.scrollLeft = el.scrollWidth;
+                return el.scrollLeft;
+            });
+            expect(scrolled, 'la tabla desbordada debe poder scrollear').toBeGreaterThan(0);
+        }
+
+        // En un viewport de teléfono al menos una tabla tiene que desbordar,
+        // si no, este test no estaría probando nada.
+        expect(overflowing).toBeGreaterThan(0);
     });
 });

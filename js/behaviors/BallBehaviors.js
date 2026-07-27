@@ -6,6 +6,11 @@
  * - onCollision(ball, brick, gameState, helpers): Qué pasa al colisionar
  * - createBall(x, y, vx, vy): Crea una instancia de la bola con sus propiedades
  * - getConfig(): Configuración del tipo
+ * - aimScatter (opcional): { chance, maxDegrees } — con qué probabilidad
+ *   por turno se desvía este tipo del ángulo apuntado, y cuánto, en las
+ *   dificultades con `assists.aimScatter`. El dado se tira una vez por
+ *   tipo y por turno: todas las bolas del tipo salen juntas. Si no se
+ *   declara se usa DEFAULT_AIM_SCATTER (ver config.js).
  *
  * Principio Open/Closed: Para agregar un nuevo tipo de bola,
  * simplemente crea un nuevo behavior y regístralo.
@@ -23,6 +28,8 @@ const NormalBallBehavior = {
     color: '#fff',
     glowColor: null,
     damage: 1,
+    // La más liviana: es la que menos se desvía.
+    aimScatter: { chance: 0.20, maxDegrees: 4 },
 
     describe() {
         return `Hace ${this.damage} de daño por golpe y rebota. Es la munición base: `
@@ -93,6 +100,7 @@ const FireballBehavior = {
     color: '#ff6b6b',
     glowColor: '#ff6b6b',
     damage: 1,
+    aimScatter: { chance: 0.25, maxDegrees: 5 },
     icon: '🔥',
     bgColor: 'rgba(255, 107, 107, 0.8)',
     textColor: 'white',
@@ -196,6 +204,8 @@ const SplitterBehavior = {
     splitCount: 2,
     hitsToSplit: 5,
     splitAngles: [-Math.PI / 6, Math.PI / 6],
+    // Inestable de fábrica: se va de mano más seguido.
+    aimScatter: { chance: 0.30, maxDegrees: 6 },
     icon: '💥',
     bgColor: 'rgba(249, 237, 105, 0.8)',
     textColor: '#333',
@@ -302,6 +312,8 @@ const StrengthBallBehavior = {
     color: '#ff8c00',
     glowColor: '#ff8c00',
     damage: 3,
+    // Pesada: cuesta más mantenerla en línea.
+    aimScatter: { chance: 0.30, maxDegrees: 6 },
     icon: '💪',
     bgColor: 'rgba(255, 140, 0, 0.8)',
     textColor: 'white',
@@ -365,6 +377,8 @@ const BombBallBehavior = {
     aoeMaxHpRatio: 0.15,
     hitsPerFuse: 3,
     fuseWear: 1,
+    // La más pesada de todas: la que peor puntería tiene.
+    aimScatter: { chance: 0.35, maxDegrees: 7 },
     icon: '💣',
     bgColor: 'rgba(248, 113, 113, 0.8)',
     textColor: 'white',

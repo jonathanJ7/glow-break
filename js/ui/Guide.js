@@ -20,7 +20,7 @@ import {
     OVERDRIVE_MAX, OVERDRIVE_MULTIPLIER,
     BOSS_INTERVAL,
     STARTING_SHIELDS, MAX_SHIELDS, SHIELD_BURN_ROWS,
-    HP_LOG_FACTOR,
+    HP_LOG_FACTOR, DEFAULT_AIM_SCATTER,
 } from '../../config.js';
 import { FREEZE_TIME_MS, UNFREEZE_DISTANCE } from '../../input.js';
 
@@ -159,18 +159,28 @@ function buildDifficultySection() {
     const assistRows = diffs.map(d => {
         const c = DIFFICULTY_SETTINGS[d];
         const a = c.assists;
-        const aim = a.aimLength
-            ? `Corta: ${pct(a.aimLength)} del alto del área, ${a.aimBounces > 1 ? `hasta ${a.aimBounces} rebotes` : 'solo el primer rebote'}`
-            : (a.aimBounces > 1 ? `Completa (hasta ${a.aimBounces} rebotes)` : 'Hasta el primer rebote');
         const freeze = a.freezeAim ? 'Sí' : 'No';
+        const scatter = a.aimScatter ? 'Sí (ver tabla siguiente)' : 'No: sale exacto al ángulo';
         const hp = a.hpRoundStep > 1
             ? `Redondeado hacia arriba de ${a.hpRoundStep} en ${a.hpRoundStep} (exacto si es menor a ${a.hpRoundStep})`
             : 'Exacto';
         return `<tr>
             <td>${c.emoji} ${c.name}</td>
-            <td>${aim}</td>
+            <td>${aimLineLabel(a)}</td>
             <td>${freeze}</td>
+            <td>${scatter}</td>
             <td>${hp}</td>
+        </tr>`;
+    }).join('');
+
+    // Dispersión: una fila por ball type, con los números que usa el motor
+    const scatterRows = BallRegistry.getTypes().map(t => {
+        const b = BallRegistry.get(t);
+        const s = scatterOf(b);
+        return `<tr>
+            <td>${iconOf(b)} ${b.displayName || t}</td>
+            <td>${pct(s.chance)} de los turnos</td>
+            <td>±${s.maxDegrees}°</td>
         </tr>`;
     }).join('');
 
@@ -187,16 +197,44 @@ function buildDifficultySection() {
         </table>
         </div>
         <p class="guide-note"><b>Ayudas por dificultad</b>: además de los números, cada
-        dificultad limita cuánta información ves. En Medio la mira ya no revela los rebotes;
-        en Difícil la mira es corta, no hay apuntado congelado y la vida de los bloques se
-        muestra redondeada (un bloque con 34 de vida muestra "40" — sabes el techo, no el
-        valor exacto).</p>
+        dificultad limita cuánta información ves y cuánto puedes confiar en tu puntería.
+        En Medio la mira ya no revela los rebotes; en Difícil la mira llega entera hasta el
+        primer impacto pero no muestra hacia dónde sale, la vida de los bloques se muestra
+        redondeada (un bloque con 34 de vida muestra "40" — sabes el techo, no el valor
+        exacto) y las bolas pueden salir desviadas del ángulo apuntado.</p>
         <div class="guide-table-wrap">
         <table class="guide-table">
-            <tr><th>Dificultad</th><th>Línea de puntería</th><th>Apuntado congelado</th><th>Vida mostrada</th></tr>
+            <tr><th>Dificultad</th><th>Línea de puntería</th><th>Apuntado congelado</th><th>Dispersión</th><th>Vida mostrada</th></tr>
             ${assistRows}
         </table>
+        </div>
+        <p class="guide-note"><b>Dispersión de puntería</b>: en las dificultades marcadas
+        arriba, al empezar el turno se tira <b>un dado por cada tipo de bola</b>. El tipo al
+        que le toca se desvía un ángulo aleatorio dentro de su rango (distribución uniforme)
+        y ese desvío se aplica a <b>todas</b> sus bolas: las normales salen todas juntas por
+        un lado, las de fuego todas juntas por otro. El tipo al que no le toca sale exacto al
+        ángulo apuntado. Las bolas más pesadas son las que peor puntería tienen, y el desvío
+        nunca deja una bola horizontal ni hacia abajo.</p>
+        <div class="guide-table-wrap">
+        <table class="guide-table">
+            <tr><th>Tipo de bola</th><th>Probabilidad por turno</th><th>Desvío máximo</th></tr>
+            ${scatterRows}
+        </table>
         </div>`;
+}
+
+// Etiqueta de la línea de puntería para la tabla de ayudas, generada
+// desde assists (aimBounces = 0 significa "termina en el impacto").
+function aimLineLabel(a) {
+    const reach = a.aimLength ? `Corta (${pct(a.aimLength)} del alto del área)` : 'Completa';
+    if (a.aimBounces === 0) return `${reach}, termina en el primer impacto sin mostrar el rebote`;
+    if (a.aimBounces === 1) return `${reach}, hasta el primer rebote`;
+    return `${reach}, hasta ${a.aimBounces} rebotes`;
+}
+
+// Dispersión declarada por cada ball type (o el default de config.js)
+function scatterOf(behavior) {
+    return behavior.aimScatter || DEFAULT_AIM_SCATTER;
 }
 
 function buildMechanicsSection() {
@@ -213,7 +251,7 @@ function buildMechanicsSection() {
     html += item('🛡️', 'Escudos',
         `Empiezas cada partida con ${STARTING_SHIELDS} (máximo ${MAX_SHIELDS}; cada jefe derrotado `
         + `da +1). Cuando una fila de bloques cruza la línea roja inferior, en vez de perder se `
-        + `consume 1 escudo y se destruyen TODOS los bloques de las ${SHIELD_BURN_ROWS} filas de abajo. `
+        + `consume 1 escudo y se destruyen TODOS los bloques de ${SHIELD_BURN_ROWS === 1 ? 'esa fila (solo la que cruzó; el resto del tablero queda intacto)' : `las ${SHIELD_BURN_ROWS} filas más bajas`}. `
         + `Sin escudos, cruzar la línea es game over.`);
     html += item('👑', 'Jefes',
         `Cada ${BOSS_INTERVAL} turnos exactos la fila nueva trae un jefe en vez de bloques `
@@ -226,12 +264,12 @@ function buildMechanicsSection() {
 
 // Etiqueta de la línea de puntería de una dificultad, generada desde assists
 function aimAssistLabel(a) {
-    if (a.aimLength) {
-        return `la línea mide solo el ${pct(a.aimLength)} del alto del área de juego`;
-    }
-    return a.aimBounces > 1
-        ? `la línea sigue la trayectoria completa con hasta ${a.aimBounces} rebotes`
-        : 'la línea llega hasta el primer rebote y apenas insinúa la dirección de salida';
+    const reach = a.aimLength
+        ? `la línea mide solo el ${pct(a.aimLength)} del alto del área de juego`
+        : 'la línea recorre toda el área';
+    if (a.aimBounces === 0) return `${reach} y se corta en el primer impacto, sin revelar el rebote`;
+    if (a.aimBounces === 1) return `${reach} y llega hasta el primer rebote`;
+    return `${reach} con hasta ${a.aimBounces} rebotes`;
 }
 
 // Lista "😊 Fácil y 😤 Medio" de las dificultades donde una ayuda está activa
@@ -240,6 +278,7 @@ function difficultiesWhere(predicate) {
         .filter(d => predicate(DIFFICULTY_SETTINGS[d].assists))
         .map(d => `${DIFFICULTY_SETTINGS[d].emoji} ${DIFFICULTY_SETTINGS[d].name.charAt(0)}${DIFFICULTY_SETTINGS[d].name.slice(1).toLowerCase()}`);
     if (names.length === 0) return 'ninguna dificultad';
+    if (names.length === 3) return 'todas las dificultades';
     if (names.length === 1) return names[0];
     return names.slice(0, -1).join(', ') + ' y ' + names[names.length - 1];
 }
@@ -254,10 +293,13 @@ function buildControlsSection() {
     html += item('👆', 'Apuntar y disparar',
         'Arrastra el dedo para apuntar. La línea punteada usa la misma física que la bola real, '
         + `pero cuánto te muestra depende de la dificultad: ${aimLines}. `
-        + 'Suelta para disparar: las bolas salen una tras otra en el mismo ángulo. '
+        + 'Suelta para disparar: las bolas salen una tras otra en el mismo ángulo, salvo en '
+        + `las dificultades con dispersión (${difficultiesWhere(a => a.aimScatter)}), donde cada `
+        + 'tipo de bola puede salir desviado un poco — pero todas las bolas de un mismo tipo '
+        + 'salen juntas (ver la tabla de dispersión en la sección Dificultades). '
         + `Máximo ${MAX_BALLS_ON_SCREEN} bolas por disparo.`);
     html += item('❄️', 'Apuntado fino (congelación)',
-        `Disponible solo en ${difficultiesWhere(a => a.freezeAim)}. `
+        `Disponible en ${difficultiesWhere(a => a.freezeAim)}. `
         + `Mantén el dedo quieto mientras apuntas y el puntero se ralentiza progresivamente hasta `
         + `congelarse a los ${FREEZE_TIME_MS / 1000} segundos (la línea punteada hace de barra de `
         + `carga). Congelado, el ángulo queda bloqueado; para soltarlo, aleja el dedo más de `

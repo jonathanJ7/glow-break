@@ -1,6 +1,6 @@
 import { gameState, difficultyConfig, startShooting, shootTimeout, endTurn, initGame, resumeGame, updateContinueButton, showMainMenu, updateBallsPreview, setMenuDifficulty, currentDifficulty } from './game.js';
 import { canvas } from './rendering.js';
-import { FAST_SPEED_MULTIPLIER } from './config.js';
+import { FAST_SPEED_MULTIPLIER, AIM_ANGLE_MIN, AIM_ANGLE_MAX } from './config.js';
 
 // ============================================
 // SISTEMA DE APUNTADO UNIFICADO: slowdown progresivo → congelación
@@ -43,8 +43,8 @@ function getRawAngle(pos) {
     const dx = pos.x - gameState.launchX;
     const dy = pos.y - gameState.launchY;
     let angle = Math.atan2(dy, dx);
-    if (angle > -0.2) angle = -0.2;
-    if (angle < -Math.PI + 0.2) angle = -Math.PI + 0.2;
+    if (angle > AIM_ANGLE_MAX) angle = AIM_ANGLE_MAX;
+    if (angle < AIM_ANGLE_MIN) angle = AIM_ANGLE_MIN;
     return angle;
 }
 
@@ -122,8 +122,8 @@ export function handlePointerMove(e) {
     // permitiendo ajustes finos antes sin cambiar el tiempo total de congelación
     const sensitivity = (1 - aimState.slowdownProgress) ** 2;
     let next = gameState.aimAngle + rawDelta * sensitivity;
-    if (next > -0.2) next = -0.2;
-    if (next < -Math.PI + 0.2) next = -Math.PI + 0.2;
+    if (next > AIM_ANGLE_MAX) next = AIM_ANGLE_MAX;
+    if (next < AIM_ANGLE_MIN) next = AIM_ANGLE_MIN;
     gameState.aimAngle = next;
 
     // Actualizar progreso según la actividad cruda del dedo.

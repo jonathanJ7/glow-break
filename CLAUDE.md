@@ -287,23 +287,26 @@ BonusRegistry.register('shield', ShieldBonusBehavior);
 ### Fun Mechanics (v2.7.0)
 - **Combo**: bricks destroyed per turn accumulate in `gameState.combo`; every 12 kills grant +1 normal ball at `endTurn` (cap 8). Constants in `config.js`.
 - **Overdrive**: kills charge `gameState.overdriveCharge` (max 40); when full, the next `startShooting` activates a x2 damage turn (`overdriveActive`), applied in physics' `onBrickHit`.
-- **Shields**: `gameState.shieldCharges` (start 1, max 3). In `moveBricksDown`, a crossing row consumes a shield and burns the bottom 2 rows instead of game over. Bosses grant +1.
+- **Shields**: `gameState.shieldCharges` (start 1, max 3). In `moveBricksDown`, a crossing row consumes a shield and burns only the `SHIELD_BURN_ROWS` lowest rows — with the current value (1), just the row that actually crossed — instead of game over. Bosses grant +1.
 - **Ball AoE contract**: a ball behavior's `onCollision` may return `damagedBricks: [{brick, damage}]` — the engine applies it (used by `bomb`, mirrors brick `onDestroy`).
 - **Feedback helpers** in `physicsHelpers`: `addFloatingText(x, y, text, {color, size})`, `addScreenShake(intensity)`, `addBallsToInventory(type, count)`, `addShieldCharge()`.
 - **Records**: best turn per difficulty stored in `localStorage` (`glowbreak_best_<difficulty>`), only counted when starting from turn 1.
 
-### Ayudas por dificultad (v2.8.0)
+### Ayudas por dificultad (v2.8.0, ampliado en v2.9.0)
 
-Cada entrada de `DIFFICULTY_SETTINGS` tiene un objeto `assists` que controla cuánta **información** recibe el jugador (la dificultad no es solo números):
+Cada entrada de `DIFFICULTY_SETTINGS` tiene un objeto `assists` que controla cuánta **información** recibe el jugador y cuánto puede confiar en su puntería (la dificultad no es solo números):
 
 | Campo | Efecto | Dónde se aplica |
 |-------|--------|-----------------|
-| `aimBounces` | Rebotes que simula la línea de puntería | `rendering.js` → `drawAimLine` |
+| `aimBounces` | Rebotes que simula la línea de puntería. `0` = la línea recorre todo el tramo pero **termina en el primer impacto**, sin marcar rebote | `rendering.js` → `drawAimLine`, `CollisionSystem.js` → `simulateTrajectory` |
 | `aimLength` | Largo de la mira como fracción del alto del área (`null` = sin límite) | `rendering.js` → `drawAimLine` |
 | `freezeAim` | Si el apuntado fino con congelación está disponible | `input.js` → `handlePointerMove` |
+| `aimScatter` | Si las bolas pueden salir desviadas del ángulo apuntado | `game.js` → `applyAimScatter` (llamado por `shootNextBall`) |
 | `hpRoundStep` | El HP mostrado se redondea HACIA ARRIBA a múltiplos de este valor (exacto si HP < step); el HP real no cambia | `rendering.js` → `drawBrick` |
 
-Valores actuales — Fácil: todas las ayudas (mira completa 5 rebotes, congelación, HP exacto). Medio: la mira solo llega al primer rebote. Difícil: mira corta (35% del área), sin congelación, HP redondeado a decenas.
+Valores actuales — Fácil: todas las ayudas (mira completa 5 rebotes, congelación, HP exacto, sin dispersión). Medio: la mira solo llega al primer rebote. Difícil: mira completa hasta el primer impacto pero sin mostrar el rebote, congelación disponible, HP redondeado a decenas y **dispersión activa**.
+
+**Dispersión de puntería (v2.9.0)**: con `assists.aimScatter`, `startShooting` llama a `rollAimScatter()`, que tira **un dado por TIPO de bola** y guarda el resultado en `gameState.aimScatterOffsets` (radianes por tipo, 0 = sin desvío). `shootNextBall` lo aplica vía `applyAimScatter(angle, ballType)`, así que todas las bolas de un mismo tipo salen juntas con el mismo desvío — no se abren en abanico. El desvío es uniforme dentro de ±`maxDegrees` y se recorta a `[AIM_ANGLE_MIN, AIM_ANGLE_MAX]` (los mismos topes que usa el apuntado manual en `input.js`). Cada ball behavior puede declarar su propio `aimScatter: { chance, maxDegrees }`; los que no, usan `DEFAULT_AIM_SCATTER` de `config.js`. Valores actuales: normal 20%/±4°, fuego 25%/±5°, divisora 30%/±6°, fuerza 30%/±6°, bomba 35%/±7°.
 
 La guía (`js/ui/Guide.js`) genera su tabla de ayudas y los textos de controles desde `assists` — al cambiar un valor en config, la guía se actualiza sola.
 
