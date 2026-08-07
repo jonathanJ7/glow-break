@@ -33,8 +33,10 @@ export const HP_LOG_FACTOR = 0.18;
 // línea, un escudo quema las SHIELD_BURN_ROWS filas más bajas (contando
 // desde la que cruzó hacia arriba) en vez de game over. Con 1, solo
 // desaparece la fila que efectivamente colisionó.
+// Solo se puede tener 1 escudo a la vez: los jefes ya no acumulan, solo
+// reponen el escudo si estaba gastado.
 export const STARTING_SHIELDS = 1;
-export const MAX_SHIELDS = 3;
+export const MAX_SHIELDS = 1;
 export const SHIELD_BURN_ROWS = 1;
 
 // El bonus de bolas normales escala: +1 bola extra por cada
@@ -160,6 +162,8 @@ export const DIFFICULTY_SETTINGS = {
 // Orden en ballBonuses = prioridad (el más raro primero).
 // first: turno en que aparece por primera vez.
 // interval: cada cuántos turnos reaparece después del primero.
+// scaleTurns (solo 'ball'): cada cuántos turnos el bonus da +1 bola extra.
+//   Si no se define, se usa BALL_BONUS_SCALE_TURNS.
 export const SPAWN_SCHEDULE = {
     easy: {
         ballBonuses: {
@@ -190,7 +194,13 @@ export const SPAWN_SCHEDULE = {
             splitterBall: { first: 50, interval: 30 },
             bombBall:     { first: 28, interval: 18 },
             fireballBall: { first: 25, interval: 20 },
-            ball:         { first: 1, interval: 3 },
+            // Difícil ya castiga con HP ×2.8 y densidad alta: darle bolas
+            // solo cada 3 turnos hacía que el jugador quedara con ~60% de
+            // las bolas de medio. Ahora recibe bonus cada 2 turnos (igual
+            // cadencia que medio) pero cada bonus escala más lento
+            // (scaleTurns 40 vs 25), así que sigue por debajo de medio
+            // (~75-85%) sin quedarse tan atrás de la curva de HP.
+            ball:         { first: 1, interval: 2, scaleTurns: 40 },
         },
         powerups: {
             strength:   { first: 20, interval: 18 },

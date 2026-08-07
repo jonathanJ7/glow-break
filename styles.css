@@ -685,6 +685,13 @@ body, #gameContainer,
 }
 .guide-note b { color: #d8d8ea; }
 
+/* Detalle secundario dentro de una celda de tabla de la guía */
+.guide-dim {
+    color: #9a9ab5;
+    font-size: 0.85em;
+    white-space: nowrap;
+}
+
 .guide-table-wrap {
     overflow-x: auto;
     overflow-y: hidden;

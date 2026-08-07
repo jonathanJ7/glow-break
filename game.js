@@ -8,7 +8,7 @@
  * solo necesitas registrar nuevos behaviors.
  */
 
-import { DIFFICULTY_SETTINGS, SPAWN_SCHEDULE, COLS, SHOOT_DELAY, MAX_BALLS_ON_SCREEN, FAST_SPEED_MULTIPLIER, BASE_BALL_RADIUS, BALL_SPEED, COMBO_BALLS_PER, COMBO_MAX_REWARD, OVERDRIVE_MAX, BOSS_INTERVAL, BOSS_HP_MULTIPLIER, STARTING_SHIELDS, SHIELD_BURN_ROWS, BALL_BONUS_SCALE_TURNS, HP_LOG_FACTOR, DEFAULT_AIM_SCATTER, AIM_ANGLE_MIN, AIM_ANGLE_MAX } from './config.js';
+import { DIFFICULTY_SETTINGS, SPAWN_SCHEDULE, COLS, SHOOT_DELAY, MAX_BALLS_ON_SCREEN, FAST_SPEED_MULTIPLIER, BASE_BALL_RADIUS, BALL_SPEED, COMBO_BALLS_PER, COMBO_MAX_REWARD, OVERDRIVE_MAX, BOSS_INTERVAL, BOSS_HP_MULTIPLIER, STARTING_SHIELDS, MAX_SHIELDS, SHIELD_BURN_ROWS, BALL_BONUS_SCALE_TURNS, HP_LOG_FACTOR, DEFAULT_AIM_SCATTER, AIM_ANGLE_MIN, AIM_ANGLE_MAX } from './config.js';
 import { getWidth, getHeight, getCellSize, getLeftBorder, getRightBorder, getTopOffset, getBottomLine, getScale, getBallRadius } from './rendering.js';
 import { updateBalls, updateParticles, createParticles, addFloatingText } from './physics.js';
 import { BrickRegistry, BallRegistry, BonusRegistry } from './js/behaviors/index.js';
@@ -123,8 +123,10 @@ export function getScheduledSpawns(turn, difficulty) {
         const ballCfg = schedule.ballBonuses.ball;
         if (ballCfg && turn >= ballCfg.first && (turn - ballCfg.first) % ballCfg.interval === 0) {
             // El valor escala con el turno para que el poder de fuego no
-            // quede atrás de la curva de HP en runs largas.
-            result.ballBonus = { type: 'ball', value: 1 + Math.floor(turn / BALL_BONUS_SCALE_TURNS) };
+            // quede atrás de la curva de HP en runs largas. Cada dificultad
+            // puede definir su propio ritmo con scaleTurns.
+            const scaleTurns = ballCfg.scaleTurns || BALL_BONUS_SCALE_TURNS;
+            result.ballBonus = { type: 'ball', value: 1 + Math.floor(turn / scaleTurns) };
         }
     }
 
@@ -868,8 +870,10 @@ export function resumeGame() {
     startingTurn = Math.max(1, parseInt(save.startingTurn) || 1);
     gameState.turn = save.turn;
     gameState.ballInventory = { ...save.ballInventory };
+    // Clamp: un guardado viejo pudo acumular más escudos de los que ahora
+    // permite MAX_SHIELDS.
     gameState.shieldCharges = Number.isFinite(save.shieldCharges)
-        ? save.shieldCharges : STARTING_SHIELDS;
+        ? Math.min(save.shieldCharges, MAX_SHIELDS) : STARTING_SHIELDS;
     gameState.overdriveCharge = Number.isFinite(save.overdriveCharge)
         ? save.overdriveCharge : 0;
 
