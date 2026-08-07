@@ -20,7 +20,7 @@ import {
     OVERDRIVE_MAX, OVERDRIVE_MULTIPLIER,
     BOSS_INTERVAL,
     STARTING_SHIELDS, MAX_SHIELDS, SHIELD_BURN_ROWS,
-    HP_LOG_FACTOR, DEFAULT_AIM_SCATTER,
+    HP_LOG_FACTOR, DEFAULT_AIM_SCATTER, BALL_BONUS_SCALE_TURNS,
 } from '../../config.js';
 import { FREEZE_TIME_MS, UNFREEZE_DISTANCE } from '../../input.js';
 
@@ -120,7 +120,12 @@ function buildScheduleSection() {
         const cells = diffs.map(d => {
             const cfg = SPAWN_SCHEDULE[d].ballBonuses[type] || SPAWN_SCHEDULE[d].powerups[type];
             if (!cfg) return '<td>—</td>';
-            return `<td>turno ${cfg.first}, luego cada ${cfg.interval}</td>`;
+            // El bonus de bolas normales escala su valor: cada dificultad
+            // puede tener su propio ritmo (scaleTurns).
+            const scale = type === 'ball'
+                ? ` <span class="guide-dim">(+1 bola por cada ${cfg.scaleTurns || BALL_BONUS_SCALE_TURNS} turnos)</span>`
+                : '';
+            return `<td>turno ${cfg.first}, luego cada ${cfg.interval}${scale}</td>`;
         }).join('');
         rows.push(`<tr><td>${icon} ${name}</td>${cells}</tr>`);
     }
@@ -250,7 +255,8 @@ function buildMechanicsSection() {
         + `expansivas incluidas) y el medidor vuelve a 0. La carga sobrante no se pierde entre turnos.`);
     html += item('🛡️', 'Escudos',
         `Empiezas cada partida con ${STARTING_SHIELDS} (máximo ${MAX_SHIELDS}; cada jefe derrotado `
-        + `da +1). Cuando una fila de bloques cruza la línea roja inferior, en vez de perder se `
+        + `da +1${MAX_SHIELDS === 1 ? ', pero como solo puedes tener 1 a la vez, únicamente te lo repone si ya lo gastaste' : ''}`
+        + `). Cuando una fila de bloques cruza la línea roja inferior, en vez de perder se `
         + `consume 1 escudo y se destruyen TODOS los bloques de ${SHIELD_BURN_ROWS === 1 ? 'esa fila (solo la que cruzó; el resto del tablero queda intacto)' : `las ${SHIELD_BURN_ROWS} filas más bajas`}. `
         + `Sin escudos, cruzar la línea es game over.`);
     html += item('👑', 'Jefes',

@@ -12,7 +12,7 @@
  */
 
 import { BonusRegistry } from '../core/Registry.js';
-import { BALL_BONUS_SCALE_TURNS, LASER_MAXHP_RATIO, LASER_CURRENT_HP_RATIO } from '../../config.js';
+import { BALL_BONUS_SCALE_TURNS, LASER_MAXHP_RATIO, LASER_CURRENT_HP_RATIO, SPAWN_SCHEDULE, DIFFICULTY_SETTINGS } from '../../config.js';
 
 // ============================================
 // BALL BONUS - Agrega bolas normales
@@ -25,10 +25,22 @@ const BallBonusBehavior = {
     targetBallType: 'normal',
 
     describe() {
+        // El ritmo de escalado puede variar por dificultad (scaleTurns en
+        // SPAWN_SCHEDULE); lo leemos del config para no desincronizarnos.
+        const scales = Object.entries(SPAWN_SCHEDULE).map(([key, sched]) => ({
+            name: DIFFICULTY_SETTINGS[key].name,
+            scale: sched.ballBonuses.ball?.scaleTurns || BALL_BONUS_SCALE_TURNS,
+        }));
+        const uniform = scales.every(s => s.scale === scales[0].scale);
+        const detail = uniform
+            ? `${scales[0].scale}`
+            : scales.map(s => `${s.name} ${s.scale}`).join(', ');
+        const example = scales[0].scale;
+
         return 'Suma N bolas normales a tu inventario para siempre. '
-            + `N escala con el turno: N = 1 + (turno ÷ ${BALL_BONUS_SCALE_TURNS}, redondeado hacia abajo). `
-            + `Es decir: +1 hasta el turno ${BALL_BONUS_SCALE_TURNS - 1}, +2 del ${BALL_BONUS_SCALE_TURNS} al `
-            + `${BALL_BONUS_SCALE_TURNS * 2 - 1}, +3 del ${BALL_BONUS_SCALE_TURNS * 2} en adelante, y así sucesivamente.`;
+            + `N escala con el turno: N = 1 + (turno ÷ E, redondeado hacia abajo), con E = ${detail}. `
+            + `Por ejemplo con E = ${example}: +1 hasta el turno ${example - 1}, +2 del ${example} al `
+            + `${example * 2 - 1}, +3 del ${example * 2} en adelante, y así sucesivamente.`;
     },
 
     render(ctx, bonus, helpers) {

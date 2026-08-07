@@ -512,7 +512,8 @@ const BossBrickBehavior = {
         return `Aparece cada ${BOSS_INTERVAL} turnos exactos (turnos ${BOSS_INTERVAL}, ${BOSS_INTERVAL * 2}, `
             + `${BOSS_INTERVAL * 3}...) ocupando 3 columnas; su fila no genera ningún otro bloque. `
             + `Su HP es ${BOSS_HP_MULTIPLIER}× el HP base de ese turno y muestra una barra de vida. `
-            + `Al destruirlo: +${this.lootBalls} bolas normales, +1 escudo (máximo ${MAX_SHIELDS}) y una onda `
+            + `Al destruirlo: +${this.lootBalls} bolas normales, +1 escudo (máximo ${MAX_SHIELDS}`
+            + `${MAX_SHIELDS === 1 ? ', así que solo repone el tuyo si ya lo gastaste' : ''}) y una onda `
             + `expansiva que daña a todos los bloques a menos de ${this.shockRadiusCells} celdas con el `
             + `${Math.round(this.shockDamageRatio * 100)}% de su HP máximo. No aparece nunca por azar.`;
     },

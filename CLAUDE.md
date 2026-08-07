@@ -287,7 +287,8 @@ BonusRegistry.register('shield', ShieldBonusBehavior);
 ### Fun Mechanics (v2.7.0)
 - **Combo**: bricks destroyed per turn accumulate in `gameState.combo`; every 12 kills grant +1 normal ball at `endTurn` (cap 8). Constants in `config.js`.
 - **Overdrive**: kills charge `gameState.overdriveCharge` (max 40); when full, the next `startShooting` activates a x2 damage turn (`overdriveActive`), applied in physics' `onBrickHit`.
-- **Shields**: `gameState.shieldCharges` (start 1, max 3). In `moveBricksDown`, a crossing row consumes a shield and burns only the `SHIELD_BURN_ROWS` lowest rows — with the current value (1), just the row that actually crossed — instead of game over. Bosses grant +1.
+- **Shields**: `gameState.shieldCharges` (start 1, max 1 — `MAX_SHIELDS`; no stacking). In `moveBricksDown`, a crossing row consumes a shield and burns only the `SHIELD_BURN_ROWS` lowest rows — with the current value (1), just the row that actually crossed — instead of game over. Bosses grant +1, which with `MAX_SHIELDS = 1` only refills a spent shield. `resumeGame` clamps saved charges to `MAX_SHIELDS`.
+- **Ball bonus scaling per difficulty**: `SPAWN_SCHEDULE[d].ballBonuses.ball` accepts an optional `scaleTurns` (default `BALL_BONUS_SCALE_TURNS`) — the bonus grants `1 + floor(turn / scaleTurns)` balls. Hard uses `interval: 2, scaleTurns: 40` so it is no longer starved of balls (~75-85% of medium instead of ~60%).
 - **Ball AoE contract**: a ball behavior's `onCollision` may return `damagedBricks: [{brick, damage}]` — the engine applies it (used by `bomb`, mirrors brick `onDestroy`).
 - **Feedback helpers** in `physicsHelpers`: `addFloatingText(x, y, text, {color, size})`, `addScreenShake(intensity)`, `addBallsToInventory(type, count)`, `addShieldCharge()`.
 - **Records**: best turn per difficulty stored in `localStorage` (`glowbreak_best_<difficulty>`), only counted when starting from turn 1.
