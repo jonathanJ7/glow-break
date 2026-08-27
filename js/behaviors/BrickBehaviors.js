@@ -91,19 +91,20 @@ const ExplosiveBrickBehavior = {
     },
 
     render(ctx, brick, helpers) {
-        const { getFontSize, getScale } = helpers;
+        const { getFontSize, getScale, getBrickRect } = helpers;
+        const rect = getBrickRect(brick);
 
         // Overlay rojo
         ctx.fillStyle = this.overlayColor;
         ctx.beginPath();
-        ctx.roundRect(brick.x + 2, brick.y + 2, brick.width, brick.height, 6);
+        ctx.roundRect(rect.x, rect.y, rect.width, rect.height, rect.radii);
         ctx.fill();
 
         // Emoji
         ctx.fillStyle = 'rgba(255,255,255,0.8)';
         ctx.font = `${getFontSize(12)}px Arial`;
         ctx.textAlign = 'center';
-        ctx.fillText(this.emoji, brick.x + 2 + brick.width / 2, brick.y + 15 * getScale());
+        ctx.fillText(this.emoji, rect.centerX, brick.y + 15 * getScale());
     },
 
     onDestroy(brick, gameState, helpers) {
@@ -168,11 +169,16 @@ const ArmoredBrickBehavior = {
     },
 
     render(ctx, brick, helpers) {
-        // Borde interno grueso
+        const rect = helpers.getBrickRect(brick);
+
+        // Borde interno grueso. Sigue el redondeo de la superficie fusionada
+        // (esquina recta donde hay vecino) para que el blindado se lea como
+        // parte de la pared y no como una caja suelta encima.
+        const radii = rect.radii.map((r) => (r > 0 ? 4 : 0));
         ctx.strokeStyle = 'rgba(255,255,255,0.5)';
         ctx.lineWidth = 3;
         ctx.beginPath();
-        ctx.roundRect(brick.x + 5, brick.y + 5, brick.width - 6, brick.height - 6, 4);
+        ctx.roundRect(rect.x + 3, rect.y + 3, rect.width - 6, rect.height - 6, radii);
         ctx.stroke();
     },
 
@@ -218,19 +224,20 @@ const SpawnerBrickBehavior = {
     },
 
     render(ctx, brick, helpers) {
-        const { getFontSize, getScale } = helpers;
+        const { getFontSize, getScale, getBrickRect } = helpers;
+        const rect = getBrickRect(brick);
 
         // Overlay morado
         ctx.fillStyle = this.overlayColor;
         ctx.beginPath();
-        ctx.roundRect(brick.x + 2, brick.y + 2, brick.width, brick.height, 6);
+        ctx.roundRect(rect.x, rect.y, rect.width, rect.height, rect.radii);
         ctx.fill();
 
         // Emoji
         ctx.fillStyle = 'rgba(255,255,255,0.8)';
         ctx.font = `${getFontSize(12)}px Arial`;
         ctx.textAlign = 'center';
-        ctx.fillText(this.emoji, brick.x + 2 + brick.width / 2, brick.y + 15 * getScale());
+        ctx.fillText(this.emoji, rect.centerX, brick.y + 15 * getScale());
     },
 
     onDestroy(brick, gameState, helpers) {
@@ -316,19 +323,20 @@ const RegeneratorBrickBehavior = {
     },
 
     render(ctx, brick, helpers) {
-        const { getFontSize, getScale } = helpers;
+        const { getFontSize, getScale, getBrickRect } = helpers;
+        const rect = getBrickRect(brick);
 
         // Overlay verde
         ctx.fillStyle = this.overlayColor;
         ctx.beginPath();
-        ctx.roundRect(brick.x + 2, brick.y + 2, brick.width, brick.height, 6);
+        ctx.roundRect(rect.x, rect.y, rect.width, rect.height, rect.radii);
         ctx.fill();
 
         // Emoji
         ctx.fillStyle = 'rgba(255,255,255,0.8)';
         ctx.font = `${getFontSize(12)}px Arial`;
         ctx.textAlign = 'center';
-        ctx.fillText(this.emoji, brick.x + 2 + brick.width / 2, brick.y + 15 * getScale());
+        ctx.fillText(this.emoji, rect.centerX, brick.y + 15 * getScale());
     },
 
     onDestroy(brick, gameState, helpers) {
@@ -380,21 +388,22 @@ const GoldBrickBehavior = {
     },
 
     render(ctx, brick, helpers) {
-        const { getFontSize, getScale } = helpers;
+        const { getFontSize, getScale, getBrickRect } = helpers;
+        const rect = getBrickRect(brick);
 
         // Overlay dorado con brillo
         ctx.shadowColor = '#fbbf24';
         ctx.shadowBlur = 8;
         ctx.fillStyle = this.overlayColor;
         ctx.beginPath();
-        ctx.roundRect(brick.x + 2, brick.y + 2, brick.width, brick.height, 6);
+        ctx.roundRect(rect.x, rect.y, rect.width, rect.height, rect.radii);
         ctx.fill();
         ctx.shadowBlur = 0;
 
         ctx.fillStyle = 'rgba(255,255,255,0.9)';
         ctx.font = `${getFontSize(12)}px Arial`;
         ctx.textAlign = 'center';
-        ctx.fillText(this.emoji, brick.x + 2 + brick.width / 2, brick.y + 15 * getScale());
+        ctx.fillText(this.emoji, rect.centerX, brick.y + 15 * getScale());
     },
 
     onDestroy(brick, gameState, helpers) {
@@ -452,17 +461,18 @@ const MysteryBrickBehavior = {
     },
 
     render(ctx, brick, helpers) {
-        const { getFontSize, getScale } = helpers;
+        const { getFontSize, getScale, getBrickRect } = helpers;
+        const rect = getBrickRect(brick);
 
         ctx.fillStyle = this.overlayColor;
         ctx.beginPath();
-        ctx.roundRect(brick.x + 2, brick.y + 2, brick.width, brick.height, 6);
+        ctx.roundRect(rect.x, rect.y, rect.width, rect.height, rect.radii);
         ctx.fill();
 
         ctx.fillStyle = 'rgba(255,255,255,0.9)';
         ctx.font = `${getFontSize(12)}px Arial`;
         ctx.textAlign = 'center';
-        ctx.fillText(this.emoji, brick.x + 2 + brick.width / 2, brick.y + 15 * getScale());
+        ctx.fillText(this.emoji, rect.centerX, brick.y + 15 * getScale());
     },
 
     onDestroy(brick, gameState, helpers) {
@@ -519,7 +529,8 @@ const BossBrickBehavior = {
     },
 
     render(ctx, brick, helpers) {
-        const { getFontSize, getScale } = helpers;
+        const { getFontSize, getScale, getBrickRect } = helpers;
+        const rect = getBrickRect(brick);
 
         // Aura pulsante
         const pulse = 0.5 + Math.sin(performance.now() * 0.004) * 0.3;
@@ -527,26 +538,26 @@ const BossBrickBehavior = {
         ctx.shadowBlur = 18 * pulse;
         ctx.fillStyle = 'rgba(233, 69, 96, 0.35)';
         ctx.beginPath();
-        ctx.roundRect(brick.x + 2, brick.y + 2, brick.width, brick.height, 6);
+        ctx.roundRect(rect.x, rect.y, rect.width, rect.height, rect.radii);
         ctx.fill();
         ctx.shadowBlur = 0;
 
         ctx.strokeStyle = `rgba(255, 215, 0, ${0.5 + pulse * 0.4})`;
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.roundRect(brick.x + 2, brick.y + 2, brick.width, brick.height, 6);
+        ctx.roundRect(rect.x, rect.y, rect.width, rect.height, rect.radii);
         ctx.stroke();
 
         // Corona
         ctx.fillStyle = 'rgba(255,255,255,0.95)';
         ctx.font = `${getFontSize(14)}px Arial`;
         ctx.textAlign = 'center';
-        ctx.fillText(this.emoji, brick.x + 2 + brick.width / 2, brick.y + 15 * getScale());
+        ctx.fillText(this.emoji, rect.centerX, brick.y + 15 * getScale());
 
         // Barra de vida sobre el jefe
-        const barW = brick.width - 10;
+        const barW = rect.width - 10;
         const barH = 4;
-        const barX = brick.x + 7;
+        const barX = rect.x + 5;
         const barY = brick.y - 4;
         const ratio = Math.max(0, brick.hp / brick.maxHp);
         ctx.fillStyle = 'rgba(0,0,0,0.5)';

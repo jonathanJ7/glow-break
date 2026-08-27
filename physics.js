@@ -12,7 +12,7 @@
 
 import { gameState, endTurn, events } from './game.js';
 import { COLS, FAST_SPEED_MULTIPLIER, BALL_SPEED, OVERDRIVE_MAX, OVERDRIVE_MULTIPLIER, MAX_SHIELDS, LASER_MAXHP_RATIO, LASER_CURRENT_HP_RATIO } from './config.js';
-import { getWidth, getHeight, getLeftBorder, getRightBorder, getTopOffset, getBottomLine, getCellSize, getBallRadius, getScale, getBrickColor } from './rendering.js';
+import { getWidth, getHeight, getLeftBorder, getRightBorder, getTopOffset, getBottomLine, getCellSize, getBallRadius, getScale, getBrickColor, getBrickRect } from './rendering.js';
 import { BrickRegistry, BallRegistry, BonusRegistry } from './js/behaviors/index.js';
 import { processPhysicsStep, simulateTrajectory } from './js/systems/CollisionSystem.js';
 
@@ -108,6 +108,7 @@ const physicsHelpers = Object.freeze({
     getRightBorder,
     getBallRadius,
     getBrickColor,
+    getBrickRect,
     getScale,
     createParticles,
     fireHorizontalLaser,

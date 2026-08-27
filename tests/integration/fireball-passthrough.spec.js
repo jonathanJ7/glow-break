@@ -108,7 +108,15 @@ test.describe('Fireball passthrough — behavior unit tests', () => {
                     hp: 5, maxHp: 5, type: 'normal',
                 }],
             };
-            const helpers = { getBallRadius: () => 5 };
+            const helpers = {
+                getBallRadius: () => 5,
+                // Rect fusionado del bloque (ver js/systems/BrickSurfaces.js).
+                // Este bloque de prueba está aislado, así que equivale al
+                // rect con margen de siempre.
+                getBrickRect: (b) => ({
+                    x: b.x + 2, y: b.y + 2, width: b.width, height: b.height,
+                }),
+            };
             fb.onPostStep(ball, gameState, helpers);
             return { hitBricksSize: ball.state.hitBricks.size };
         });
@@ -128,7 +136,15 @@ test.describe('Fireball passthrough — behavior unit tests', () => {
                     hp: 5, maxHp: 5, type: 'normal',
                 }],
             };
-            const helpers = { getBallRadius: () => 5 };
+            const helpers = {
+                getBallRadius: () => 5,
+                // Rect fusionado del bloque (ver js/systems/BrickSurfaces.js).
+                // Este bloque de prueba está aislado, así que equivale al
+                // rect con margen de siempre.
+                getBrickRect: (b) => ({
+                    x: b.x + 2, y: b.y + 2, width: b.width, height: b.height,
+                }),
+            };
             fb.onPostStep(ball, gameState, helpers);
             return { hitBricksSize: ball.state.hitBricks.size };
         });

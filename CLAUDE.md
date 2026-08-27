@@ -57,7 +57,9 @@ glow-break/
     │   └── BonusBehaviors.js
     │
     ├── systems/
-    │   └── BrickGenerator.js
+    │   ├── BrickGenerator.js
+    │   ├── CollisionSystem.js   # CCD (swept sphere)
+    │   └── BrickSurfaces.js     # Fusión de bloques adyacentes
     │
     ├── entities/
     │   ├── Brick.js
@@ -321,6 +323,51 @@ El inventario de bolas especiales es el elemento DOM `#ballInventory` (píldoras
 - **Botón Continuar**: `#continueBtn` en el menú principal, visible solo si hay guardado (`updateContinueButton()`); `resumeGame()` restaura turno, inventario, bloques, bonuses, escudos y overdrive. `endGame()` borra el guardado (una partida terminada no se resume).
 - **Cola de disparo con inventario grande**: en `startShooting`, cuando el inventario total supera `MAX_BALLS_ON_SCREEN`, las bolas especiales tienen prioridad de SELECCIÓN (entran todas a la cola) y las normales rellenan el resto; el ORDEN de disparo sigue siendo por `shootPriority`. Sin esta reserva, las especiales no se disparaban nunca en turnos altos.
 
+### Superficies fusionadas de bloques (v2.10.0)
+
+`js/systems/BrickSurfaces.js` fusiona los bloques adyacentes en **una sola
+superficie continua**, y esa geometría la comparten la física y el
+renderizado (por eso lo que se ve es literalmente la superficie de colisión).
+
+**Problema que resolvía**: cada bloque se dibujaba y colisionaba como un rect
+independiente con 2px de margen por lado. Entre dos vecinos quedaba una ranura
+de 4px, y cada uno aportaba sus propias caras y esquinas redondeadas INTERNAS.
+Una bola que pegaba en la costura entre dos bloques rebotaba contra una esquina
+fantasma y salía desviada hasta ~17°. Con margen > 0 aparecía además un
+escalón visible ("pico") cuando dos bloques de la misma fila no coincidían en
+tener vecino abajo: uno terminaba 2px más arriba que el otro. Por eso
+`BRICK_INSET = 0` y la superficie de un bloque es **su celda completa**: la
+unión de celdas adyacentes nunca tiene escalones.
+
+**Cómo funciona**: `getBrickSurfaces(bricks, cellSize)` (con caché por firma
+del conjunto de bloques) devuelve un `Map<brick, surface>` donde cada surface
+tiene:
+
+| Campo | Significado |
+|-------|-------------|
+| `x0, y0, x1, y1` | Rect fusionado = la celda completa, así dos vecinos comparten exactamente la misma arista |
+| `leftExposed` / `rightExposed` | Si esa cara se testea en colisión (las internas no) |
+| `topSegments` / `bottomSegments` | Tramos expuestos del lado horizontal — un jefe ocupa 3 celdas y puede estar tapado solo en parte |
+| `topSeams` / `bottomSeams` | Tramos cubiertos (solo para dibujar la costura fina) |
+| `corners` | `{tl, tr, bl, br}` — una esquina solo existe si sus DOS caras están expuestas ahí |
+
+- **Física**: `CollisionSystem.sweepSphereSurface` testea solo caras y
+  esquinas expuestas. `findFirstCollision` (y por lo tanto también la línea
+  de puntería vía `simulateTrajectory`) usa las superficies.
+- **Render**: `rendering.js` dibuja el rect fusionado con `roundRect` y radio
+  **0** en las esquinas pegadas a otro bloque, en tres pasadas (sombras →
+  cuerpos → costuras) para que la sombra de un bloque no caiga sobre el
+  vecino. `helpers.getBrickRect(brick)` expone ese rect a los behaviors.
+
+**Contrato para tipos nuevos**: en `render()` usá `helpers.getBrickRect(brick)`
+y pintá con `rect.x/rect.y/rect.width/rect.height` y `rect.radii`. Dibujar con
+`brick.x + 2` desalinea el gráfico de la superficie de colisión.
+
+Los bloques siguen alineados a la grilla: `brick.x`/`brick.y` son el origen de
+la celda, `width = cellSize * columnas - BRICK_CELL_GAP`. `BrickSurfaces`
+deriva los índices de celda de esas coordenadas, así que cualquier bloque
+nuevo (spawner, jefe, etc.) se fusiona solo.
+
 ### In-Game Guide (v2.7.1)
 
 `js/ui/Guide.js` renders the "📖 Guía del juego" screen (opened from the main menu). Its content is **generated from the live registries and `config.js`** — never hardcode game numbers in the guide.
@@ -341,12 +388,14 @@ The `guide.spec.js` test fails if any registered type is missing from the guide.
 - `getScale()` - Current scale factor
 - `getBallRadius()` - Current ball radius
 - `getBrickColor(hp, maxHp)` - Color based on HP
+- `getBrickRect(brick)` - **Rect fusionado del bloque** (ver "Superficies fusionadas"). Devuelve `{x, y, width, height, radii, centerX, centerY}`. Los behaviors de bloque DEBEN dibujar con esto, nunca con `brick.x + 2` / `brick.width`
 
 ### Physics Helpers (in `onCollision()`, `onDestroy()`, etc.)
 - `getCellSize()` - Grid cell size
 - `getLeftBorder()` / `getRightBorder()` - Play area bounds
 - `getBallRadius()` - Ball radius
 - `getBrickColor(hp, maxHp)` - Color for particles
+- `getBrickRect(brick)` - Rect fusionado del bloque (misma geometría que usa la colisión)
 - `createParticles(x, y, color, count)` - Spawn particles
 - `fireHorizontalLaser(y)` - Fire laser effect
 - `addFloatingText(x, y, text, {color, size})` - Floating feedback text
@@ -368,3 +417,5 @@ The `guide.spec.js` test fails if any registered type is missing from the guide.
 | `config.js` | Difficulty settings, constants |
 | `js/behaviors/*.js` | All type behaviors (Strategy Pattern) |
 | `js/core/Registry.js` | Type registration system |
+| `js/systems/CollisionSystem.js` | CCD swept sphere, trayectoria de puntería |
+| `js/systems/BrickSurfaces.js` | Fusión de bloques adyacentes (geometría compartida física/render) |
