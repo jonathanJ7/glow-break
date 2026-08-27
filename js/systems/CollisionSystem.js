@@ -11,6 +11,8 @@
  * (Minkowski sum approach).
  */
 
+import { getBrickSurfaces, BRICK_CELL_GAP } from './BrickSurfaces.js';
+
 // Epsilon para comparaciones de punto flotante
 const EPSILON = 1e-6;
 
@@ -144,36 +146,34 @@ function sweepAgainstCorner(x0, y0, dx, dy, cornerX, cornerY, radius) {
 }
 
 /**
- * Verifica colisión swept sphere contra un rectángulo (bloque)
- * Usa Minkowski sum: expande el rectángulo por el radio de la bola
- * y hace raycast contra el rectángulo expandido con esquinas redondeadas
+ * Verifica colisión swept sphere contra una SUPERFICIE de bloque
+ *
+ * A diferencia de un rectángulo suelto, una superficie sabe qué caras y qué
+ * esquinas están expuestas: las que quedan tapadas por un bloque vecino no se
+ * testean. Así una pared de bloques adyacentes se comporta como una sola
+ * superficie continua, sin aristas ni esquinas internas que devuelvan la bola
+ * en direcciones imprevisibles.
  *
  * @param {number} x0 - Posición inicial X del centro de la bola
  * @param {number} y0 - Posición inicial Y del centro de la bola
  * @param {number} dx - Desplazamiento X
  * @param {number} dy - Desplazamiento Y
  * @param {number} radius - Radio de la bola
- * @param {number} rectX - Posición X del rectángulo
- * @param {number} rectY - Posición Y del rectángulo
- * @param {number} rectW - Ancho del rectángulo
- * @param {number} rectH - Alto del rectángulo
+ * @param {Object} surface - Superficie fusionada (ver BrickSurfaces.js)
  * @returns {SweptCollisionResult|null}
  */
-export function sweepSphereRect(x0, y0, dx, dy, radius, rectX, rectY, rectW, rectH) {
-    // Bordes del rectángulo
-    const left = rectX;
-    const right = rectX + rectW;
-    const top = rectY;
-    const bottom = rectY + rectH;
+export function sweepSphereSurface(x0, y0, dx, dy, radius, surface) {
+    const left = surface.x0;
+    const right = surface.x1;
+    const top = surface.y0;
+    const bottom = surface.y1;
 
     let bestCollision = null;
     let bestT = Infinity;
 
-    // Verificar colisión con los 4 lados expandidos
-    // Solo verificamos colisiones donde la bola se acerca al lado
-
-    // Lado izquierdo (solo si la bola se mueve hacia la derecha)
-    if (dx > EPSILON) {
+    // Cara izquierda (solo si la bola se mueve hacia la derecha y la cara
+    // no está tapada por un vecino)
+    if (dx > EPSILON && surface.leftExposed) {
         const collision = sweepAgainstSegment(x0, y0, dx, dy, top, bottom, left, true, radius);
         if (collision && collision.t < bestT) {
             bestT = collision.t;
@@ -181,8 +181,8 @@ export function sweepSphereRect(x0, y0, dx, dy, radius, rectX, rectY, rectW, rec
         }
     }
 
-    // Lado derecho (solo si la bola se mueve hacia la izquierda)
-    if (dx < -EPSILON) {
+    // Cara derecha (solo si la bola se mueve hacia la izquierda)
+    if (dx < -EPSILON && surface.rightExposed) {
         const collision = sweepAgainstSegment(x0, y0, dx, dy, top, bottom, right, true, radius);
         if (collision && collision.t < bestT) {
             bestT = collision.t;
@@ -190,33 +190,43 @@ export function sweepSphereRect(x0, y0, dx, dy, radius, rectX, rectY, rectW, rec
         }
     }
 
-    // Lado superior (solo si la bola se mueve hacia abajo)
+    // Cara superior: puede estar tapada solo en parte (un jefe ocupa 3
+    // celdas), así que se recorre tramo expuesto por tramo expuesto.
     if (dy > EPSILON) {
-        const collision = sweepAgainstSegment(x0, y0, dx, dy, left, right, top, false, radius);
-        if (collision && collision.t < bestT) {
-            bestT = collision.t;
-            bestCollision = { ...collision, side: 'top' };
+        for (const [segStart, segEnd] of surface.topSegments) {
+            const collision = sweepAgainstSegment(x0, y0, dx, dy, segStart, segEnd, top, false, radius);
+            if (collision && collision.t < bestT) {
+                bestT = collision.t;
+                bestCollision = { ...collision, side: 'top' };
+            }
         }
     }
 
-    // Lado inferior (solo si la bola se mueve hacia arriba)
+    // Cara inferior
     if (dy < -EPSILON) {
-        const collision = sweepAgainstSegment(x0, y0, dx, dy, left, right, bottom, false, radius);
-        if (collision && collision.t < bestT) {
-            bestT = collision.t;
-            bestCollision = { ...collision, side: 'bottom' };
+        for (const [segStart, segEnd] of surface.bottomSegments) {
+            const collision = sweepAgainstSegment(x0, y0, dx, dy, segStart, segEnd, bottom, false, radius);
+            if (collision && collision.t < bestT) {
+                bestT = collision.t;
+                bestCollision = { ...collision, side: 'bottom' };
+            }
         }
     }
 
-    // Verificar colisión con las 4 esquinas (esquinas redondeadas del Minkowski sum)
+    // Esquinas redondeadas del Minkowski sum. Solo las esquinas realmente
+    // expuestas: una esquina entre dos bloques pegados no es una esquina,
+    // es una arista recta, y redondearla es exactamente lo que producía los
+    // rebotes fantasma.
     const corners = [
-        { x: left, y: top, checkDx: 1, checkDy: 1 },    // Esquina superior izquierda
-        { x: right, y: top, checkDx: -1, checkDy: 1 },   // Esquina superior derecha
-        { x: left, y: bottom, checkDx: 1, checkDy: -1 }, // Esquina inferior izquierda
-        { x: right, y: bottom, checkDx: -1, checkDy: -1 } // Esquina inferior derecha
+        { x: left, y: top, checkDx: 1, checkDy: 1, exposed: surface.corners.tl },
+        { x: right, y: top, checkDx: -1, checkDy: 1, exposed: surface.corners.tr },
+        { x: left, y: bottom, checkDx: 1, checkDy: -1, exposed: surface.corners.bl },
+        { x: right, y: bottom, checkDx: -1, checkDy: -1, exposed: surface.corners.br }
     ];
 
     for (const corner of corners) {
+        if (!corner.exposed) continue;
+
         // Solo verificar esquinas donde la bola se aproxima en la dirección correcta
         if ((dx * corner.checkDx > 0 || Math.abs(dx) < EPSILON) &&
             (dy * corner.checkDy > 0 || Math.abs(dy) < EPSILON)) {
@@ -246,6 +256,45 @@ export function sweepSphereRect(x0, y0, dx, dy, radius, rectX, rectY, rectW, rec
     }
 
     return bestCollision;
+}
+
+/**
+ * Superficie totalmente expuesta a partir de un rectángulo suelto.
+ * Se usa para bloques sin superficie fusionada calculada y en tests.
+ */
+export function fullSurface(rectX, rectY, rectW, rectH) {
+    return {
+        x0: rectX,
+        y0: rectY,
+        x1: rectX + rectW,
+        y1: rectY + rectH,
+        leftExposed: true,
+        rightExposed: true,
+        topSegments: [[rectX, rectX + rectW]],
+        bottomSegments: [[rectX, rectX + rectW]],
+        topSeams: [],
+        bottomSeams: [],
+        corners: { tl: true, tr: true, bl: true, br: true }
+    };
+}
+
+/**
+ * Verifica colisión swept sphere contra un rectángulo aislado
+ * (todas sus caras y esquinas expuestas)
+ *
+ * @param {number} x0 - Posición inicial X del centro de la bola
+ * @param {number} y0 - Posición inicial Y del centro de la bola
+ * @param {number} dx - Desplazamiento X
+ * @param {number} dy - Desplazamiento Y
+ * @param {number} radius - Radio de la bola
+ * @param {number} rectX - Posición X del rectángulo
+ * @param {number} rectY - Posición Y del rectángulo
+ * @param {number} rectW - Ancho del rectángulo
+ * @param {number} rectH - Alto del rectángulo
+ * @returns {SweptCollisionResult|null}
+ */
+export function sweepSphereRect(x0, y0, dx, dy, radius, rectX, rectY, rectW, rectH) {
+    return sweepSphereSurface(x0, y0, dx, dy, radius, fullSurface(rectX, rectY, rectW, rectH));
 }
 
 /**
@@ -355,18 +404,24 @@ export function findFirstCollision(x, y, vx, vy, radius, bricks, bounds, exclude
         }
     }
 
-    // Verificar cada bloque
+    // Verificar cada bloque contra su superficie fusionada: los bloques
+    // adyacentes forman una sola pared continua (ver BrickSurfaces.js)
+    const surfaces = getBrickSurfaces(bricks);
+
     for (const brick of bricks) {
         if (brick.hp <= 0) continue;
 
         // Excluir bloques que la bola está atravesando
         if (excludeBricks && excludeBricks.has(brick)) continue;
 
-        // Los bloques tienen un offset de +2 para la colisión
-        const collision = sweepSphereRect(
-            x, y, vx, vy, radius,
-            brick.x + 2, brick.y + 2, brick.width, brick.height
-        );
+        const surface = surfaces.get(brick);
+        const collision = surface
+            ? sweepSphereSurface(x, y, vx, vy, radius, surface)
+            : sweepSphereRect(
+                x, y, vx, vy, radius,
+                brick.x + BRICK_CELL_GAP / 2, brick.y + BRICK_CELL_GAP / 2,
+                brick.width, brick.height
+            );
 
         if (collision && collision.t < bestT) {
             bestT = collision.t;
@@ -604,6 +659,8 @@ export function processPhysicsStep(ball, radius, bricks, bounds, onBrickHit) {
 
 export default {
     sweepSphereRect,
+    sweepSphereSurface,
+    fullSurface,
     circleRectOverlap,
     reflectVelocity,
     findFirstCollision,

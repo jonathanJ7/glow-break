@@ -155,14 +155,18 @@ const FireballBehavior = {
     // Cleanup post-step: olvidar bricks que la bola dejo de tocar.
     // Antes esta logica vivia en physics.js como un caso especial.
     onPostStep(ball, gameState, helpers) {
-        const { getBallRadius } = helpers;
+        const { getBallRadius, getBrickRect } = helpers;
         const radius = getBallRadius();
         for (const brickId of ball.state.hitBricks) {
             const [bx, by] = brickId.split(',').map(Number);
             const brick = gameState.bricks.find(b => b.x === bx && b.y === by);
+            // El rect fusionado es el mismo que usa la colisión: si usáramos
+            // el rect sin fusionar, la bola "saldría" del bloque 2px antes y
+            // podría volver a golpearlo dentro de la misma pared.
+            const rect = brick && getBrickRect(brick);
             if (brick && !circleRectOverlap(
                 ball.x, ball.y, radius,
-                brick.x + 2, brick.y + 2, brick.width, brick.height
+                rect.x, rect.y, rect.width, rect.height
             )) {
                 ball.state.hitBricks.delete(brickId);
             }

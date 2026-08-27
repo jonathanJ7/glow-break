@@ -18,6 +18,8 @@ import * as game from '../game.js';
 import * as physics from '../physics.js';
 import * as rendering from '../rendering.js';
 import * as config from '../config.js';
+import * as collision from '../js/systems/CollisionSystem.js';
+import * as brickSurfaces from '../js/systems/BrickSurfaces.js';
 import { DIFFICULTY_SETTINGS } from '../config.js';
 
 window.__game = {
@@ -29,6 +31,8 @@ window.__game = {
     physics,
     rendering,
     config,
+    collision,
+    brickSurfaces,
     DIFFICULTY_SETTINGS,
     ready: true,
 };

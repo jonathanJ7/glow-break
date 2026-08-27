@@ -13,6 +13,7 @@ import { COLS, BRICK_COLORS, BASE_BALL_RADIUS, OVERDRIVE_MAX } from './config.js
 import { calculateTrajectory } from './physics.js';
 import { BrickRegistry, BallRegistry, BonusRegistry } from './js/behaviors/index.js';
 import { getSlowdownProgress } from './input.js';
+import { getBrickSurfaces, brickRectFromSurface, BRICK_CELL_GAP } from './js/systems/BrickSurfaces.js';
 
 export let canvas;
 export let ctx;
@@ -64,10 +65,13 @@ export function handleResize() {
 
         for (let brick of gameState.bricks) {
             const oldRow = Math.round((brick.y - oldTopOffset) / oldCellSize);
+            // Un jefe ocupa varias columnas: hay que conservar su ancho en
+            // celdas, si no la superficie deja de coincidir con la grilla.
+            const colSpan = Math.max(1, Math.round((brick.width + BRICK_CELL_GAP) / oldCellSize));
             brick.x = newLeftBorder + brick.col * newCellSize;
             brick.y = newTopOffset + oldRow * newCellSize;
-            brick.width = newCellSize - 4;
-            brick.height = newCellSize - 4;
+            brick.width = newCellSize * colSpan - BRICK_CELL_GAP;
+            brick.height = newCellSize - BRICK_CELL_GAP;
         }
 
         for (let bonus of gameState.bonuses) {
@@ -156,8 +160,25 @@ const renderHelpers = {
     getFontSize,
     getScale,
     getBallRadius,
-    getBrickColor
+    getBrickColor,
+    getBrickRect
 };
+
+/**
+ * Rect de un bloque YA FUSIONADO con sus vecinos: es exactamente la
+ * superficie que usa la física (ver js/systems/BrickSurfaces.js), con radio 0
+ * en las esquinas pegadas a otro bloque.
+ *
+ * Los behaviors deben dibujar con este rect (helpers.getBrickRect(brick)) en
+ * vez de brick.x + 2 / brick.width, así el dibujo nunca se desalinea de la
+ * superficie de colisión.
+ *
+ * @returns {{x, y, width, height, radii: number[], centerX, centerY}}
+ */
+export function getBrickRect(brick) {
+    const surfaces = getBrickSurfaces(gameState.bricks);
+    return brickRectFromSurface(brick, surfaces.get(brick));
+}
 
 // ====================================
 // FUNCIONES DE RENDERIZADO MODULARES
@@ -207,19 +228,23 @@ function drawGrid(leftBorder) {
 /**
  * Renderiza un bloque usando su behavior registrado
  */
-function drawBrick(brick) {
-    const color = getBrickColor(brick.hp, brick.maxHp);
-
-    // Sombra
+function drawBrickShadow(brick, surface) {
+    const rect = brickRectFromSurface(brick, surface);
     ctx.fillStyle = 'rgba(0,0,0,0.3)';
     ctx.beginPath();
-    ctx.roundRect(brick.x + 4, brick.y + 4, brick.width, brick.height, 6);
+    ctx.roundRect(rect.x + 2, rect.y + 2, rect.width, rect.height, rect.radii);
     ctx.fill();
+}
 
-    // Bloque base
+function drawBrick(brick, surface) {
+    const color = getBrickColor(brick.hp, brick.maxHp);
+    const rect = brickRectFromSurface(brick, surface);
+
+    // Bloque base (rect fusionado: los lados con vecino llegan al borde de
+    // la celda, así dos bloques pegados forman una sola pieza continua)
     ctx.fillStyle = color;
     ctx.beginPath();
-    ctx.roundRect(brick.x + 2, brick.y + 2, brick.width, brick.height, 6);
+    ctx.roundRect(rect.x, rect.y, rect.width, rect.height, rect.radii);
     ctx.fill();
 
     // Borde reforzado
@@ -227,7 +252,7 @@ function drawBrick(brick) {
         ctx.strokeStyle = 'rgba(233, 69, 96, 0.6)';
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.roundRect(brick.x + 2, brick.y + 2, brick.width, brick.height, 6);
+        ctx.roundRect(rect.x, rect.y, rect.width, rect.height, rect.radii);
         ctx.stroke();
     }
 
@@ -251,15 +276,56 @@ function drawBrick(brick) {
     // Ajustar posición del texto si tiene emoji
     const hasEmoji = behavior.emoji;
     const textY = hasEmoji
-        ? brick.y + 2 + brick.height / 2 + 8 * getScale()
-        : brick.y + 2 + brick.height / 2;
+        ? rect.centerY + 8 * getScale()
+        : rect.centerY;
 
-    ctx.fillText(hpShown, brick.x + 2 + brick.width / 2, textY);
+    ctx.fillText(hpShown, rect.centerX, textY);
+}
+
+/**
+ * Costura fina entre bloques fusionados: la superficie es una sola pieza,
+ * pero una línea sutil deja ver dónde termina cada bloque. Es puramente
+ * decorativa, no afecta la colisión.
+ */
+function drawBrickSeams(brick, surface) {
+    if (!surface) return;
+
+    ctx.beginPath();
+
+    if (surface.hasLeft) {
+        ctx.moveTo(surface.x0, surface.y0);
+        ctx.lineTo(surface.x0, surface.y1);
+    }
+
+    for (const [segStart, segEnd] of surface.topSeams) {
+        ctx.moveTo(segStart, surface.y0);
+        ctx.lineTo(segEnd, surface.y0);
+    }
+
+    ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
 }
 
 function drawBricks() {
+    // Sin pasar cellSize: se deriva del propio bloque, igual que en la
+    // física, para que ambos usen SIEMPRE la misma geometría (y para que la
+    // caché no se invalide alternando entre dos valores).
+    const surfaces = getBrickSurfaces(gameState.bricks);
+
+    // Las sombras van en una pasada aparte: con bloques fusionados, la
+    // sombra de un bloque caería encima del cuerpo de su vecino.
     for (const brick of gameState.bricks) {
-        drawBrick(brick);
+        drawBrickShadow(brick, surfaces.get(brick));
+    }
+
+    for (const brick of gameState.bricks) {
+        drawBrick(brick, surfaces.get(brick));
+    }
+
+    // La costura se dibuja al final para que ningún vecino la tape
+    for (const brick of gameState.bricks) {
+        drawBrickSeams(brick, surfaces.get(brick));
     }
 }
 
