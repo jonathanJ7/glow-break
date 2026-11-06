@@ -13,6 +13,22 @@
 
 import { BonusRegistry } from '../core/Registry.js';
 import { BALL_BONUS_SCALE_TURNS, LASER_MAXHP_RATIO, LASER_CURRENT_HP_RATIO, SPAWN_SCHEDULE, DIFFICULTY_SETTINGS } from '../../config.js';
+import { addToInventory } from '../systems/BallInventory.js';
+
+/**
+ * Suma bolas respetando el tope del inventario (MAX_BALL_INVENTORY).
+ * Contrato con physics.checkBonusCollisions: si no entran todas, devuelve
+ * `leftover` > 0 y el bonus se queda en el tablero con ese valor. Physics
+ * ni siquiera llama a onCollect de un bonus con targetBallType cuando el
+ * inventario está lleno.
+ */
+function collectBalls(bonus, key, count, gameState) {
+    const granted = addToInventory(gameState.ballInventory, key, count);
+    return {
+        inventoryChange: { [key]: granted },
+        leftover: count - granted
+    };
+}
 
 // ============================================
 // BALL BONUS - Agrega bolas normales
@@ -37,7 +53,7 @@ const BallBonusBehavior = {
             : scales.map(s => `${s.name} ${s.scale}`).join(', ');
         const example = scales[0].scale;
 
-        return 'Suma N bolas normales a tu inventario para siempre. '
+        return 'Suma N bolas normales a tu inventario, si hay lugar (ver Inventario de bolas). '
             + `N escala con el turno: N = 1 + (turno ÷ E, redondeado hacia abajo), con E = ${detail}. `
             + `Por ejemplo con E = ${example}: +1 hasta el turno ${example - 1}, +2 del ${example} al `
             + `${example * 2 - 1}, +3 del ${example * 2} en adelante, y así sucesivamente.`;
@@ -63,13 +79,7 @@ const BallBonusBehavior = {
     },
 
     onCollect(bonus, ball, gameState, helpers) {
-        const count = bonus.value || 1;
-        const key = this.targetBallType;
-        gameState.ballInventory[key] = (gameState.ballInventory[key] || 0) + count;
-
-        return {
-            inventoryChange: { [key]: count }
-        };
+        return collectBalls(bonus, this.targetBallType, bonus.value || 1, gameState);
     },
 
     getText(bonus) {
@@ -95,7 +105,7 @@ const FireballBonusBehavior = {
     targetBallType: 'fireball',
 
     describe() {
-        return 'Suma +1 bola de fuego a tu inventario para siempre.';
+        return 'Suma +1 bola de fuego a tu inventario, si hay lugar (ver Inventario de bolas).';
     },
 
     render(ctx, bonus, helpers) {
@@ -118,13 +128,7 @@ const FireballBonusBehavior = {
     },
 
     onCollect(bonus, ball, gameState, helpers) {
-        const count = bonus.value || 1;
-        const key = this.targetBallType;
-        gameState.ballInventory[key] = (gameState.ballInventory[key] || 0) + count;
-
-        return {
-            inventoryChange: { [key]: count }
-        };
+        return collectBalls(bonus, this.targetBallType, bonus.value || 1, gameState);
     },
 
     getText(bonus) {
@@ -151,7 +155,7 @@ const SplitterBonusBehavior = {
     targetBallType: 'splitter',
 
     describe() {
-        return 'Suma +1 bola divisora a tu inventario para siempre.';
+        return 'Suma +1 bola divisora a tu inventario, si hay lugar (ver Inventario de bolas).';
     },
 
     render(ctx, bonus, helpers) {
@@ -174,13 +178,7 @@ const SplitterBonusBehavior = {
     },
 
     onCollect(bonus, ball, gameState, helpers) {
-        const count = bonus.value || 1;
-        const key = this.targetBallType;
-        gameState.ballInventory[key] = (gameState.ballInventory[key] || 0) + count;
-
-        return {
-            inventoryChange: { [key]: count }
-        };
+        return collectBalls(bonus, this.targetBallType, bonus.value || 1, gameState);
     },
 
     getText(bonus) {
@@ -264,7 +262,7 @@ const StrengthBonusBehavior = {
     targetBallType: 'strength',
 
     describe() {
-        return 'Suma +1 bola de fuerza a tu inventario para siempre.';
+        return 'Suma +1 bola de fuerza a tu inventario, si hay lugar (ver Inventario de bolas).';
     },
 
     render(ctx, bonus, helpers) {
@@ -287,12 +285,7 @@ const StrengthBonusBehavior = {
     },
 
     onCollect(bonus, ball, gameState, helpers) {
-        const key = this.targetBallType;
-        gameState.ballInventory[key] = (gameState.ballInventory[key] || 0) + 1;
-
-        return {
-            inventoryChange: { [key]: 1 }
-        };
+        return collectBalls(bonus, this.targetBallType, 1, gameState);
     },
 
     getText(bonus) {
@@ -318,7 +311,7 @@ const BombBonusBehavior = {
     targetBallType: 'bomb',
 
     describe() {
-        return 'Suma +1 bola bomba a tu inventario para siempre.';
+        return 'Suma +1 bola bomba a tu inventario, si hay lugar (ver Inventario de bolas).';
     },
 
     render(ctx, bonus, helpers) {
@@ -341,13 +334,7 @@ const BombBonusBehavior = {
     },
 
     onCollect(bonus, ball, gameState, helpers) {
-        const count = bonus.value || 1;
-        const key = this.targetBallType;
-        gameState.ballInventory[key] = (gameState.ballInventory[key] || 0) + count;
-
-        return {
-            inventoryChange: { [key]: count }
-        };
+        return collectBalls(bonus, this.targetBallType, bonus.value || 1, gameState);
     },
 
     getText(bonus) {

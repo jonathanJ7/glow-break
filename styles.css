@@ -728,3 +728,137 @@ body, #gameContainer,
     background: rgba(255,255,255,0.06);
     color: white;
 }
+
+/* ==============================
+   INVENTARIO: tope y panel para tirar bolas (v2.11.0)
+   ============================== */
+/* El 🎒 del HUD es el ÚNICO lugar con total/tope; tocable para abrir el
+   panel (el resto de #ui no recibe toques). */
+#ui #ballsHud {
+    pointer-events: auto;
+    cursor: pointer;
+}
+
+#ballCapDisplay {
+    opacity: 0.55;
+    font-size: 0.85em;
+}
+
+/* Lleno: el mismo contador cambia de color, sin carteles extra */
+#ui #ballsHud.balls-full {
+    border-color: rgba(249, 237, 105, 0.7);
+    color: #f9ed69;
+}
+
+/* Las píldoras también abren el panel */
+#ballInventory .inv-pill {
+    pointer-events: auto;
+    cursor: pointer;
+}
+
+/* Debajo de #ui (z-index 10) para que el contador 🎒 siga visible y se
+   actualice en vivo mientras tirás bolas */
+#dropPanel {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(10, 10, 20, 0.75);
+    z-index: 9;
+}
+
+#dropPanel.hidden {
+    display: none;
+}
+
+.drop-card {
+    width: 100%;
+    max-width: 360px;
+    background: #1c1c30;
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 16px;
+    padding: 16px;
+    color: white;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.drop-title {
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.drop-hint {
+    font-size: 12px;
+    line-height: 1.4;
+    color: rgba(255,255,255,0.6);
+}
+
+#dropList {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.drop-row {
+    display: grid;
+    grid-template-columns: 22px 1fr auto;
+    grid-template-areas:
+        "icon name count"
+        "actions actions actions";
+    align-items: center;
+    gap: 4px 8px;
+    padding: 8px 10px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 10px;
+}
+
+.drop-icon { grid-area: icon; text-align: center; }
+.drop-name { grid-area: name; font-size: 14px; }
+.drop-count { grid-area: count; font-size: 15px; }
+
+.drop-dot {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    vertical-align: middle;
+}
+
+.drop-actions {
+    grid-area: actions;
+    display: flex;
+    gap: 6px;
+    justify-content: flex-end;
+}
+
+.drop-btn {
+    min-width: 48px;
+    padding: 6px 10px;
+    border-radius: 14px;
+    border: 1px solid rgba(233, 69, 96, 0.6);
+    background: rgba(233, 69, 96, 0.2);
+    color: white;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.drop-btn:disabled {
+    opacity: 0.3;
+    cursor: default;
+}
+
+#dropCloseBtn {
+    margin-top: 4px;
+    padding: 10px;
+    border-radius: 12px;
+    border: none;
+    background: #4ecca3;
+    color: #12121f;
+    font-weight: 700;
+    font-size: 15px;
+    cursor: pointer;
+}

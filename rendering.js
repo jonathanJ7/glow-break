@@ -8,7 +8,8 @@
  * un nuevo behavior con su método render().
  */
 
-import { gameState, difficultyConfig, getTotalBalls } from './game.js';
+import { gameState, difficultyConfig } from './game.js';
+import { isInventoryFull } from './js/systems/BallInventory.js';
 import { COLS, BRICK_COLORS, BASE_BALL_RADIUS, OVERDRIVE_MAX } from './config.js';
 import { calculateTrajectory } from './physics.js';
 import { BrickRegistry, BallRegistry, BonusRegistry } from './js/behaviors/index.js';
@@ -333,7 +334,13 @@ function drawBricks() {
  * Renderiza un bonus usando su behavior registrado
  */
 function drawBonus(bonus) {
-    BonusRegistry.get(bonus.type).render(ctx, bonus, renderHelpers);
+    const behavior = BonusRegistry.get(bonus.type);
+    // Bonus de bolas con el inventario lleno: no se puede agarrar, así que
+    // se dibuja apagado (la bola le pasa por encima sin tomarlo).
+    const blocked = behavior.targetBallType && isInventoryFull(gameState.ballInventory);
+    if (blocked) ctx.globalAlpha = 0.3;
+    behavior.render(ctx, bonus, renderHelpers);
+    if (blocked) ctx.globalAlpha = 1;
 }
 
 function drawBonuses() {
@@ -496,19 +503,9 @@ function drawLaunchIndicator() {
     ctx.arc(gameState.launchX, gameState.launchY, getBallRadius() + 2, 0, Math.PI * 2);
     ctx.fill();
 
-    const totalBalls = getTotalBalls();
-
-    if (totalBalls > 1) {
-        ctx.fillStyle = 'rgba(255,255,255,0.6)';
-        ctx.font = `bold ${getFontSize(11)}px Arial`;
-        ctx.textAlign = 'center';
-        // Baseline explícito: si queda el 'top' que setea el indicador de
-        // ángulo del frame anterior, este texto salta al empezar a apuntar
-        ctx.textBaseline = 'bottom';
-        // Arriba del lanzador (no debajo de la línea): la franja inferior
-        // ya la ocupan las píldoras de inventario y el número de versión
-        ctx.fillText('x' + totalBalls, gameState.launchX, gameState.launchY - getBallRadius() - 6);
-    }
+    // Sin contador "xN" acá: el total de bolas (y su tope) se muestra en
+    // un solo lugar, el 🎒 del HUD superior. Con el tope de inventario la
+    // cantidad que sale es siempre ese mismo total.
 }
 
 // Estado para animación de hielo
