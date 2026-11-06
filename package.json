@@ -5,6 +5,7 @@
   "description": "Glow-Break - neon brick breaker PWA",
   "scripts": {
     "serve": "http-server -p 8080 -c-1 -s .",
+    "pretest": "node scripts/ensure-deps.js",
     "test": "playwright test",
     "test:headed": "playwright test --headed"
   },
