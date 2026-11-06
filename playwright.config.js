@@ -1,5 +1,23 @@
 // @ts-check
-import { defineConfig, devices } from '@playwright/test';
+import { existsSync } from 'node:fs';
+import { defineConfig, devices, chromium } from '@playwright/test';
+
+/**
+ * Chromium a usar. Si la versión de @playwright/test del lockfile no
+ * encuentra su propio navegador (p. ej. en el entorno cloud de Claude Code,
+ * que trae Chromium preinstalado en /opt/pw-browsers/chromium para otra
+ * versión de Playwright), caemos a ese binario en lugar de exigir
+ * `npx playwright install`. Se puede forzar con PW_CHROMIUM_PATH.
+ */
+function resolveChromiumExecutable() {
+    if (process.env.PW_CHROMIUM_PATH) return process.env.PW_CHROMIUM_PATH;
+    try {
+        if (existsSync(chromium.executablePath())) return undefined;
+    } catch { /* sin navegador propio: probamos el fallback */ }
+    const preinstalled = '/opt/pw-browsers/chromium';
+    return existsSync(preinstalled) ? preinstalled : undefined;
+}
+const chromiumExecutable = resolveChromiumExecutable();
 
 /**
  * Playwright config for Glow-Break integration tests.
@@ -33,6 +51,9 @@ export default defineConfig({
                 ...devices['iPhone 13'],
                 defaultBrowserType: 'chromium',
                 browserName: 'chromium',
+                ...(chromiumExecutable && {
+                    launchOptions: { executablePath: chromiumExecutable },
+                }),
             },
         },
     ],
