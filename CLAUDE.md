@@ -325,7 +325,7 @@ El inventario de bolas especiales es el elemento DOM `#ballInventory` (píldoras
 
 ### Tope de inventario y tirar bolas (v2.11.0)
 
-Antes el tope de 200 (`MAX_BALLS_ON_SCREEN`) solo existía en la cola de
+Antes el tope de bolas (`MAX_BALLS_ON_SCREEN`, hoy 100) solo existía en la cola de
 disparo: se podían juntar más bolas, pero las de más nunca salían (el
 inventario no se gasta al disparar). Ahora el tope es del **inventario**:
 `MAX_BALL_INVENTORY` en `config.js` (= `MAX_BALLS_ON_SCREEN`, así toda bola
@@ -343,7 +343,7 @@ que tenés se dispara). Lógica en `js/systems/BallInventory.js`
   píldoras, solo entre turnos. −1 / −10 / Todas por tipo; siempre queda
   `MIN_BALLS_KEPT` (1). Guarda la partida al tirar.
 - **Coherencia de UI — cada dato en un solo lugar**: total y tope solo en
-  `#ballsHud` (🎒 N/200, amarillo cuando está lleno); el lanzador ya NO
+  `#ballsHud` (🎒 N/100, amarillo cuando está lleno); el lanzador ya NO
   dibuja "xN". Cantidad por tipo: píldoras de abajo, o la fila del panel
   mientras está abierto (el panel tapa las píldoras y queda debajo del HUD).
 - `resumeGame` y `calculateStartingBalls` recortan inventarios excedidos

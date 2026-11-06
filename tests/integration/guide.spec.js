@@ -66,7 +66,7 @@ test.describe('Glow-Break - game guide', () => {
         expect(text).toContain('Cada 15 turnos');        // BOSS_INTERVAL
         expect(text).toContain('solo la que cruzó');     // SHIELD_BURN_ROWS = 1
         expect(text).toContain('0.18');                  // HP_LOG_FACTOR (fórmula visible)
-        expect(text).toContain('200 bolas');             // MAX_BALLS_ON_SCREEN
+        expect(text).toContain('100 bolas');             // MAX_BALL_INVENTORY
     });
 
     test('guide tables scroll sideways on a phone viewport', async ({ page }) => {

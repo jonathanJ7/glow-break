@@ -6,7 +6,7 @@
  * tirar 10 normales para poder agarrar especiales.
  *
  * Coherencia de UI — cada dato se muestra en UN solo lugar:
- *  - Total y tope: solo en el HUD de arriba (🎒 N/200). El panel queda por
+ *  - Total y tope: solo en el HUD de arriba (🎒 N/100). El panel queda por
  *    debajo del HUD, así ese contador se sigue viendo y baja en vivo.
  *  - Cantidad por tipo: en las píldoras de abajo durante el juego; con el
  *    panel abierto, las píldoras quedan tapadas y la cantidad se ve en la

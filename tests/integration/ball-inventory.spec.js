@@ -10,7 +10,7 @@ import { loadGameWithHooks, startGame, getBallCount } from './helpers/game.js';
  *  - Combo / dorado / jefe suman solo lo que entra.
  *  - El panel 🎒 permite tirar bolas entre turnos, nunca la última.
  *  - Un guardado viejo que pasaba el tope se recorta (primero normales).
- *  - El total se muestra en un solo lugar (🎒 N/200).
+ *  - El total se muestra en un solo lugar (🎒 N/100).
  */
 
 /** Pone una bola encima de un bonus recién creado y corre un paso de física. */
@@ -160,7 +160,7 @@ test.describe('Glow-Break - tope del inventario de bolas', () => {
             g.gameState.ballInventory = { normal: g.config.MAX_BALL_INVENTORY };
             g.game.updateUI();
         });
-        await expect(page.locator('#ballsHud')).toHaveText(/🎒\s*200\/200/);
+        await expect(page.locator('#ballsHud')).toHaveText(/🎒\s*100\/100/);
         await expect(page.locator('#ballsHud')).toHaveClass(/balls-full/);
     });
 });
