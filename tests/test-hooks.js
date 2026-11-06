@@ -20,6 +20,8 @@ import * as rendering from '../rendering.js';
 import * as config from '../config.js';
 import * as collision from '../js/systems/CollisionSystem.js';
 import * as brickSurfaces from '../js/systems/BrickSurfaces.js';
+import * as ballInventory from '../js/systems/BallInventory.js';
+import * as dropPanel from '../js/ui/DropPanel.js';
 import { DIFFICULTY_SETTINGS } from '../config.js';
 
 window.__game = {
@@ -33,6 +35,8 @@ window.__game = {
     config,
     collision,
     brickSurfaces,
+    ballInventory,
+    dropPanel,
     DIFFICULTY_SETTINGS,
     ready: true,
 };

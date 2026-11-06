@@ -2,6 +2,7 @@ import { initCanvas, resizeCanvas, handleResize, draw } from './rendering.js';
 import { setupEventListeners } from './input.js';
 import { gameLoop } from './game.js';
 import { setupGuide } from './js/ui/Guide.js';
+import { setupDropPanel } from './js/ui/DropPanel.js';
 
 // Initialize canvas
 initCanvas();
@@ -15,6 +16,9 @@ setupEventListeners();
 
 // Guía del juego (botón en el menú principal)
 setupGuide();
+
+// Panel para tirar bolas (se abre tocando 🎒 en el HUD)
+setupDropPanel();
 
 // Game loop
 function animate() {

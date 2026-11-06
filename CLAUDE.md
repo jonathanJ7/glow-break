@@ -323,6 +323,32 @@ El inventario de bolas especiales es el elemento DOM `#ballInventory` (píldoras
 - **Botón Continuar**: `#continueBtn` en el menú principal, visible solo si hay guardado (`updateContinueButton()`); `resumeGame()` restaura turno, inventario, bloques, bonuses, escudos y overdrive. `endGame()` borra el guardado (una partida terminada no se resume).
 - **Cola de disparo con inventario grande**: en `startShooting`, cuando el inventario total supera `MAX_BALLS_ON_SCREEN`, las bolas especiales tienen prioridad de SELECCIÓN (entran todas a la cola) y las normales rellenan el resto; el ORDEN de disparo sigue siendo por `shootPriority`. Sin esta reserva, las especiales no se disparaban nunca en turnos altos.
 
+### Tope de inventario y tirar bolas (v2.11.0)
+
+Antes el tope de bolas (`MAX_BALLS_ON_SCREEN`, hoy 100) solo existía en la cola de
+disparo: se podían juntar más bolas, pero las de más nunca salían (el
+inventario no se gasta al disparar). Ahora el tope es del **inventario**:
+`MAX_BALL_INVENTORY` en `config.js` (= `MAX_BALLS_ON_SCREEN`, así toda bola
+que tenés se dispara). Lógica en `js/systems/BallInventory.js`
+(`addToInventory`, `dropFromInventory`, `clampInventory`, `getFreeSpace`).
+
+- **Bonuses de bolas** (behaviors con `targetBallType`): con el inventario
+  lleno `physics.checkBonusCollisions` ni llama a `onCollect` — la bola pasa
+  de largo, el bonus queda en el tablero y se dibuja apagado (alpha 0.3).
+  Si entran algunas, `onCollect` devuelve `leftover` > 0 y el bonus se queda
+  con ese `value`. Bonuses nuevos de bolas deben usar `collectBalls(...)`.
+- **Otras fuentes** (combo, dorado, misterioso, jefe): `addBallsToInventory`
+  devuelve cuántas entraron de verdad.
+- **Tirar bolas**: `js/ui/DropPanel.js`, se abre tocando 🎒 en el HUD o las
+  píldoras, solo entre turnos. −1 / −10 / Todas por tipo; siempre queda
+  `MIN_BALLS_KEPT` (1). Guarda la partida al tirar.
+- **Coherencia de UI — cada dato en un solo lugar**: total y tope solo en
+  `#ballsHud` (🎒 N/100, amarillo cuando está lleno); el lanzador ya NO
+  dibuja "xN". Cantidad por tipo: píldoras de abajo, o la fila del panel
+  mientras está abierto (el panel tapa las píldoras y queda debajo del HUD).
+- `resumeGame` y `calculateStartingBalls` recortan inventarios excedidos
+  (primero se descartan normales).
+
 ### Superficies fusionadas de bloques (v2.10.0)
 
 `js/systems/BrickSurfaces.js` fusiona los bloques adyacentes en **una sola
@@ -419,3 +445,5 @@ The `guide.spec.js` test fails if any registered type is missing from the guide.
 | `js/core/Registry.js` | Type registration system |
 | `js/systems/CollisionSystem.js` | CCD swept sphere, trayectoria de puntería |
 | `js/systems/BrickSurfaces.js` | Fusión de bloques adyacentes (geometría compartida física/render) |
+| `js/systems/BallInventory.js` | Tope del inventario de bolas (agregar/tirar/recortar) |
+| `js/ui/DropPanel.js` | Panel 🎒 para tirar bolas entre turnos |

@@ -15,7 +15,7 @@
 import { BrickRegistry, BallRegistry, BonusRegistry } from '../behaviors/index.js';
 import {
     DIFFICULTY_SETTINGS, SPAWN_SCHEDULE, COLS,
-    MAX_BALLS_ON_SCREEN, FAST_SPEED_MULTIPLIER,
+    MAX_BALL_INVENTORY, FAST_SPEED_MULTIPLIER,
     COMBO_BALLS_PER, COMBO_MAX_REWARD,
     OVERDRIVE_MAX, OVERDRIVE_MULTIPLIER,
     BOSS_INTERVAL,
@@ -23,6 +23,7 @@ import {
     HP_LOG_FACTOR, DEFAULT_AIM_SCATTER, BALL_BONUS_SCALE_TURNS,
 } from '../../config.js';
 import { FREEZE_TIME_MS, UNFREEZE_DISTANCE } from '../../input.js';
+import { MIN_BALLS_KEPT } from '../systems/BallInventory.js';
 
 // Formatea una probabilidad 0..1 como porcentaje sin decimales de sobra
 function pct(p) {
@@ -303,7 +304,16 @@ function buildControlsSection() {
         + `las dificultades con dispersión (${difficultiesWhere(a => a.aimScatter)}), donde cada `
         + 'tipo de bola puede salir desviado un poco — pero todas las bolas de un mismo tipo '
         + 'salen juntas (ver la tabla de dispersión en la sección Dificultades). '
-        + `Máximo ${MAX_BALLS_ON_SCREEN} bolas por disparo.`);
+        + 'Todas las bolas de tu inventario salen en cada disparo.');
+    html += item('🎒', 'Inventario de bolas',
+        `Podés tener como máximo ${MAX_BALL_INVENTORY} bolas en total, sumando todos los tipos `
+        + `(el contador 🎒 de arriba muestra cuántas tenés de ${MAX_BALL_INVENTORY}). Con el inventario `
+        + 'lleno, los bonus de bolas se ven apagados y no se agarran: la bola les pasa por encima y '
+        + 'siguen en el tablero. Si entran algunas pero no todas, agarrás las que entran y el bonus '
+        + 'se queda con el resto. Las demás recompensas de bolas (combo, bloque dorado, caja '
+        + 'misteriosa, jefe) solo suman las que entran. Entre turnos, tocá 🎒 o las píldoras de '
+        + 'abajo para TIRAR bolas (−1, −10 o todas las de un tipo) y hacer lugar, por ejemplo para '
+        + `agarrar especiales. Siempre te queda al menos ${MIN_BALLS_KEPT} bola.`);
     html += item('❄️', 'Apuntado fino (congelación)',
         `Disponible en ${difficultiesWhere(a => a.freezeAim)}. `
         + `Mantén el dedo quieto mientras apuntas y el puntero se ralentiza progresivamente hasta `

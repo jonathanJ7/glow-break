@@ -8,7 +8,8 @@
  * solo necesitas registrar nuevos behaviors.
  */
 
-import { DIFFICULTY_SETTINGS, SPAWN_SCHEDULE, COLS, SHOOT_DELAY, MAX_BALLS_ON_SCREEN, FAST_SPEED_MULTIPLIER, BASE_BALL_RADIUS, BALL_SPEED, COMBO_BALLS_PER, COMBO_MAX_REWARD, OVERDRIVE_MAX, BOSS_INTERVAL, BOSS_HP_MULTIPLIER, STARTING_SHIELDS, MAX_SHIELDS, SHIELD_BURN_ROWS, BALL_BONUS_SCALE_TURNS, HP_LOG_FACTOR, DEFAULT_AIM_SCATTER, AIM_ANGLE_MIN, AIM_ANGLE_MAX } from './config.js';
+import { DIFFICULTY_SETTINGS, SPAWN_SCHEDULE, COLS, SHOOT_DELAY, MAX_BALLS_ON_SCREEN, FAST_SPEED_MULTIPLIER, BASE_BALL_RADIUS, BALL_SPEED, COMBO_BALLS_PER, COMBO_MAX_REWARD, OVERDRIVE_MAX, BOSS_INTERVAL, BOSS_HP_MULTIPLIER, STARTING_SHIELDS, MAX_SHIELDS, SHIELD_BURN_ROWS, BALL_BONUS_SCALE_TURNS, HP_LOG_FACTOR, DEFAULT_AIM_SCATTER, AIM_ANGLE_MIN, AIM_ANGLE_MAX, MAX_BALL_INVENTORY } from './config.js';
+import { addToInventory, clampInventory } from './js/systems/BallInventory.js';
 import { getWidth, getHeight, getCellSize, getLeftBorder, getRightBorder, getTopOffset, getBottomLine, getScale, getBallRadius } from './rendering.js';
 import { updateBalls, updateParticles, createParticles, addFloatingText } from './physics.js';
 import { BrickRegistry, BallRegistry, BonusRegistry } from './js/behaviors/index.js';
@@ -169,6 +170,9 @@ export function calculateStartingBalls(turn, difficulty) {
             }
         }
     }
+
+    // Mismo tope que en una partida real (sobran normales → se descartan)
+    clampInventory(inventory);
 
     const total = Object.values(inventory).reduce((a, b) => a + b, 0);
     return { inventory, total };
@@ -427,6 +431,9 @@ export function startShooting() {
             (BallRegistry.get(a).getConfig().shootPriority ?? 100) -
             (BallRegistry.get(b).getConfig().shootPriority ?? 100));
 
+    // Desde v2.11.0 el inventario no puede pasar de MAX_BALL_INVENTORY
+    // (= MAX_BALLS_ON_SCREEN), así que normalmente sale todo. El recorte de
+    // abajo queda como resguardo por si algo llegara a superar el tope.
     // Cuando el inventario supera el tope de bolas en pantalla, las
     // especiales tienen prioridad de SELECCIÓN (son pocas y valiosas) y
     // las normales rellenan los lugares restantes. El ORDEN de disparo
@@ -538,12 +545,15 @@ export function endTurn() {
     // jugador un motor de catch-up contra la curva de HP.
     const comboReward = Math.min(COMBO_MAX_REWARD, Math.floor(gameState.combo / COMBO_BALLS_PER));
     if (comboReward > 0) {
-        const defaultType = BallRegistry.defaultType;
-        gameState.ballInventory[defaultType] = (gameState.ballInventory[defaultType] || 0) + comboReward;
+        // Respeta el tope del inventario: solo suma las que entran
+        const got = addToInventory(gameState.ballInventory, BallRegistry.defaultType, comboReward);
+        const rewardText = got > 0
+            ? `+${got} bola${got > 1 ? 's' : ''}`
+            : '🎒 inventario lleno';
         addFloatingText(
             gameState.launchX,
             getBottomLine() - 60,
-            `🎯 COMBO x${gameState.combo} → +${comboReward} bola${comboReward > 1 ? 's' : ''}`,
+            `🎯 COMBO x${gameState.combo} → ${rewardText}`,
             { color: '#4ecca3', size: 16 }
         );
     }
@@ -632,7 +642,13 @@ export function endGame() {
 
 export function updateUI() {
     document.getElementById('turnDisplay').textContent = gameState.turn;
-    document.getElementById('ballDisplay').textContent = getTotalBalls();
+    const totalBalls = getTotalBalls();
+    const ballDisplay = document.getElementById('ballDisplay');
+    ballDisplay.textContent = totalBalls;
+    // El total y el tope viven SOLO acá (el lanzador ya no repite "xN").
+    // Lleno → el contador se pinta de amarillo, sin carteles extra.
+    document.getElementById('ballCapDisplay').textContent = `/${MAX_BALL_INVENTORY}`;
+    document.getElementById('ballsHud').classList.toggle('balls-full', totalBalls >= MAX_BALL_INVENTORY);
     const shieldDisplay = document.getElementById('shieldDisplay');
     if (shieldDisplay) {
         shieldDisplay.textContent = gameState.shieldCharges;
@@ -870,6 +886,8 @@ export function resumeGame() {
     startingTurn = Math.max(1, parseInt(save.startingTurn) || 1);
     gameState.turn = save.turn;
     gameState.ballInventory = { ...save.ballInventory };
+    // Guardados anteriores a v2.11.0 podían superar el tope del inventario
+    clampInventory(gameState.ballInventory);
     // Clamp: un guardado viejo pudo acumular más escudos de los que ahora
     // permite MAX_SHIELDS.
     gameState.shieldCharges = Number.isFinite(save.shieldCharges)

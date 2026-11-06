@@ -15,6 +15,7 @@ import { COLS, FAST_SPEED_MULTIPLIER, BALL_SPEED, OVERDRIVE_MAX, OVERDRIVE_MULTI
 import { getWidth, getHeight, getLeftBorder, getRightBorder, getTopOffset, getBottomLine, getCellSize, getBallRadius, getScale, getBrickColor, getBrickRect } from './rendering.js';
 import { BrickRegistry, BallRegistry, BonusRegistry } from './js/behaviors/index.js';
 import { processPhysicsStep, simulateTrajectory } from './js/systems/CollisionSystem.js';
+import { addToInventory, isInventoryFull } from './js/systems/BallInventory.js';
 
 // ====================================
 // SISTEMA DE PARTÍCULAS
@@ -80,11 +81,22 @@ export function addScreenShake(intensity) {
 
 /**
  * Agrega bolas al inventario desde un behavior (ladrillo dorado, jefe,
- * caja misteriosa...) y notifica al HUD.
+ * caja misteriosa...) y notifica al HUD. Respeta MAX_BALL_INVENTORY: solo
+ * suma las que entran y avisa si sobró algo.
+ * @returns {number} cuántas bolas entraron de verdad
  */
 export function addBallsToInventory(type, count) {
-    gameState.ballInventory[type] = (gameState.ballInventory[type] || 0) + count;
+    const granted = addToInventory(gameState.ballInventory, type, count);
+    if (granted < count) {
+        showInventoryFullHint(gameState.launchX, getBottomLine() - 40);
+    }
     events.emit('inventoryChanged');
+    return granted;
+}
+
+/** Aviso flotante de inventario lleno. */
+function showInventoryFullHint(x, y) {
+    addFloatingText(x, y, '🎒 Inventario lleno', { color: '#f9ed69', size: 14 });
 }
 
 export function addShieldCharge() {
@@ -411,11 +423,32 @@ function checkBonusCollisions(ball) {
         const dist = Math.hypot(ball.x - bonus.x, ball.y - bonus.y);
 
         if (dist < getBallRadius() + bonus.radius) {
+            const behavior = BonusRegistry.get(bonus.type);
+
+            // Bonus de bolas con el inventario lleno: no se agarra. La bola
+            // pasa de largo y el bonus sigue en el tablero (se dibuja
+            // apagado). Avisamos una sola vez por bonus y por turno.
+            if (behavior.targetBallType && isInventoryFull(gameState.ballInventory)) {
+                if (bonus.fullHintTurn !== gameState.turn) {
+                    bonus.fullHintTurn = gameState.turn;
+                    showInventoryFullHint(bonus.x, bonus.y - 20);
+                }
+                continue;
+            }
+
             // Usar el behavior del bonus para aplicar el efecto
-            BonusRegistry.get(bonus.type).onCollect(bonus, ball, gameState, physicsHelpers);
+            const result = behavior.onCollect(bonus, ball, gameState, physicsHelpers);
 
             createParticles(bonus.x, bonus.y, '#f9ed69', 8);
-            gameState.bonuses = gameState.bonuses.filter(b => b !== bonus);
+
+            // Entraron solo algunas bolas: el bonus se queda con el resto
+            if (result && result.leftover > 0) {
+                bonus.value = result.leftover;
+                bonus.fullHintTurn = gameState.turn;
+                showInventoryFullHint(bonus.x, bonus.y - 20);
+            } else {
+                gameState.bonuses = gameState.bonuses.filter(b => b !== bonus);
+            }
 
             events.emit('inventoryChanged');
         }

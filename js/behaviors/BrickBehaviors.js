@@ -412,8 +412,9 @@ const GoldBrickBehavior = {
         const cy = brick.y + brick.height / 2;
 
         createParticles(cx, cy, '#fbbf24', 14);
-        addBallsToInventory('normal', 1);
-        addFloatingText(cx, cy, '+1 🔵', { color: '#fbbf24', size: 16 });
+        if (addBallsToInventory('normal', 1) > 0) {
+            addFloatingText(cx, cy, '+1 🔵', { color: '#fbbf24', size: 16 });
+        }
 
         return null;
     },
@@ -578,9 +579,9 @@ const BossBrickBehavior = {
         addScreenShake(10);
 
         // Botín: bolas, un escudo, y onda expansiva que daña a los vecinos
-        addBallsToInventory('normal', this.lootBalls);
+        const lootGot = addBallsToInventory('normal', this.lootBalls);
         addShieldCharge();
-        addFloatingText(cx, cy, `👑 ¡JEFE DERROTADO! +${this.lootBalls}🔵 +1🛡️`, { color: '#ffd700', size: 20 });
+        addFloatingText(cx, cy, `👑 ¡JEFE DERROTADO! +${lootGot}🔵 +1🛡️`, { color: '#ffd700', size: 20 });
 
         const shockRadius = cellSize * this.shockRadiusCells;
         const damagedBricks = [];

@@ -103,7 +103,7 @@
             <span id="difficultyBadge">FÁCIL</span>
             <span id="speedIndicator">⚡ 5x</span>
             <span>🛡️ <b id="shieldDisplay">1</b></span>
-            <span>Bolas: <b id="ballDisplay">1</b></span>
+            <span id="ballsHud" role="button" aria-label="Inventario de bolas">🎒 <b id="ballDisplay">1</b><small id="ballCapDisplay"></small></span>
         </div>
 
         <div id="instructions">👆 Arrastra para apuntar • Mantené presionado para acelerar</div>
@@ -113,6 +113,18 @@
 
         <button id="skipBtn">⏭️ Saltar turno</button>
 
+        <!-- Panel para tirar bolas (se abre tocando 🎒 o las píldoras).
+             Queda DEBAJO del #ui: el total/tope se sigue viendo arriba y
+             se actualiza en vivo, así el panel no lo repite. -->
+        <div id="dropPanel" class="hidden">
+            <div class="drop-card">
+                <div class="drop-title">🎒 Tirar bolas</div>
+                <div class="drop-hint" id="dropHint"></div>
+                <div id="dropList"></div>
+                <button id="dropCloseBtn">Listo</button>
+            </div>
+        </div>
+
         <!-- Update Banner -->
         <div id="updateBanner" class="hidden">
             🔄 Nueva versión disponible
@@ -120,7 +132,7 @@
         </div>
 
         <!-- Version indicator -->
-        <div id="versionInfo">v2.10.1</div>
+        <div id="versionInfo">v2.11.1</div>
 
         <!-- Game Over -->
         <div id="gameOver">

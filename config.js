@@ -6,7 +6,12 @@ export const BASE_BALL_RADIUS = 6;
 export const BALL_SPEED = 10;
 export const FAST_SPEED_MULTIPLIER = 5;
 export const SHOOT_DELAY = 45;
-export const MAX_BALLS_ON_SCREEN = 200;
+export const MAX_BALLS_ON_SCREEN = 100;
+// Tope del INVENTARIO total (todas las bolas de todos los tipos). Igual al
+// tope de la cola de disparo: así toda bola que tenés se dispara. Con el
+// inventario lleno los bonuses de bolas no se agarran; el jugador puede
+// tirar bolas entre turnos para hacer lugar (js/systems/BallInventory.js).
+export const MAX_BALL_INVENTORY = MAX_BALLS_ON_SCREEN;
 export const POINTER_DISPLAY_DELAY_MS = 100; // Delay para visualización suave del puntero
 
 // ====================================
