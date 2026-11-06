@@ -42,9 +42,22 @@ function resetAimState() {
 function getRawAngle(pos) {
     const dx = pos.x - gameState.launchX;
     const dy = pos.y - gameState.launchY;
-    let angle = Math.atan2(dy, dx);
-    if (angle > AIM_ANGLE_MAX) angle = AIM_ANGLE_MAX;
-    if (angle < AIM_ANGLE_MIN) angle = AIM_ANGLE_MIN;
+    return clampAimAngle(Math.atan2(dy, dx), dx);
+}
+
+// Recorta un ángulo crudo de atan2 al rango de apuntado, respetando el LADO
+// del dedo. Con el dedo por debajo de la línea de lanzamiento, atan2 da un
+// ángulo positivo (≈ +π a la izquierda, ≈ 0 a la derecha); un recorte ingenuo
+// (angle > MAX → MAX) mandaba el apuntado al tope DERECHO aunque el dedo
+// estuviera a la izquierda, y la bola salía hacia el lado opuesto.
+export function clampAimAngle(angle, dx) {
+    if (dx < 0) {
+        // Lado izquierdo: cualquier ángulo fuera de rango va al tope izquierdo
+        if (angle > AIM_ANGLE_MAX || angle < AIM_ANGLE_MIN) return AIM_ANGLE_MIN;
+        return angle;
+    }
+    if (angle > AIM_ANGLE_MAX) return AIM_ANGLE_MAX;
+    if (angle < AIM_ANGLE_MIN) return AIM_ANGLE_MIN;
     return angle;
 }
 
