@@ -204,4 +204,39 @@ test.describe('Superficies de bloques fusionadas', () => {
         expect(result[1].radii[0]).toBe(0);
         expect(result[1].radii[3]).toBe(0);
     });
+    test('una bola que roza una esquina alejándose en un eje no atraviesa el bloque', async ({ page }) => {
+        // Regresión (v2.11.3): las esquinas solo se testeaban si la bola se
+        // acercaba en LOS DOS ejes. Una bola subiendo y derivando a la
+        // derecha pasaba por la esquina inferior derecha sin testearla y se
+        // metía en el bloque.
+        await loadGameWithHooks(page);
+
+        const result = await page.evaluate(({ cells, CELL }) => {
+            const { processPhysicsStep } = window.__game.collision;
+            const bricks = cells;
+            const radius = 6;
+            const brick = bricks[0];
+            const right = brick.x + CELL;
+            const bottom = brick.y + CELL;
+            // Centro 2px a la derecha de la cara derecha (dentro del radio),
+            // por debajo del bloque, subiendo y derivando a la derecha.
+            const ball = { x: right + 2, y: bottom + 30, vx: 0.6, vy: -10 };
+            const bounds = { left: -1000, right: 1000, top: -1000, bottom: 1000 };
+            let hits = 0;
+            for (let f = 0; f < 10; f++) {
+                const r = processPhysicsStep(ball, radius, bricks, bounds,
+                    () => ({ shouldBounce: true, damage: 0 }));
+                hits += r.collisions.length;
+                ball.x = r.newX; ball.y = r.newY; ball.vx = r.newVx; ball.vy = r.newVy;
+            }
+            // Distancia final del centro al rect del bloque
+            const cx = Math.max(brick.x, Math.min(ball.x, right));
+            const cy = Math.max(brick.y, Math.min(ball.y, bottom));
+            return { hits, dist: Math.hypot(ball.x - cx, ball.y - cy), radius, vy: ball.vy };
+        }, { cells: bricksFrom([[0, 0]]), CELL });
+
+        expect(result.hits).toBeGreaterThan(0);
+        expect(result.vy).toBeGreaterThan(0);
+        expect(result.dist).toBeGreaterThanOrEqual(result.radius - 0.01);
+    });
 });

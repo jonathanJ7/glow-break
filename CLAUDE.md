@@ -378,7 +378,9 @@ tiene:
 | `corners` | `{tl, tr, bl, br}` — una esquina solo existe si sus DOS caras están expuestas ahí |
 
 - **Física**: `CollisionSystem.sweepSphereSurface` testea solo caras y
-  esquinas expuestas. `findFirstCollision` (y por lo tanto también la línea
+  esquinas expuestas. Las esquinas se testean **sin filtrar por dirección**
+  (v2.11.3): filtrar por "se acerca en los dos ejes" dejaba pasar a una bola
+  que rozaba la esquina alejándose en un eje, y se metía en el bloque. `findFirstCollision` (y por lo tanto también la línea
   de puntería vía `simulateTrajectory`) usa las superficies.
 - **Render**: `rendering.js` dibuja el rect fusionado con `roundRect` y radio
   **0** en las esquinas pegadas a otro bloque, en tres pasadas (sombras →
