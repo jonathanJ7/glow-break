@@ -75,6 +75,24 @@ export const LASER_MAXHP_RATIO = 0.5;
 export const LASER_CURRENT_HP_RATIO = 0.6;
 
 // ====================================
+// ERAS Y AMENAZAS
+// ====================================
+// Cada ERA_SETTINGS[d].interval turnos empieza una era nueva. Las eras
+// II..VI suman, en orden, una amenaza permanente (ver
+// js/behaviors/ThreatBehaviors.js, campo `order`); desde ahí cada era nueva
+// sube de nivel una amenaza activa (en orden, hasta su nivel máximo). La
+// dificultad crece por acumulación de MECÁNICAS, no solo de números.
+//   - interval:   turnos por era (medio/difícil coinciden con los jefes)
+//   - startLevel: nivel con el que se activa cada amenaza nueva
+// Todo se deriva del número de turno (js/systems/Eras.js), así que empezar
+// en el turno N o reanudar un guardado da exactamente las mismas amenazas.
+export const ERA_SETTINGS = {
+    easy:   { interval: 25, startLevel: 1 },
+    medium: { interval: BOSS_INTERVAL, startLevel: 1 },
+    hard:   { interval: BOSS_INTERVAL, startLevel: 2 },
+};
+
+// ====================================
 // COLORES Y ESTILOS
 // ====================================
 export const BRICK_COLORS = [

@@ -16,6 +16,7 @@ import { getWidth, getHeight, getLeftBorder, getRightBorder, getTopOffset, getBo
 import { BrickRegistry, BallRegistry, BonusRegistry } from './js/behaviors/index.js';
 import { processPhysicsStep, simulateTrajectory } from './js/systems/CollisionSystem.js';
 import { addToInventory, isInventoryFull } from './js/systems/BallInventory.js';
+import { modifyDamage as threatModifyDamage, DAMAGE_SOURCES } from './js/systems/ThreatSystem.js';
 
 // ====================================
 // SISTEMA DE PARTÍCULAS
@@ -114,7 +115,7 @@ export function addShieldCharge() {
 // hoist garantiza que su referencia ya este disponible aqui. Construimos
 // el helpers object completo y lo congelamos: nada en el codigo deberia
 // mutarlo en runtime (eso era spooky-action-at-a-distance).
-const physicsHelpers = Object.freeze({
+export const physicsHelpers = Object.freeze({
     getCellSize,
     getLeftBorder,
     getRightBorder,
@@ -128,11 +129,37 @@ const physicsHelpers = Object.freeze({
     addScreenShake,
     addBallsToInventory,
     addShieldCharge,
+    getWidth,
+    getTopOffset,
+    getBottomLine,
     COLS,
     get speedMultiplier() {
         return gameState.speedMultiplier;
     }
 });
+
+// ====================================
+// DAÑO CENTRALIZADO
+// ====================================
+
+/**
+ * Única vía para dañar un bloque: aplica el modificador de su behavior
+ * (ej: blindado), después el de las amenazas activas (ej: caparazón de la
+ * Adaptación, que depende de la FUENTE del daño) y lo marca como revelado
+ * (Niebla). Devuelve el daño efectivo.
+ *
+ * @param {object} brick
+ * @param {number} amount
+ * @param {string} source - una de DAMAGE_SOURCES
+ */
+export function damageBrick(brick, amount, source) {
+    const behavior = BrickRegistry.get(brick.type);
+    let damage = behavior.onDamage(brick, amount, gameState);
+    damage = threatModifyDamage(gameState.threatLevels, gameState, brick, damage, source, physicsHelpers);
+    brick.revealed = true;
+    brick.hp -= damage;
+    return damage;
+}
 
 // ====================================
 // EFECTOS DE BLOQUES (usando behaviors)
@@ -150,8 +177,7 @@ function processBrickDestruction(brick) {
         // Procesar daño a otros bloques
         if (result.damagedBricks) {
             for (const { brick: targetBrick, damage } of result.damagedBricks) {
-                const targetBehavior = BrickRegistry.get(targetBrick.type);
-                targetBrick.hp -= targetBehavior.onDamage(targetBrick, damage, gameState);
+                damageBrick(targetBrick, damage, DAMAGE_SOURCES.EXPLOSION);
             }
         }
 
@@ -203,9 +229,7 @@ export function fireHorizontalLaser(ballY) {
                 Math.ceil(brick.hp * LASER_CURRENT_HP_RATIO)
             );
 
-            // Aplicar modificador de daño del behavior
-            const behavior = BrickRegistry.get(brick.type);
-            brick.hp -= behavior.onDamage(brick, damage, gameState);
+            damageBrick(brick, damage, DAMAGE_SOURCES.LASER);
             createParticles(brick.x + brick.width/2, brick.y + brick.height/2, '#3b82f6', 5);
         }
     }
@@ -253,17 +277,14 @@ export function updateBalls() {
             // resultado.
             const onBrickHit = (ball, brick, collision) => {
                 const result = ballBehavior.onCollision(ball, brick, gameState, physicsHelpers);
-                const brickBehavior = BrickRegistry.get(brick.type);
                 // En turnos OVERDRIVE todo el daño se multiplica
                 const overdrive = gameState.overdriveActive ? OVERDRIVE_MULTIPLIER : 1;
-                const damage = brickBehavior.onDamage(brick, result.damage * overdrive, gameState);
-                brick.hp -= damage;
+                const damage = damageBrick(brick, result.damage * overdrive, DAMAGE_SOURCES.BALL);
 
                 // Daño en área devuelto por el behavior (ej: bola bomba)
                 if (result.damagedBricks) {
                     for (const { brick: targetBrick, damage: aoeDamage } of result.damagedBricks) {
-                        const targetBehavior = BrickRegistry.get(targetBrick.type);
-                        targetBrick.hp -= targetBehavior.onDamage(targetBrick, aoeDamage * overdrive, gameState);
+                        damageBrick(targetBrick, aoeDamage * overdrive, DAMAGE_SOURCES.BOMB);
                     }
                 }
 

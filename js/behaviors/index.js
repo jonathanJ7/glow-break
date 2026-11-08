@@ -9,9 +9,10 @@
 import './BrickBehaviors.js';
 import './BallBehaviors.js';
 import './BonusBehaviors.js';
+import './ThreatBehaviors.js';
 
 // Re-exportar los registries
-export { BrickRegistry, BallRegistry, BonusRegistry } from '../core/Registry.js';
+export { BrickRegistry, BallRegistry, BonusRegistry, ThreatRegistry } from '../core/Registry.js';
 
 // Re-exportar behaviors individuales por si se necesitan
 export {

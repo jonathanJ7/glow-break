@@ -23,20 +23,20 @@ test.describe('Glow-Break - game guide', () => {
         await guideBtn.evaluate((el) => /** @type {HTMLElement} */ (el).click());
 
         await expect(page.locator('#guideScreen')).toBeVisible();
-        await expect(page.locator('.guide-section')).toHaveCount(7);
+        await expect(page.locator('.guide-section')).toHaveCount(8);
 
         await page.locator('#guideBackBtn').evaluate((el) => /** @type {HTMLElement} */ (el).click());
         await expect(page.locator('#guideScreen')).toBeHidden();
         await expect(page.locator('#mainMenu')).toBeVisible();
     });
 
-    test('guide lists every registered brick, ball and bonus type', async ({ page }) => {
+    test('guide lists every registered brick, ball, bonus and threat type', async ({ page }) => {
         await loadGameWithHooks(page);
 
         const { names, contentText } = await page.evaluate(() => {
             const g = window.__game;
             const names = [];
-            for (const registry of [g.BrickRegistry, g.BallRegistry, g.BonusRegistry]) {
+            for (const registry of [g.BrickRegistry, g.BallRegistry, g.BonusRegistry, g.ThreatRegistry]) {
                 for (const [type, behavior] of registry.getAll()) {
                     names.push(behavior.displayName || type);
                 }

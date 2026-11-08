@@ -13,7 +13,7 @@
  * added here should be consumed by an actual spec — do not export internals
  * speculatively.
  */
-import { BrickRegistry, BallRegistry, BonusRegistry } from '../js/behaviors/index.js';
+import { BrickRegistry, BallRegistry, BonusRegistry, ThreatRegistry } from '../js/behaviors/index.js';
 import * as game from '../game.js';
 import * as physics from '../physics.js';
 import * as rendering from '../rendering.js';
@@ -21,6 +21,8 @@ import * as config from '../config.js';
 import * as collision from '../js/systems/CollisionSystem.js';
 import * as brickSurfaces from '../js/systems/BrickSurfaces.js';
 import * as ballInventory from '../js/systems/BallInventory.js';
+import * as eras from '../js/systems/Eras.js';
+import * as threatSystem from '../js/systems/ThreatSystem.js';
 import * as dropPanel from '../js/ui/DropPanel.js';
 import { DIFFICULTY_SETTINGS } from '../config.js';
 
@@ -28,6 +30,7 @@ window.__game = {
     BrickRegistry,
     BallRegistry,
     BonusRegistry,
+    ThreatRegistry,
     get gameState() { return game.gameState; },
     game,
     physics,
@@ -36,6 +39,8 @@ window.__game = {
     collision,
     brickSurfaces,
     ballInventory,
+    eras,
+    threatSystem,
     dropPanel,
     DIFFICULTY_SETTINGS,
     ready: true,

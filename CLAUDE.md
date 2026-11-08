@@ -54,12 +54,15 @@ glow-break/
     │   ├── index.js        # Exports all behaviors
     │   ├── BrickBehaviors.js
     │   ├── BallBehaviors.js
-    │   └── BonusBehaviors.js
+    │   ├── BonusBehaviors.js
+    │   └── ThreatBehaviors.js   # Amenazas de las eras
     │
     ├── systems/
     │   ├── BrickGenerator.js
     │   ├── CollisionSystem.js   # CCD (swept sphere)
-    │   └── BrickSurfaces.js     # Fusión de bloques adyacentes
+    │   ├── BrickSurfaces.js     # Fusión de bloques adyacentes
+    │   ├── Eras.js              # Era y niveles de amenaza por turno (puro)
+    │   └── ThreatSystem.js      # Ejecuta los hooks de las amenazas activas
     │
     ├── entities/
     │   ├── Brick.js
@@ -82,10 +85,11 @@ The codebase uses a **Registry + Strategy** pattern. This means:
 
 ### Registries
 
-Three registries exist in `js/core/Registry.js`:
+Four registries exist in `js/core/Registry.js`:
 - `BrickRegistry` - For brick types
 - `BallRegistry` - For ball types
 - `BonusRegistry` - For bonus/powerup types
+- `ThreatRegistry` - For era threats (ver "Eras y amenazas")
 
 ### Adding a New Brick Type
 
@@ -295,6 +299,54 @@ BonusRegistry.register('shield', ShieldBonusBehavior);
 - **Feedback helpers** in `physicsHelpers`: `addFloatingText(x, y, text, {color, size})`, `addScreenShake(intensity)`, `addBallsToInventory(type, count)`, `addShieldCharge()`.
 - **Records**: best turn per difficulty stored in `localStorage` (`glowbreak_best_<difficulty>`), only counted when starting from turn 1.
 
+### Eras y amenazas (v2.12.0)
+
+La dificultad de largo plazo NO sube constantes: suma **mecánicas**. Cada
+`ERA_SETTINGS[d].interval` turnos (fácil 25, medio/difícil 15 = `BOSS_INTERVAL`)
+empieza una era. Las eras **acumulan** amenazas: la Era I no tiene, cada era
+siguiente suma la próxima amenaza (por `order`) y las anteriores siguen
+activas. Con todas activas, cada era nueva sube +1 nivel a la siguiente (en
+orden) hasta su máximo. Difícil activa cada amenaza directamente en nivel 2
+(`startLevel`). Todo se deriva del turno (`js/systems/Eras.js`, funciones
+puras: `getEra`, `getThreatLevels`, `getEraChange`), así que empezar en el
+turno N o reanudar da las mismas amenazas.
+
+| Orden | Amenaza | Efecto | Niveles (`levels`) |
+|-------|---------|--------|--------------------|
+| 1 | ☣️ `corruption` | Cada `seedEvery` turnos un bloque nuevo nace corrupto; al fin de turno cada corrupto contagia a `spread` vecino(s) ortogonales y les sube el HP al suyo. Jefes inmunes | 5/1 · 3/1 · 2/2 |
+| 2 | 🌊 `waves` | En turnos múltiplos de `every`, al terminar el tablero baja 2 filas (fila extra sin bonus, `generateNewRow({extraRow:true})`) | 6 · 5 · 4 |
+| 3 | 🧬 `adaptation` | Daño de ÁREA (`bomb`, `explosion`, `laser`) deja caparazón (`brick.shellUntil`): inmune a área ese turno + `shellTurns`. Bola directa siempre pega. N3: bloques nacen con caparazón | 1 · 2 · 2+nacen |
+| 4 | 🐛 `crawlers` | Por fila se eligen `perRow` bloques con `chance` de ser reptador; al fin de turno baja 1 fila extra si la celda de abajo está libre (aplasta bonuses) | 50%/1 · 75%/1 · 75%/2 |
+| 5 | 🌫️ `fog` | Las `rows` filas de arriba se dibujan grises con "?" (sin HP, tipo ni marcas) hasta que el bloque recibe daño (`brick.revealed`) | 3 · 4 · 5 |
+
+Calibración (medio): un bot que prueba 10 ángulos por turno muere entre los
+turnos ~60 y ~95; sin eras llegaba a ~170+.
+
+**Integración con el motor** (vía `js/systems/ThreatSystem.js`; el motor no
+conoce amenazas concretas):
+- `gameState.threatLevels` (tipo → nivel) del turno actual; se recalcula con
+  `refreshThreatLevels()` en `initGame`, `resumeGame` y `endTurn`.
+- `generateNewRow` → `runRowGenerated` (niveles del turno de esa fila).
+- `endTurn` → `runTurnEnd` y `getExtraAdvance` con los niveles del turno que
+  TERMINA, antes de `moveBricksDown`; después muestra `gameState.eraBanner`
+  si cambió la era.
+- **Todo daño a bloques pasa por `physics.damageBrick(brick, amount, source)`**
+  (`DAMAGE_SOURCES`: `ball`, `bomb`, `explosion`, `laser`): aplica `onDamage`
+  del bloque, después `modifyDamage` de las amenazas, y marca `revealed`. No
+  restes `brick.hp` a mano en código nuevo.
+- Render: `isBrickHidden` (niebla), `renderBrickOverlays`, `renderBoardOverlays`.
+- Guardado: `corrupt`, `crawler`, `shellUntil` y `revealed` se guardan por bloque.
+- HUD: `#threatHud` (era en romanos + íconos con pista, ej. turnos a la
+  oleada); tocarlo abre `#threatPanel` (`js/ui/ThreatPanel.js`). La guía tiene
+  la sección "Eras y amenazas", generada desde el registry.
+
+**Agregar una amenaza**: registrar en `ThreatRegistry` un behavior con `type`,
+`order`, `displayName`, `icon`, `levels` (array de params por nivel) y
+`describe(level)` con números exactos, más los hooks que use
+(`onRowGenerated`, `onTurnEnd`, `getExtraAdvance`, `modifyDamage`,
+`hidesBrick`, `renderBrick`, `renderBoard`, `getHudHint`). Se suma sola a la
+era siguiente según su `order`.
+
 ### Ayudas por dificultad (v2.8.0, ampliado en v2.9.0)
 
 Cada entrada de `DIFFICULTY_SETTINGS` tiene un objeto `assists` que controla cuánta **información** recibe el jugador y cuánto puede confiar en su puntería (la dificultad no es solo números):
@@ -449,3 +501,6 @@ The `guide.spec.js` test fails if any registered type is missing from the guide.
 | `js/systems/BrickSurfaces.js` | Fusión de bloques adyacentes (geometría compartida física/render) |
 | `js/systems/BallInventory.js` | Tope del inventario de bolas (agregar/tirar/recortar) |
 | `js/ui/DropPanel.js` | Panel 🎒 para tirar bolas entre turnos |
+| `js/behaviors/ThreatBehaviors.js` | Amenazas de las eras (corrupción, oleadas, adaptación, reptadores, niebla) |
+| `js/systems/Eras.js` | Era y niveles de amenaza de cada turno (puro) |
+| `js/systems/ThreatSystem.js` | Hooks de amenazas activas + `buildGrid` |
