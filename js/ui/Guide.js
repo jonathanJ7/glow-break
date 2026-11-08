@@ -20,7 +20,7 @@ import {
     OVERDRIVE_MAX, OVERDRIVE_MULTIPLIER,
     BOSS_INTERVAL,
     STARTING_SHIELDS, MAX_SHIELDS, SHIELD_BURN_ROWS,
-    HP_LOG_FACTOR, DEFAULT_AIM_SCATTER, BALL_BONUS_SCALE_TURNS,
+    HP_LOG_FACTOR, DEFAULT_AIM_SCATTER, BALL_BONUS_SCALE_TURNS, BALL_BONUS_MAX_VALUE,
 } from '../../config.js';
 import { FREEZE_TIME_MS, UNFREEZE_DISTANCE } from '../../input.js';
 import { MIN_BALLS_KEPT } from '../systems/BallInventory.js';
@@ -124,7 +124,7 @@ function buildScheduleSection() {
             // El bonus de bolas normales escala su valor: cada dificultad
             // puede tener su propio ritmo (scaleTurns).
             const scale = type === 'ball'
-                ? ` <span class="guide-dim">(+1 bola por cada ${cfg.scaleTurns || BALL_BONUS_SCALE_TURNS} turnos)</span>`
+                ? ` <span class="guide-dim">(+1 bola por cada ${cfg.scaleTurns || BALL_BONUS_SCALE_TURNS} turnos, máx. +${BALL_BONUS_MAX_VALUE})</span>`
                 : '';
             return `<td>turno ${cfg.first}, luego cada ${cfg.interval}${scale}</td>`;
         }).join('');

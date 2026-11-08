@@ -117,14 +117,24 @@ function sweepAgainstCorner(x0, y0, dx, dy, cornerX, cornerY, radius) {
 
     const sqrtDisc = Math.sqrt(discriminant);
 
-    // Tomar la raíz más pequeña positiva
+    // Solo la raíz de ENTRADA. La segunda raíz es el instante en que la
+    // bola sale del círculo de la esquina: tomarla como impacto (como se
+    // hacía antes cuando la primera era negativa) devolvía una normal hacia
+    // afuera con la bola alejándose, y el reflejo la mandaba hacia ADENTRO
+    // del bloque.
     let t = (-b - sqrtDisc) / (2 * a);
 
     if (t < EPSILON) {
-        t = (-b + sqrtDisc) / (2 * a);
+        // La bola ya está solapando la esquina (c < 0). Si se sigue metiendo
+        // (b < 0), es un impacto inmediato; si ya se está alejando, no.
+        if (c < 0 && b < 0) {
+            t = 0;
+        } else {
+            return null;
+        }
     }
 
-    if (t < EPSILON || t > 1 + EPSILON) return null;
+    if (t > 1 + EPSILON) return null;
 
     const hitX = x0 + dx * t;
     const hitY = y0 + dy * t;
@@ -218,19 +228,23 @@ export function sweepSphereSurface(x0, y0, dx, dy, radius, surface) {
     // es una arista recta, y redondearla es exactamente lo que producía los
     // rebotes fantasma.
     const corners = [
-        { x: left, y: top, checkDx: 1, checkDy: 1, exposed: surface.corners.tl },
-        { x: right, y: top, checkDx: -1, checkDy: 1, exposed: surface.corners.tr },
-        { x: left, y: bottom, checkDx: 1, checkDy: -1, exposed: surface.corners.bl },
-        { x: right, y: bottom, checkDx: -1, checkDy: -1, exposed: surface.corners.br }
+        { x: left, y: top, exposed: surface.corners.tl },
+        { x: right, y: top, exposed: surface.corners.tr },
+        { x: left, y: bottom, exposed: surface.corners.bl },
+        { x: right, y: bottom, exposed: surface.corners.br }
     ];
 
     for (const corner of corners) {
         if (!corner.exposed) continue;
 
-        // Solo verificar esquinas donde la bola se aproxima en la dirección correcta
-        if ((dx * corner.checkDx > 0 || Math.abs(dx) < EPSILON) &&
-            (dy * corner.checkDy > 0 || Math.abs(dy) < EPSILON)) {
-
+        // Ojo: NO filtrar por dirección de movimiento. Antes una esquina solo
+        // se testeaba si la bola se acercaba en LOS DOS ejes (ej. inferior
+        // derecha solo yendo hacia arriba Y hacia la izquierda). Una bola que
+        // subía derivando a la derecha rozaba esa esquina sin testearla, la
+        // cara inferior tampoco la atajaba (el centro estaba fuera del tramo)
+        // y la bola se metía en el bloque, llegando a zonas inaccesibles.
+        // sweepAgainstCorner ya descarta por sí sola a una bola que se aleja.
+        {
             const collision = sweepAgainstCorner(x0, y0, dx, dy, corner.x, corner.y, radius);
 
             if (collision && collision.t < bestT) {

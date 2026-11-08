@@ -8,7 +8,7 @@
  * solo necesitas registrar nuevos behaviors.
  */
 
-import { DIFFICULTY_SETTINGS, SPAWN_SCHEDULE, COLS, SHOOT_DELAY, MAX_BALLS_ON_SCREEN, FAST_SPEED_MULTIPLIER, BASE_BALL_RADIUS, BALL_SPEED, COMBO_BALLS_PER, COMBO_MAX_REWARD, OVERDRIVE_MAX, BOSS_INTERVAL, BOSS_HP_MULTIPLIER, STARTING_SHIELDS, MAX_SHIELDS, SHIELD_BURN_ROWS, BALL_BONUS_SCALE_TURNS, HP_LOG_FACTOR, DEFAULT_AIM_SCATTER, AIM_ANGLE_MIN, AIM_ANGLE_MAX, MAX_BALL_INVENTORY } from './config.js';
+import { DIFFICULTY_SETTINGS, SPAWN_SCHEDULE, COLS, SHOOT_DELAY, MAX_BALLS_ON_SCREEN, FAST_SPEED_MULTIPLIER, BASE_BALL_RADIUS, BALL_SPEED, COMBO_BALLS_PER, COMBO_MAX_REWARD, OVERDRIVE_MAX, BOSS_INTERVAL, BOSS_HP_MULTIPLIER, STARTING_SHIELDS, MAX_SHIELDS, SHIELD_BURN_ROWS, BALL_BONUS_SCALE_TURNS, BALL_BONUS_MAX_VALUE, HP_LOG_FACTOR, DEFAULT_AIM_SCATTER, AIM_ANGLE_MIN, AIM_ANGLE_MAX, MAX_BALL_INVENTORY } from './config.js';
 import { addToInventory, clampInventory } from './js/systems/BallInventory.js';
 import { getWidth, getHeight, getCellSize, getLeftBorder, getRightBorder, getTopOffset, getBottomLine, getScale, getBallRadius } from './rendering.js';
 import { updateBalls, updateParticles, createParticles, addFloatingText } from './physics.js';
@@ -125,9 +125,11 @@ export function getScheduledSpawns(turn, difficulty) {
         if (ballCfg && turn >= ballCfg.first && (turn - ballCfg.first) % ballCfg.interval === 0) {
             // El valor escala con el turno para que el poder de fuego no
             // quede atrás de la curva de HP en runs largas. Cada dificultad
-            // puede definir su propio ritmo con scaleTurns.
+            // puede definir su propio ritmo con scaleTurns. Tope en
+            // BALL_BONUS_MAX_VALUE para que tirar bolas no salga gratis.
             const scaleTurns = ballCfg.scaleTurns || BALL_BONUS_SCALE_TURNS;
-            result.ballBonus = { type: 'ball', value: 1 + Math.floor(turn / scaleTurns) };
+            const value = Math.min(BALL_BONUS_MAX_VALUE, 1 + Math.floor(turn / scaleTurns));
+            result.ballBonus = { type: 'ball', value };
         }
     }
 

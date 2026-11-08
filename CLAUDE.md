@@ -279,7 +279,7 @@ BonusRegistry.register('shield', ShieldBonusBehavior);
 ### Bonus Types
 | Type | Icon | Effect |
 |------|------|--------|
-| `ball` | +N | Adds normal balls (value scales: 1 + turn/25) |
+| `ball` | +N | Adds normal balls (value scales: 1 + turn/25, capped at `BALL_BONUS_MAX_VALUE`) |
 | `fireballBall` | 🔥 | Adds fireball |
 | `splitterBall` | 💥 | Adds splitter ball |
 | `horizontal` | ⚡ | Fires laser at nearest row |
@@ -290,7 +290,7 @@ BonusRegistry.register('shield', ShieldBonusBehavior);
 - **Combo**: bricks destroyed per turn accumulate in `gameState.combo`; every 12 kills grant +1 normal ball at `endTurn` (cap 8). Constants in `config.js`.
 - **Overdrive**: kills charge `gameState.overdriveCharge` (max 40); when full, the next `startShooting` activates a x2 damage turn (`overdriveActive`), applied in physics' `onBrickHit`.
 - **Shields**: `gameState.shieldCharges` (start 1, max 1 — `MAX_SHIELDS`; no stacking). In `moveBricksDown`, a crossing row consumes a shield and burns only the `SHIELD_BURN_ROWS` lowest rows — with the current value (1), just the row that actually crossed — instead of game over. Bosses grant +1, which with `MAX_SHIELDS = 1` only refills a spent shield. `resumeGame` clamps saved charges to `MAX_SHIELDS`.
-- **Ball bonus scaling per difficulty**: `SPAWN_SCHEDULE[d].ballBonuses.ball` accepts an optional `scaleTurns` (default `BALL_BONUS_SCALE_TURNS`) — the bonus grants `1 + floor(turn / scaleTurns)` balls. Hard uses `interval: 2, scaleTurns: 40` so it is no longer starved of balls (~75-85% of medium instead of ~60%).
+- **Ball bonus scaling per difficulty**: `SPAWN_SCHEDULE[d].ballBonuses.ball` accepts an optional `scaleTurns` (default `BALL_BONUS_SCALE_TURNS`) — the bonus grants `min(BALL_BONUS_MAX_VALUE, 1 + floor(turn / scaleTurns))` balls. The cap (v2.11.2, currently 2) exists because of the inventory cap: an unbounded +5/+6 bonus refilled dropped balls instantly, making dropping normals free. Hard uses `interval: 2, scaleTurns: 40` so it is no longer starved of balls (~75-85% of medium instead of ~60%).
 - **Ball AoE contract**: a ball behavior's `onCollision` may return `damagedBricks: [{brick, damage}]` — the engine applies it (used by `bomb`, mirrors brick `onDestroy`).
 - **Feedback helpers** in `physicsHelpers`: `addFloatingText(x, y, text, {color, size})`, `addScreenShake(intensity)`, `addBallsToInventory(type, count)`, `addShieldCharge()`.
 - **Records**: best turn per difficulty stored in `localStorage` (`glowbreak_best_<difficulty>`), only counted when starting from turn 1.
@@ -378,7 +378,9 @@ tiene:
 | `corners` | `{tl, tr, bl, br}` — una esquina solo existe si sus DOS caras están expuestas ahí |
 
 - **Física**: `CollisionSystem.sweepSphereSurface` testea solo caras y
-  esquinas expuestas. `findFirstCollision` (y por lo tanto también la línea
+  esquinas expuestas. Las esquinas se testean **sin filtrar por dirección**
+  (v2.11.3): filtrar por "se acerca en los dos ejes" dejaba pasar a una bola
+  que rozaba la esquina alejándose en un eje, y se metía en el bloque. `findFirstCollision` (y por lo tanto también la línea
   de puntería vía `simulateTrajectory`) usa las superficies.
 - **Render**: `rendering.js` dibuja el rect fusionado con `roundRect` y radio
   **0** en las esquinas pegadas a otro bloque, en tres pasadas (sombras →
