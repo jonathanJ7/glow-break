@@ -46,19 +46,25 @@ const CorruptionThreat = {
     displayName: 'Corrupción',
     icon: '☣️',
     color: '#c026d3',
+    // Contagio TOTAL: cada corrupto contagia a TODOS sus vecinos y el grupo
+    // (él + vecinos) se iguala al HP del más fuerte. Los niveles cambian
+    // cada cuánto nace un corrupto y si cuentan las diagonales.
     levels: [
-        { seedEvery: 5, spread: 1 },
-        { seedEvery: 3, spread: 1 },
-        { seedEvery: 2, spread: 2 },
+        { seedEvery: 6, diagonal: false },
+        { seedEvery: 4, diagonal: false },
+        { seedEvery: 3, diagonal: true },
     ],
 
     describe(level) {
         const p = this.levels[level - 1];
+        const reach = p.diagonal
+            ? 'TODOS sus vecinos pegados, incluidas las diagonales (hasta 8)'
+            : 'TODOS sus vecinos pegados arriba, abajo y a los lados (hasta 4)';
         return `Cada ${p.seedEvery} turnos, un bloque de la fila nueva nace corrupto (borde violeta, ☣). `
-            + `Al final de cada turno, cada corrupto vivo contagia a ${p.spread === 1 ? '1 vecino' : `${p.spread} vecinos`} `
-            + 'pegado (arriba, abajo o a los lados) elegido al azar: el contagiado se vuelve corrupto y su HP '
-            + 'sube al HP actual del que lo contagió si este era mayor. Los jefes no se corrompen. '
-            + 'Si no los matás rápido, se comen el tablero.';
+            + `Al final de cada turno, cada corrupto vivo contagia a ${reach}, y el grupo entero (el `
+            + 'corrupto y esos vecinos) se iguala al HP del más fuerte del grupo: todos quedan con ese HP. '
+            + 'Los contagiados contagian a su vez desde el turno siguiente. Los jefes no se corrompen ni '
+            + 'cuentan para el grupo. Si no los matás rápido, se comen el tablero.';
     },
 
     onRowGenerated(newBricks, ctx) {
@@ -69,17 +75,23 @@ const CorruptionThreat = {
 
     onTurnEnd(ctx) {
         const { gameState, grid, helpers, params } = ctx;
-        // Snapshot: los recién contagiados recién contagian el turno que viene
-        const sources = gameState.bricks.filter(b => b.corrupt && b.hp > 0);
+        // Snapshot: los recién contagiados recién contagian el turno que viene.
+        // Los grupos se procesan uno tras otro, así que un grupo que comparte
+        // bloques con otro ya igualado propaga ese HP (el racimo "se habla").
+        const sources = gameState.bricks.filter(b => b.corrupt && b.hp > 0 && !isBoss(b));
         let infected = 0;
         for (const src of sources) {
-            const targets = grid.neighbors(src).filter(n => !n.corrupt && !isBoss(n) && n.hp > 0);
-            for (const target of pickRandom(targets, params.spread)) {
-                target.corrupt = true;
-                if (src.hp > target.hp) target.hp = src.hp;
-                target.maxHp = Math.max(target.maxHp, target.hp);
-                helpers.createParticles(target.x + target.width / 2, target.y + target.height / 2, this.color, 6);
-                infected++;
+            const group = [src, ...grid.neighbors(src, { diagonal: params.diagonal })
+                .filter(n => !isBoss(n) && n.hp > 0)];
+            const strongest = Math.max(...group.map(b => b.hp));
+            for (const b of group) {
+                if (!b.corrupt) {
+                    b.corrupt = true;
+                    infected++;
+                    helpers.createParticles(b.x + b.width / 2, b.y + b.height / 2, this.color, 6);
+                }
+                b.hp = strongest;
+                b.maxHp = Math.max(b.maxHp, strongest);
             }
         }
         if (infected > 0) {

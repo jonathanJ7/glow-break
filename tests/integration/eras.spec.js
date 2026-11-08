@@ -7,7 +7,7 @@ import { loadGameWithHooks, setStartingTurn, startGame } from './helpers/game.js
  *  - Las eras ACUMULAN amenazas: cada era suma una y las anteriores siguen
  *    activas; con todas activas, cada era sube de nivel una de ellas.
  *  - Cada amenaza hace exactamente lo que dice:
- *      ☣️ corrupción contagia a un vecino y le pasa su HP,
+ *      ☣️ corrupción contagia a todos los vecinos y el grupo copia el HP más alto,
  *      🌊 oleada baja el tablero 2 filas,
  *      🧬 adaptación bloquea el 2º daño de área (no el de bola),
  *      🐛 reptador baja una fila extra si tiene lugar,
@@ -81,19 +81,42 @@ test.describe('Glow-Break - eras y amenazas', () => {
         expect(Object.values(r.far)).toEqual([3, 3, 3, 3, 3]);
     });
 
-    test('corrupción: un corrupto contagia a su vecino y le pasa su HP', async ({ page }) => {
+    test('corrupción: contagia a TODOS sus vecinos y el grupo copia el HP del más fuerte', async ({ page }) => {
+        // Turno 20, medio: corrupción nivel 1 (solo vecinos ortogonales)
         await startAt(page, 20);
         const r = await page.evaluate(placeBrickScript() + `;
-            const src = __place(2, 2, 500, { corrupt: true });
-            const victim = __place(3, 2, 10);
-            const far = __place(6, 5, 10);
+            const src = __place(2, 2, 100, { corrupt: true });
+            const group = [src, __place(1, 2, 300), __place(3, 2, 50), __place(2, 1, 700), __place(2, 3, 20)];
+            const diag = __place(3, 3, 999);
+            const far = __place(6, 6, 10);
             window.__game.game.endTurn();
-            ({ victimCorrupt: !!victim.corrupt, victimHp: victim.hp, farCorrupt: !!far.corrupt, srcCorrupt: src.corrupt });
+            ({
+                groupCorrupt: group.map(b => !!b.corrupt),
+                groupHp: group.map(b => b.hp),
+                diag: { corrupt: !!diag.corrupt, hp: diag.hp },
+                far: !!far.corrupt,
+            });
         `);
-        expect(r.victimCorrupt).toBe(true);
-        expect(r.victimHp).toBe(500);
-        expect(r.farCorrupt).toBe(false);
-        expect(r.srcCorrupt).toBe(true);
+        expect(r.groupCorrupt).toEqual([true, true, true, true, true]);
+        expect(r.groupHp).toEqual([700, 700, 700, 700, 700]);
+        // La diagonal no cuenta en nivel 1 (ni para contagiarse ni como "más fuerte")
+        expect(r.diag).toEqual({ corrupt: false, hp: 999 });
+        expect(r.far).toBe(false);
+    });
+
+    test('corrupción nivel 3: también contagia en diagonal', async ({ page }) => {
+        // Medio: corrupción sube a nivel 3 en el turno 165
+        await startAt(page, 165);
+        const r = await page.evaluate(placeBrickScript() + `;
+            const level = window.__game.gameState.threatLevels.corruption;
+            const src = __place(2, 2, 100, { corrupt: true });
+            const diag = __place(3, 3, 999);
+            window.__game.game.endTurn();
+            ({ level, srcHp: src.hp, diagCorrupt: !!diag.corrupt });
+        `);
+        expect(r.level).toBe(3);
+        expect(r.diagCorrupt).toBe(true);
+        expect(r.srcHp).toBe(999);
     });
 
     test('oleada: en el turno de oleada el tablero baja 2 filas', async ({ page }) => {

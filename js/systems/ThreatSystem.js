@@ -23,6 +23,9 @@ export const DAMAGE_SOURCES = Object.freeze({
     LASER: 'laser',         // láser horizontal
 });
 
+const NEIGHBOR_OFFSETS_4 = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+const NEIGHBOR_OFFSETS_8 = [...NEIGHBOR_OFFSETS_4, [-1, -1], [1, -1], [-1, 1], [1, 1]];
+
 /**
  * Índice de la grilla: qué bloque ocupa cada celda (col, row). Un bloque
  * ancho (jefe) ocupa varias celdas. row 0 = fila de arriba.
@@ -48,12 +51,16 @@ export function buildGrid(bricks, cellSize, topOffset) {
                 cells.set(`${c},${toRow}`, brick);
             }
         },
-        /** Vecinos ortogonales (sin repetir; un jefe cuenta una vez). */
-        neighbors(brick) {
+        /**
+         * Vecinos pegados (sin repetir; un jefe cuenta una vez). Por defecto
+         * solo ortogonales; con { diagonal: true } también las diagonales.
+         */
+        neighbors(brick, { diagonal = false } = {}) {
             const row = rowOf(brick);
             const out = new Set();
+            const offsets = diagonal ? NEIGHBOR_OFFSETS_8 : NEIGHBOR_OFFSETS_4;
             for (let c = brick.col; c < brick.col + spanOf(brick); c++) {
-                for (const [dc, dr] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {
+                for (const [dc, dr] of offsets) {
                     const n = cells.get(`${c + dc},${row + dr}`);
                     if (n && n !== brick) out.add(n);
                 }
