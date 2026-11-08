@@ -12,7 +12,7 @@
  */
 
 import { BonusRegistry } from '../core/Registry.js';
-import { BALL_BONUS_SCALE_TURNS, LASER_MAXHP_RATIO, LASER_CURRENT_HP_RATIO, SPAWN_SCHEDULE, DIFFICULTY_SETTINGS } from '../../config.js';
+import { BALL_BONUS_SCALE_TURNS, BALL_BONUS_MAX_VALUE, LASER_MAXHP_RATIO, LASER_CURRENT_HP_RATIO, SPAWN_SCHEDULE, DIFFICULTY_SETTINGS } from '../../config.js';
 import { addToInventory } from '../systems/BallInventory.js';
 
 /**
@@ -53,10 +53,19 @@ const BallBonusBehavior = {
             : scales.map(s => `${s.name} ${s.scale}`).join(', ');
         const example = scales[0].scale;
 
+        // Ejemplo derivado del tope: +1, +2, ... hasta BALL_BONUS_MAX_VALUE.
+        const steps = [];
+        for (let n = 1; n <= BALL_BONUS_MAX_VALUE; n++) {
+            const from = (n - 1) * example;
+            steps.push(n === BALL_BONUS_MAX_VALUE
+                ? `+${n} desde el turno ${from} en adelante`
+                : `+${n} ${from === 0 ? 'hasta el turno' : `del ${from} al`} ${n * example - 1}`);
+        }
+
         return 'Suma N bolas normales a tu inventario, si hay lugar (ver Inventario de bolas). '
-            + `N escala con el turno: N = 1 + (turno ÷ E, redondeado hacia abajo), con E = ${detail}. `
-            + `Por ejemplo con E = ${example}: +1 hasta el turno ${example - 1}, +2 del ${example} al `
-            + `${example * 2 - 1}, +3 del ${example * 2} en adelante, y así sucesivamente.`;
+            + `N escala con el turno: N = 1 + (turno ÷ E, redondeado hacia abajo), con E = ${detail}, `
+            + `y nunca pasa de ${BALL_BONUS_MAX_VALUE} (así tirar bolas para hacer lugar tiene un costo real). `
+            + `Por ejemplo con E = ${example}: ${steps.join(', ')}.`;
     },
 
     render(ctx, bonus, helpers) {

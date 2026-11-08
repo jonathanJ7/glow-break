@@ -47,6 +47,13 @@ export const SHIELD_BURN_ROWS = 1;
 // El bonus de bolas normales escala: +1 bola extra por cada
 // BALL_BONUS_SCALE_TURNS turnos transcurridos.
 export const BALL_BONUS_SCALE_TURNS = 25;
+// ...pero sin pasar de BALL_BONUS_MAX_VALUE. Con el tope de inventario
+// (MAX_BALL_INVENTORY) un bonus que siguiera creciendo sin límite (+5, +6...)
+// solo servía para rellenar al instante lo que tirabas: tirar normales para
+// hacer lugar a especiales salía gratis. Con el tope, el escalado ayuda a
+// llegar al máximo de bolas en la mitad de la partida, pero cada bola tirada
+// tarda ~1 turno en recuperarse (medio/difícil).
+export const BALL_BONUS_MAX_VALUE = 2;
 
 // Apuntado: el disparo siempre va hacia arriba, con un margen para que
 // nunca quede horizontal. Lo usan el input (clamp del dedo) y la

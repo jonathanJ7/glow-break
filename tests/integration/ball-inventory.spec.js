@@ -163,4 +163,22 @@ test.describe('Glow-Break - tope del inventario de bolas', () => {
         await expect(page.locator('#ballsHud')).toHaveText(/🎒\s*100\/100/);
         await expect(page.locator('#ballsHud')).toHaveClass(/balls-full/);
     });
+    test('el bonus de bolas normales deja de crecer en BALL_BONUS_MAX_VALUE', async ({ page }) => {
+        // Con tope de inventario, un bonus sin límite (+5, +6...) rellenaba
+        // al instante las bolas tiradas: tirar normales salía gratis.
+        await loadGameWithHooks(page);
+        const values = await page.evaluate(async () => {
+            const { BALL_BONUS_MAX_VALUE } = await import('/config.js');
+            const out = { max: BALL_BONUS_MAX_VALUE, seen: [] };
+            for (const d of ['easy', 'medium', 'hard']) {
+                for (let t = 1; t <= 400; t++) {
+                    const b = window.__game.game.getScheduledSpawns(t, d).ballBonus;
+                    if (b && b.type === 'ball') out.seen.push(b.value);
+                }
+            }
+            return out;
+        });
+        expect(Math.max(...values.seen)).toBe(values.max);
+        expect(values.seen).toContain(1);
+    });
 });
