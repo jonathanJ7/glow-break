@@ -101,6 +101,7 @@
         <div id="ui">
             <span>Turno: <b id="turnDisplay">1</b></span>
             <span id="difficultyBadge">FÁCIL</span>
+            <span id="threatHud" role="button" aria-label="Amenazas de la era" style="display:none"></span>
             <span id="speedIndicator">⚡ 5x</span>
             <span>🛡️ <b id="shieldDisplay">1</b></span>
             <span id="ballsHud" role="button" aria-label="Inventario de bolas">🎒 <b id="ballDisplay">1</b><small id="ballCapDisplay"></small></span>
@@ -125,6 +126,14 @@
             </div>
         </div>
 
+        <!-- Panel de amenazas de la era (se abre tocando #threatHud) -->
+        <div id="threatPanel" class="hidden">
+            <div class="drop-card">
+                <div id="threatPanelBody"></div>
+                <button id="threatCloseBtn">Cerrar</button>
+            </div>
+        </div>
+
         <!-- Update Banner -->
         <div id="updateBanner" class="hidden">
             🔄 Nueva versión disponible
@@ -132,7 +141,7 @@
         </div>
 
         <!-- Version indicator -->
-        <div id="versionInfo">v2.11.3</div>
+        <div id="versionInfo">v2.12.0</div>
 
         <!-- Game Over -->
         <div id="gameOver">

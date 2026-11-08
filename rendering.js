@@ -15,6 +15,7 @@ import { calculateTrajectory } from './physics.js';
 import { BrickRegistry, BallRegistry, BonusRegistry } from './js/behaviors/index.js';
 import { getSlowdownProgress } from './input.js';
 import { getBrickSurfaces, brickRectFromSurface, BRICK_CELL_GAP } from './js/systems/BrickSurfaces.js';
+import { isBrickHidden, renderBrickOverlays, renderBoardOverlays } from './js/systems/ThreatSystem.js';
 
 export let canvas;
 export let ctx;
@@ -165,6 +166,17 @@ const renderHelpers = {
     getBrickRect
 };
 
+// Helpers para los hooks de dibujo de las amenazas (necesitan el layout)
+const threatRenderHelpers = {
+    ...renderHelpers,
+    getWidth,
+    getCellSize,
+    getTopOffset,
+    getBottomLine,
+    getLeftBorder,
+    getRightBorder,
+};
+
 /**
  * Rect de un bloque YA FUSIONADO con sus vecinos: es exactamente la
  * superficie que usa la física (ver js/systems/BrickSurfaces.js), con radio 0
@@ -237,9 +249,26 @@ function drawBrickShadow(brick, surface) {
     ctx.fill();
 }
 
+/** Bloque bajo la Niebla: gris, sin tipo ni amenazas, HP "?". */
+function drawHiddenBrick(rect) {
+    ctx.fillStyle = '#3b3f58';
+    ctx.beginPath();
+    ctx.roundRect(rect.x, rect.y, rect.width, rect.height, rect.radii);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(226, 232, 240, 0.75)';
+    ctx.font = `bold ${getFontSize(14)}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('?', rect.centerX, rect.centerY);
+}
+
 function drawBrick(brick, surface) {
-    const color = getBrickColor(brick.hp, brick.maxHp);
     const rect = brickRectFromSurface(brick, surface);
+    if (isBrickHidden(gameState.threatLevels, gameState, brick, threatRenderHelpers)) {
+        drawHiddenBrick(rect);
+        return;
+    }
+    const color = getBrickColor(brick.hp, brick.maxHp);
 
     // Bloque base (rect fusionado: los lados con vecino llegan al borde de
     // la celda, así dos bloques pegados forman una sola pieza continua)
@@ -260,6 +289,9 @@ function drawBrick(brick, surface) {
     // Renderizado específico del tipo (usando Strategy pattern)
     const behavior = BrickRegistry.get(brick.type);
     behavior.render(ctx, brick, renderHelpers);
+
+    // Marcas de las amenazas de la era (corrupto, reptador, caparazón...)
+    renderBrickOverlays(gameState.threatLevels, ctx, gameState, brick, rect, threatRenderHelpers);
 
     // HP text — según la dificultad puede mostrarse redondeado hacia
     // arriba (assists.hpRoundStep) en vez del valor exacto. Los valores
@@ -328,6 +360,55 @@ function drawBricks() {
     for (const brick of gameState.bricks) {
         drawBrickSeams(brick, surfaces.get(brick));
     }
+
+    // Efectos de tablero de las amenazas (niebla, aviso de oleada...)
+    renderBoardOverlays(gameState.threatLevels, ctx, gameState, threatRenderHelpers);
+}
+
+/**
+ * Cartel de cambio de era: título grande + qué amenaza llegó o subió de
+ * nivel. Dura ~4 s y se desvanece al final.
+ */
+function drawEraBanner() {
+    const banner = gameState.eraBanner;
+    if (!banner) return;
+    banner.life -= 0.004;
+    if (banner.life <= 0) {
+        gameState.eraBanner = null;
+        return;
+    }
+
+    const cx = getWidth() / 2;
+    const cy = getTopOffset() + (getBottomLine() - getTopOffset()) * 0.42;
+    const lineH = getFontSize(17);
+    const boxH = getFontSize(34) + 16 + banner.lines.length * lineH;
+    const boxW = Math.min(getRightBorder() - getLeftBorder() - 20, getFontSize(300));
+
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, banner.life * 4);
+    ctx.fillStyle = 'rgba(10, 10, 22, 0.82)';
+    ctx.strokeStyle = 'rgba(233, 69, 96, 0.8)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(cx - boxW / 2, cy - boxH / 2, boxW, boxH, 12);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = '#e94560';
+    ctx.shadowColor = '#e94560';
+    ctx.shadowBlur = 12;
+    ctx.font = `bold ${getFontSize(30)}px Arial`;
+    ctx.fillText(banner.title, cx, cy - boxH / 2 + 8);
+    ctx.shadowBlur = 0;
+
+    ctx.fillStyle = 'white';
+    ctx.font = `bold ${getFontSize(14)}px Arial`;
+    banner.lines.forEach((line, i) => {
+        ctx.fillText(line, cx, cy - boxH / 2 + 8 + getFontSize(34) + 4 + i * lineH);
+    });
+    ctx.restore();
 }
 
 /**
@@ -803,6 +884,7 @@ export function draw() {
     drawOverdriveMeter(leftBorder, rightBorder);
     drawComboCounter();
     drawFloatingTexts();
+    drawEraBanner();
 
     if (shaking) {
         ctx.restore();

@@ -1,0 +1,197 @@
+// @ts-check
+import { test, expect } from '@playwright/test';
+import { loadGameWithHooks, setStartingTurn, startGame } from './helpers/game.js';
+
+/**
+ * Behavior covered (v2.12.0 — Eras y amenazas):
+ *  - Las eras ACUMULAN amenazas: cada era suma una y las anteriores siguen
+ *    activas; con todas activas, cada era sube de nivel una de ellas.
+ *  - Cada amenaza hace exactamente lo que dice:
+ *      ☣️ corrupción contagia a un vecino y le pasa su HP,
+ *      🌊 oleada baja el tablero 2 filas,
+ *      🧬 adaptación bloquea el 2º daño de área (no el de bola),
+ *      🐛 reptador baja una fila extra si tiene lugar,
+ *      🌫️ niebla oculta las filas de arriba hasta que el bloque recibe daño.
+ *  - El estado de amenazas de cada bloque sobrevive a guardar/reanudar.
+ *  - El HUD muestra la era y las amenazas activas.
+ */
+
+/** Arranca una partida en `turn` y deja el tablero vacío. */
+async function startAt(page, turn, difficulty = 'medium') {
+    await loadGameWithHooks(page);
+    await setStartingTurn(page, turn);
+    await startGame(page, difficulty);
+    await page.evaluate(() => {
+        const s = window.__game.gameState;
+        s.bricks = [];
+        s.bonuses = [];
+    });
+}
+
+/** Coloca un bloque en (col, row) y devuelve su índice en gameState.bricks. */
+function placeBrickScript() {
+    return `window.__place = (col, row, hp, extra = {}) => {
+        const G = window.__game;
+        const cell = G.rendering.getCellSize();
+        const brick = {
+            x: G.rendering.getLeftBorder() + col * cell,
+            y: G.rendering.getTopOffset() + row * cell,
+            width: cell - 4, height: cell - 4,
+            hp, maxHp: hp, col, type: 'normal', isReinforced: false,
+            ...extra,
+        };
+        G.gameState.bricks.push(brick);
+        return brick;
+    };
+    window.__rowOf = (b) => Math.round((b.y - window.__game.rendering.getTopOffset()) / window.__game.rendering.getCellSize());`;
+}
+
+test.describe('Glow-Break - eras y amenazas', () => {
+    test('las amenazas se acumulan era tras era y después suben de nivel', async ({ page }) => {
+        await loadGameWithHooks(page);
+        const r = await page.evaluate(() => {
+            const { getThreatLevels } = window.__game.eras;
+            return {
+                t14: getThreatLevels(14, 'medium'),
+                t15: getThreatLevels(15, 'medium'),
+                t30: getThreatLevels(30, 'medium'),
+                t75: getThreatLevels(75, 'medium'),
+                t90: getThreatLevels(90, 'medium'),
+                t105: getThreatLevels(105, 'medium'),
+                hard15: getThreatLevels(15, 'hard'),
+                easy24: getThreatLevels(24, 'easy'),
+                easy25: getThreatLevels(25, 'easy'),
+                far: getThreatLevels(5000, 'medium'),
+            };
+        });
+
+        expect(r.t14).toEqual({});
+        expect(r.t15).toEqual({ corruption: 1 });
+        // La corrupción sigue activa cuando llegan las oleadas
+        expect(r.t30).toEqual({ corruption: 1, waves: 1 });
+        expect(r.t75).toEqual({ corruption: 1, waves: 1, adaptation: 1, crawlers: 1, fog: 1 });
+        expect(r.t90).toEqual({ corruption: 2, waves: 1, adaptation: 1, crawlers: 1, fog: 1 });
+        expect(r.t105).toEqual({ corruption: 2, waves: 2, adaptation: 1, crawlers: 1, fog: 1 });
+        // Difícil: cada amenaza llega directamente en nivel 2
+        expect(r.hard15).toEqual({ corruption: 2 });
+        // Fácil: eras más largas
+        expect(r.easy24).toEqual({});
+        expect(r.easy25).toEqual({ corruption: 1 });
+        // Todas topean en su nivel máximo
+        expect(Object.values(r.far)).toEqual([3, 3, 3, 3, 3]);
+    });
+
+    test('corrupción: un corrupto contagia a su vecino y le pasa su HP', async ({ page }) => {
+        await startAt(page, 20);
+        const r = await page.evaluate(placeBrickScript() + `;
+            const src = __place(2, 2, 500, { corrupt: true });
+            const victim = __place(3, 2, 10);
+            const far = __place(6, 5, 10);
+            window.__game.game.endTurn();
+            ({ victimCorrupt: !!victim.corrupt, victimHp: victim.hp, farCorrupt: !!far.corrupt, srcCorrupt: src.corrupt });
+        `);
+        expect(r.victimCorrupt).toBe(true);
+        expect(r.victimHp).toBe(500);
+        expect(r.farCorrupt).toBe(false);
+        expect(r.srcCorrupt).toBe(true);
+    });
+
+    test('oleada: en el turno de oleada el tablero baja 2 filas', async ({ page }) => {
+        // Turno 36, medio: oleadas nivel 1 (cada 6) → 36 es turno de oleada
+        await startAt(page, 36);
+        const r = await page.evaluate(placeBrickScript() + `;
+            const b = __place(1, 2, 999);
+            const levels = window.__game.gameState.threatLevels;
+            window.__game.game.endTurn();
+            ({ row: __rowOf(b), waves: levels.waves });
+        `);
+        expect(r.waves).toBe(1);
+        expect(r.row).toBe(4);
+    });
+
+    test('fuera del turno de oleada el tablero baja 1 fila', async ({ page }) => {
+        await startAt(page, 37);
+        const row = await page.evaluate(placeBrickScript() + `;
+            const b = __place(1, 2, 999);
+            window.__game.game.endTurn();
+            __rowOf(b);
+        `);
+        expect(row).toBe(3);
+    });
+
+    test('adaptación: el segundo daño de área se bloquea, la bola pega siempre', async ({ page }) => {
+        await startAt(page, 50);
+        const r = await page.evaluate(placeBrickScript() + `;
+            const { damageBrick } = window.__game.physics;
+            const b = __place(3, 3, 1000);
+            const first = damageBrick(b, 100, 'laser');
+            const second = damageBrick(b, 100, 'bomb');
+            const ball = damageBrick(b, 7, 'ball');
+            ({ first, second, ball, hp: b.hp });
+        `);
+        expect(r.first).toBe(100);
+        expect(r.second).toBe(0);
+        expect(r.ball).toBe(7);
+        expect(r.hp).toBe(893);
+    });
+
+    test('reptador: baja una fila extra si la celda de abajo está libre', async ({ page }) => {
+        await startAt(page, 65);
+        const r = await page.evaluate(placeBrickScript() + `;
+            const crawler = __place(0, 1, 999, { crawler: true });
+            const blocked = __place(4, 1, 999, { crawler: true });
+            __place(4, 2, 999);
+            const normal = __place(6, 1, 999);
+            window.__game.game.endTurn();
+            ({ crawler: __rowOf(crawler), blocked: __rowOf(blocked), normal: __rowOf(normal) });
+        `);
+        expect(r.crawler).toBe(3);
+        expect(r.blocked).toBe(2);
+        expect(r.normal).toBe(2);
+    });
+
+    test('niebla: oculta las filas de arriba hasta que el bloque recibe daño', async ({ page }) => {
+        await startAt(page, 80);
+        const r = await page.evaluate(placeBrickScript() + `;
+            const G = window.__game;
+            const helpers = G.physics.physicsHelpers;
+            const hidden = (b) => G.threatSystem.isBrickHidden(G.gameState.threatLevels, G.gameState, b, helpers);
+            const top = __place(2, 0, 500);
+            const low = __place(2, 5, 500);
+            const before = { top: hidden(top), low: hidden(low) };
+            G.physics.damageBrick(top, 1, 'ball');
+            ({ before, afterHit: hidden(top) });
+        `);
+        expect(r.before).toEqual({ top: true, low: false });
+        expect(r.afterHit).toBe(false);
+    });
+
+    test('el estado de amenazas de cada bloque sobrevive a guardar y reanudar', async ({ page }) => {
+        await startAt(page, 80);
+        const r = await page.evaluate(placeBrickScript() + `;
+            const G = window.__game;
+            __place(1, 3, 321, { corrupt: true, crawler: true, shellUntil: 82, revealed: true });
+            G.game.saveGame();
+            G.game.resumeGame();
+            const b = G.gameState.bricks.find(x => x.hp === 321);
+            ({ corrupt: b.corrupt, crawler: b.crawler, shellUntil: b.shellUntil, revealed: b.revealed,
+               levels: G.gameState.threatLevels });
+        `);
+        expect(r).toMatchObject({ corrupt: true, crawler: true, shellUntil: 82, revealed: true });
+        expect(Object.keys(r.levels)).toHaveLength(5);
+    });
+
+    test('el HUD muestra la era y las amenazas activas', async ({ page }) => {
+        await loadGameWithHooks(page);
+        await setStartingTurn(page, 60);
+        await startGame(page, 'medium');
+        const hud = page.locator('#threatHud');
+        await expect(hud).toBeVisible();
+        await expect(hud.locator('.threat-era')).toHaveText('V');
+        await expect(hud.locator('.threat-chip')).toHaveCount(4);
+
+        await hud.evaluate((el) => /** @type {HTMLElement} */ (el).click());
+        await expect(page.locator('#threatPanel')).toBeVisible();
+        await expect(page.locator('#threatPanelBody')).toContainText('Reptadores');
+    });
+});

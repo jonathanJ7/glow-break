@@ -114,6 +114,21 @@ const bonusBase = {
     describe() { return ''; },
 };
 
+// Amenazas de las eras (js/behaviors/ThreatBehaviors.js). Todos los hooks
+// reciben un `ctx` con { level, params, turn, gameState, helpers, grid }.
+const threatBase = {
+    order: 100,
+    onRowGenerated() {},
+    onTurnEnd() {},
+    getExtraAdvance() { return 0; },
+    modifyDamage(brick, damage) { return damage; },
+    hidesBrick() { return false; },
+    renderBrick() {},
+    renderBoard() {},
+    getHudHint() { return ''; },
+    describe() { return ''; },
+};
+
 // ============================================
 // REGISTRIES GLOBALES
 // ============================================
@@ -131,6 +146,11 @@ export const BallRegistry = new TypeRegistry('BallRegistry', {
 export const BonusRegistry = new TypeRegistry('BonusRegistry', {
     base: bonusBase,
     required: ['type', 'render', 'onCollect', 'getConfig'],
+});
+
+export const ThreatRegistry = new TypeRegistry('ThreatRegistry', {
+    base: threatBase,
+    required: ['type', 'displayName', 'icon', 'levels', 'describe'],
 });
 
 export default TypeRegistry;

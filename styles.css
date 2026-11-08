@@ -862,3 +862,116 @@ body, #gameContainer,
     font-size: 15px;
     cursor: pointer;
 }
+
+/* ====================================
+   ERAS Y AMENAZAS
+   ==================================== */
+/* Con el chip de era el HUD tiene 5 elementos: nada se parte en dos
+   líneas y los paddings se achican un poco en pantallas angostas. */
+#ui {
+    gap: 3px;
+}
+
+#ui > span {
+    white-space: nowrap;
+}
+
+@media (max-width: 420px) {
+    #ui > span {
+        padding-left: 6px;
+        padding-right: 6px;
+    }
+}
+
+#ui #threatHud {
+    pointer-events: auto;
+    cursor: pointer;
+    display: flex;
+    gap: 2px;
+    align-items: center;
+    padding-left: clamp(6px, 1.6vmin, 9px);
+    padding-right: clamp(6px, 1.6vmin, 9px);
+    border-color: rgba(233, 69, 96, 0.55);
+}
+
+#ui #threatHud .threat-chip {
+    background: none;
+    border: none;
+    padding: 0;
+    border-radius: 0;
+    font-size: clamp(10px, 2.8vmin, 13px);
+    white-space: nowrap;
+}
+
+#ui #threatHud .threat-era {
+    background: none;
+    border: none;
+    padding: 0;
+    border-radius: 0;
+    font-weight: 800;
+    color: #e94560;
+    font-size: clamp(11px, 3vmin, 13px);
+}
+
+#ui #threatHud .threat-chip small {
+    font-size: 0.7em;
+    font-weight: 700;
+    color: #7dd3fc;
+    margin-left: 1px;
+}
+
+#threatPanel {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(10, 10, 20, 0.75);
+    z-index: 9;
+}
+
+#threatPanel.hidden {
+    display: none;
+}
+
+.threat-panel-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: #e94560;
+    margin-bottom: 6px;
+}
+
+.threat-panel-row {
+    font-size: 13px;
+    line-height: 1.45;
+    color: rgba(255,255,255,0.8);
+    padding: 8px 10px;
+    margin-bottom: 6px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 10px;
+}
+
+.threat-panel-row b {
+    color: white;
+}
+
+.threat-level {
+    font-size: 11px;
+    color: #f9ed69;
+}
+
+#threatPanelBody {
+    max-height: 65vh;
+    overflow-y: auto;
+}
+
+#threatCloseBtn {
+    padding: 10px;
+    border: none;
+    border-radius: 10px;
+    background: #e94560;
+    color: white;
+    font-weight: 700;
+    font-size: 15px;
+}

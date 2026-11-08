@@ -3,6 +3,7 @@ import { setupEventListeners } from './input.js';
 import { gameLoop } from './game.js';
 import { setupGuide } from './js/ui/Guide.js';
 import { setupDropPanel } from './js/ui/DropPanel.js';
+import { setupThreatPanel } from './js/ui/ThreatPanel.js';
 
 // Initialize canvas
 initCanvas();
@@ -19,6 +20,9 @@ setupGuide();
 
 // Panel para tirar bolas (se abre tocando 🎒 en el HUD)
 setupDropPanel();
+
+// Panel de amenazas de la era (se abre tocando el chip de amenazas del HUD)
+setupThreatPanel();
 
 // Game loop
 function animate() {

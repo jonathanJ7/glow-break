@@ -1,5 +1,5 @@
 // Version: Update this when deploying new versions
-const APP_VERSION = '2.11.3';
+const APP_VERSION = '2.12.0';
 const CACHE_NAME = `ballz-${APP_VERSION}`;
 
 const urlsToCache = [
@@ -20,13 +20,17 @@ const urlsToCache = [
   './js/behaviors/BrickBehaviors.js',
   './js/behaviors/BallBehaviors.js',
   './js/behaviors/BonusBehaviors.js',
+  './js/behaviors/ThreatBehaviors.js',
   // Systems
   './js/systems/CollisionSystem.js',
   './js/systems/BrickSurfaces.js',
   './js/systems/BallInventory.js',
+  './js/systems/Eras.js',
+  './js/systems/ThreatSystem.js',
   // UI
   './js/ui/Guide.js',
   './js/ui/DropPanel.js',
+  './js/ui/ThreatPanel.js',
   // Assets
   './icon-192.png',
   './icon-512.png'

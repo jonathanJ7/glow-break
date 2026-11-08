@@ -11,8 +11,10 @@
 import { DIFFICULTY_SETTINGS, SPAWN_SCHEDULE, COLS, SHOOT_DELAY, MAX_BALLS_ON_SCREEN, FAST_SPEED_MULTIPLIER, BASE_BALL_RADIUS, BALL_SPEED, COMBO_BALLS_PER, COMBO_MAX_REWARD, OVERDRIVE_MAX, BOSS_INTERVAL, BOSS_HP_MULTIPLIER, STARTING_SHIELDS, MAX_SHIELDS, SHIELD_BURN_ROWS, BALL_BONUS_SCALE_TURNS, BALL_BONUS_MAX_VALUE, HP_LOG_FACTOR, DEFAULT_AIM_SCATTER, AIM_ANGLE_MIN, AIM_ANGLE_MAX, MAX_BALL_INVENTORY } from './config.js';
 import { addToInventory, clampInventory } from './js/systems/BallInventory.js';
 import { getWidth, getHeight, getCellSize, getLeftBorder, getRightBorder, getTopOffset, getBottomLine, getScale, getBallRadius } from './rendering.js';
-import { updateBalls, updateParticles, createParticles, addFloatingText } from './physics.js';
-import { BrickRegistry, BallRegistry, BonusRegistry } from './js/behaviors/index.js';
+import { updateBalls, updateParticles, createParticles, addFloatingText, physicsHelpers } from './physics.js';
+import { BrickRegistry, BallRegistry, BonusRegistry, ThreatRegistry } from './js/behaviors/index.js';
+import { getEra, getThreatLevels, getEraChange, toRoman } from './js/systems/Eras.js';
+import { runRowGenerated, runTurnEnd, getExtraAdvance, getHudThreats } from './js/systems/ThreatSystem.js';
 
 // ====================================
 // EVENT EMITTER
@@ -77,7 +79,11 @@ export let gameState = {
     overdriveActive: false, // Este turno las bolas hacen daño x2
     shieldCharges: STARTING_SHIELDS, // Segundas oportunidades
     floatingTexts: [],      // Textos flotantes de feedback
-    shake: 0                // Intensidad de screen shake
+    shake: 0,               // Intensidad de screen shake
+    // Eras: amenazas activas en el turno actual (tipo → nivel). Se deriva
+    // del turno con refreshThreatLevels(); nunca se edita a mano.
+    threatLevels: {},
+    eraBanner: null         // Cartel de "ERA N" al cambiar de era
 };
 
 export let currentDifficulty = 'easy';
@@ -200,19 +206,25 @@ export function updateBallsPreview() {
 // GENERACIÓN DE FILAS (usando behaviors)
 // ====================================
 
-export function generateNewRow() {
+/**
+ * Genera la fila de arriba del turno actual.
+ * @param {{extraRow?: boolean}} [options] - extraRow: fila adicional de una
+ *   oleada: nunca es de jefe y no trae bonuses.
+ */
+export function generateNewRow({ extraRow = false } = {}) {
     const cellSize = getCellSize();
     const topOffset = getTopOffset();
     const leftBorder = getLeftBorder();
     const turn = gameState.turn;
     const config = difficultyConfig;
+    const firstNewIndex = gameState.bricks.length;
 
     // La curva de HP usa un factor logarítmico suave para que el poder
     // de fuego del jugador pueda seguirle el ritmo en runs largas.
     const baseHP = Math.floor(turn * (1 + Math.log(turn + 1) * HP_LOG_FACTOR) * config.hpMultiplier);
     const density = Math.min(config.densityBase + turn * config.densityGrowth, config.maxDensity);
 
-    const isBossTurn = turn >= BOSS_INTERVAL && turn % BOSS_INTERVAL === 0;
+    const isBossTurn = !extraRow && turn >= BOSS_INTERVAL && turn % BOSS_INTERVAL === 0;
 
     if (isBossTurn) {
         // Turno de jefe: un único ladrillo de 3 columnas con mucho HP.
@@ -292,6 +304,19 @@ export function generateNewRow() {
             gameState.bricks.splice(gameState.bricks.indexOf(toRemove), 1);
         }
     }
+
+    // Amenazas de la era: marcan bloques de la fila nueva (corruptos,
+    // reptadores, caparazón...). Niveles del turno de ESTA fila (en initGame
+    // las filas iniciales usan su turno histórico).
+    runRowGenerated(
+        getThreatLevels(turn, currentDifficulty),
+        gameState,
+        gameState.bricks.slice(firstNewIndex),
+        turn,
+        physicsHelpers
+    );
+
+    if (extraRow) return;
 
     // Paso 2: colocar bonuses deterministas según el schedule
     const scheduled = getScheduledSpawns(turn, currentDifficulty);
@@ -562,6 +587,7 @@ export function endTurn() {
     gameState.combo = 0;
     gameState.overdriveActive = false;
 
+    const endedTurn = gameState.turn;
     gameState.turn++;
     gameState.speedMultiplier = 1;
     document.getElementById('speedIndicator').style.display = 'none';
@@ -577,14 +603,67 @@ export function endTurn() {
         BrickRegistry.get(brick.type).onTurnEnd(brick, gameState);
     }
 
+    // Amenazas de la era del turno que TERMINA (contagio, reptadores...),
+    // antes de que baje el tablero. Las oleadas suman filas extra.
+    const endedLevels = gameState.threatLevels;
+    runTurnEnd(endedLevels, gameState, endedTurn, physicsHelpers);
+    const extraRows = getExtraAdvance(endedLevels, gameState, endedTurn, physicsHelpers);
+
     moveBricksDown();
+
+    // Oleada: el tablero sigue bajando, con una fila extra (sin bonuses)
+    // por cada avance adicional.
+    for (let i = 0; i < extraRows && !gameState.gameOver; i++) {
+        if (i === 0) {
+            addFloatingText(getWidth() / 2, getTopOffset() + getCellSize() * 2, '🌊 ¡OLEADA!', { color: '#38bdf8', size: 24 });
+            gameState.shake = Math.max(gameState.shake, 8);
+        }
+        generateNewRow({ extraRow: true });
+        moveBricksDown();
+    }
 
     if (!gameState.gameOver) {
         generateNewRow();
+        refreshThreatLevels();
+        announceEraChange(endedTurn);
         updateUI();
         // Punto de guardado: inicio de turno, sin bolas en vuelo.
         saveGame();
     }
+}
+
+// ====================================
+// ERAS Y AMENAZAS
+// ====================================
+
+/** Recalcula las amenazas activas para el turno actual. */
+export function refreshThreatLevels() {
+    gameState.threatLevels = getThreatLevels(gameState.turn, currentDifficulty);
+}
+
+/**
+ * Cartel de era: al cambiar de era (o al empezar una partida en una era
+ * avanzada) muestra qué amenaza llegó o subió de nivel.
+ */
+function announceEraChange(prevTurn) {
+    const change = getEraChange(prevTurn, gameState.turn, currentDifficulty);
+    if (!change) return;
+    const lines = [
+        ...change.added.map(({ type }) => {
+            const b = ThreatRegistry.get(type);
+            return `${b.icon} ${b.displayName}`;
+        }),
+        ...change.upgraded.map(({ type, level }) => {
+            const b = ThreatRegistry.get(type);
+            return `${b.icon} ${b.displayName} → nivel ${level}`;
+        }),
+    ];
+    showEraBanner(change.era, lines);
+}
+
+function showEraBanner(era, lines) {
+    gameState.eraBanner = { title: `ERA ${toRoman(era)}`, lines, life: 1 };
+    gameState.shake = Math.max(gameState.shake, 5);
 }
 
 // ====================================
@@ -656,6 +735,38 @@ export function updateUI() {
         shieldDisplay.textContent = gameState.shieldCharges;
     }
     updateBallInventoryHud();
+    updateThreatHud();
+}
+
+/**
+ * HUD de era (#threatHud): número de era en romanos + íconos de las
+ * amenazas activas con su pista (ej: turnos para la próxima oleada).
+ * Tocarlo abre el panel con la descripción de cada una.
+ */
+function updateThreatHud() {
+    const era = getEra(gameState.turn, currentDifficulty);
+    const el = document.getElementById('threatHud');
+    if (!el) return;
+    const threats = getHudThreats(gameState.threatLevels, gameState, physicsHelpers);
+    el.style.display = '';
+    el.innerHTML = `<span class="threat-era">${toRoman(era)}</span>` + threats
+        .map(t => `<span class="threat-chip" data-type="${t.type}">${t.icon}${t.hint ? `<small>${t.hint}</small>` : ''}</span>`)
+        .join('');
+}
+
+/** Contenido del panel de amenazas (#threatPanel). */
+export function getThreatPanelHtml() {
+    const era = getEra(gameState.turn, currentDifficulty);
+    const threats = getHudThreats(gameState.threatLevels, gameState, physicsHelpers);
+    let html = `<div class="threat-panel-title">Era ${toRoman(era)}</div>`;
+    if (threats.length === 0) {
+        html += '<div class="threat-panel-row">Sin amenazas todavía.</div>';
+    }
+    for (const t of threats) {
+        html += `<div class="threat-panel-row"><b>${t.icon} ${t.displayName}</b> `
+            + `<span class="threat-level">nivel ${t.level}/${t.maxLevel}</span><br>${t.description}</div>`;
+    }
+    return html;
 }
 
 /**
@@ -741,6 +852,8 @@ function resetSessionState(difficulty) {
     gameState.shieldCharges = STARTING_SHIELDS;
     gameState.floatingTexts = [];
     gameState.shake = 0;
+    gameState.threatLevels = {};
+    gameState.eraBanner = null;
 
     document.getElementById('mainMenu').style.display = 'none';
     document.getElementById('gameOver').style.display = 'none';
@@ -787,9 +900,22 @@ export function initGame(difficulty) {
         }
     }
     gameState.turn = startingTurn;
+    refreshThreatLevels();
+    announceCurrentEra();
 
     updateUI();
     saveGame();
+}
+
+/** Al empezar o reanudar en una era con amenazas, recordar cuáles hay. */
+function announceCurrentEra() {
+    const active = Object.keys(gameState.threatLevels);
+    if (active.length === 0) return;
+    const lines = active.map(type => {
+        const b = ThreatRegistry.get(type);
+        return `${b.icon} ${b.displayName} ${gameState.threatLevels[type]}`;
+    });
+    showEraBanner(getEra(gameState.turn, currentDifficulty), lines);
 }
 
 export function showMainMenu() {
@@ -840,7 +966,12 @@ export function saveGame() {
                 hp: b.hp,
                 maxHp: b.maxHp,
                 type: b.type,
-                isReinforced: !!b.isReinforced
+                isReinforced: !!b.isReinforced,
+                // Estado de las amenazas (ver ThreatBehaviors.js)
+                corrupt: b.corrupt || undefined,
+                crawler: b.crawler || undefined,
+                shellUntil: Number.isFinite(b.shellUntil) ? b.shellUntil : undefined,
+                revealed: b.revealed || undefined
             })),
             bonuses: gameState.bonuses.map(b => ({
                 col: Math.floor((b.x - leftBorder) / cellSize),
@@ -920,7 +1051,11 @@ export function resumeGame() {
                 maxHp: b.maxHp || b.hp,
                 col: b.col,
                 type: BrickRegistry.has(b.type) ? b.type : BrickRegistry.defaultType,
-                isReinforced: !!b.isReinforced
+                isReinforced: !!b.isReinforced,
+                corrupt: !!b.corrupt,
+                crawler: !!b.crawler,
+                shellUntil: Number.isFinite(b.shellUntil) ? b.shellUntil : undefined,
+                revealed: !!b.revealed
             };
         });
 
@@ -937,6 +1072,8 @@ export function resumeGame() {
             };
         });
 
+    refreshThreatLevels();
+    announceCurrentEra();
     updateUI();
     return true;
 }

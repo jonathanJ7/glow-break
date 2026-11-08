@@ -12,7 +12,8 @@
  * guía lo lista automáticamente.
  */
 
-import { BrickRegistry, BallRegistry, BonusRegistry } from '../behaviors/index.js';
+import { BrickRegistry, BallRegistry, BonusRegistry, ThreatRegistry } from '../behaviors/index.js';
+import { getThreatOrder, getThreatLevels, getEraStartTurn, getMaxLevel, toRoman } from '../systems/Eras.js';
 import {
     DIFFICULTY_SETTINGS, SPAWN_SCHEDULE, COLS,
     MAX_BALL_INVENTORY, FAST_SPEED_MULTIPLIER,
@@ -21,6 +22,7 @@ import {
     BOSS_INTERVAL,
     STARTING_SHIELDS, MAX_SHIELDS, SHIELD_BURN_ROWS,
     HP_LOG_FACTOR, DEFAULT_AIM_SCATTER, BALL_BONUS_SCALE_TURNS, BALL_BONUS_MAX_VALUE,
+    ERA_SETTINGS,
 } from '../../config.js';
 import { FREEZE_TIME_MS, UNFREEZE_DISTANCE } from '../../input.js';
 import { MIN_BALLS_KEPT } from '../systems/BallInventory.js';
@@ -145,6 +147,66 @@ function buildScheduleSection() {
         </div>
         <p class="guide-note">Si empiezas una partida en un turno alto, recibes todas las
         bolas de este calendario como si las hubieras recogido todas desde el turno 1.</p>`;
+}
+
+/**
+ * Turno en que una amenaza llega a cada nivel en una dificultad, derivado
+ * de Eras.getThreatLevels (la misma función que usa el juego).
+ */
+function threatLevelTurns(type, difficulty) {
+    const out = {};
+    const maxLevel = getMaxLevel(type);
+    const { interval } = ERA_SETTINGS[difficulty];
+    for (let era = 2; era < 200 && Object.keys(out).length < maxLevel; era++) {
+        const turn = getEraStartTurn(era, difficulty);
+        const level = getThreatLevels(turn, difficulty)[type];
+        for (let l = 1; l <= (level || 0); l++) {
+            if (!(l in out)) out[l] = turn;
+        }
+        if (era * interval > 5000) break;
+    }
+    return out;
+}
+
+function buildErasSection() {
+    const diffs = ['easy', 'medium', 'hard'];
+    const order = getThreatOrder();
+
+    const eraRules = diffs.map(d => {
+        const c = DIFFICULTY_SETTINGS[d];
+        const e = ERA_SETTINGS[d];
+        return `${c.emoji} cada ${e.interval} turnos, cada amenaza nueva llega en nivel ${e.startLevel}`;
+    }).join(' · ');
+
+    const rows = order.map(type => {
+        const b = ThreatRegistry.get(type);
+        const cells = diffs.map(d => {
+            const turns = threatLevelTurns(type, d);
+            const parts = Object.entries(turns).map(([l, t]) => `N${l}: turno ${t}`);
+            return `<td>${parts.join('<br>')}</td>`;
+        }).join('');
+        return `<tr><td>${b.icon} ${b.displayName}</td>${cells}</tr>`;
+    }).join('');
+
+    let html = `
+        <p class="guide-note">La partida avanza por eras (${eraRules}). La Era I no tiene
+        amenazas; cada era siguiente SUMA una amenaza nueva (las anteriores siguen activas). Cuando
+        ya están todas, cada era nueva sube de nivel una de ellas, en el mismo orden, hasta el
+        máximo. El chip con el número de era (arriba) muestra las amenazas activas: tocalo para
+        ver su detalle.</p>
+        <div class="guide-table-wrap">
+        <table class="guide-table">
+            <tr><th>Amenaza</th><th>😊 Fácil</th><th>😤 Medio</th><th>💀 Difícil</th></tr>
+            ${rows}
+        </table>
+        </div>`;
+
+    for (const type of order) {
+        const b = ThreatRegistry.get(type);
+        const levels = b.levels.map((_, i) => `<b>Nivel ${toRoman(i + 1)}:</b> ${b.describe(i + 1)}`).join('<br>');
+        html += item(b.icon, b.displayName, levels);
+    }
+    return html;
 }
 
 function buildDifficultySection() {
@@ -327,7 +389,8 @@ function buildControlsSection() {
         + 'siguiente turno inmediatamente. No pierdes bolas del inventario, solo el resto del disparo.');
     html += item('🔁', 'Ciclo del turno',
         'Disparas → las bolas rebotan y dañan → cuando la última aterriza, el turno termina: '
-        + 'los bloques bajan 1 fila, aparece una fila nueva arriba, y el lanzador se mueve a donde '
+        + 'actúan las amenazas de la era (contagio, reptadores...), los bloques bajan 1 fila (2 si hay '
+        + 'oleada), aparece una fila nueva arriba, y el lanzador se mueve a donde '
         + 'aterrizó la primera bola de tu disparo.');
     return html;
 }
@@ -342,6 +405,10 @@ function buildGuideContent() {
         <div class="guide-section">
             <h3>✨ Mecánicas</h3>
             ${buildMechanicsSection()}
+        </div>
+        <div class="guide-section">
+            <h3>🌑 Eras y amenazas</h3>
+            ${buildErasSection()}
         </div>
         <div class="guide-section">
             <h3>🧱 Bloques</h3>
