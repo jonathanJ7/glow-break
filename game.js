@@ -8,7 +8,7 @@
  * solo necesitas registrar nuevos behaviors.
  */
 
-import { DIFFICULTY_SETTINGS, SPAWN_SCHEDULE, COLS, SHOOT_DELAY, MAX_BALLS_ON_SCREEN, FAST_SPEED_MULTIPLIER, BASE_BALL_RADIUS, BALL_SPEED, COMBO_BALLS_PER, COMBO_MAX_REWARD, OVERDRIVE_MAX, BOSS_INTERVAL, BOSS_HP_MULTIPLIER, STARTING_SHIELDS, MAX_SHIELDS, SHIELD_BURN_ROWS, BALL_BONUS_SCALE_TURNS, BALL_BONUS_MAX_VALUE, HP_LOG_FACTOR, DEFAULT_AIM_SCATTER, AIM_ANGLE_MIN, AIM_ANGLE_MAX, MAX_BALL_INVENTORY } from './config.js';
+import { DIFFICULTY_SETTINGS, SPAWN_SCHEDULE, COLS, DANGER_LINE_GAP, SHOOT_DELAY, MAX_BALLS_ON_SCREEN, FAST_SPEED_MULTIPLIER, BASE_BALL_RADIUS, BALL_SPEED, COMBO_BALLS_PER, COMBO_MAX_REWARD, OVERDRIVE_MAX, BOSS_INTERVAL, BOSS_HP_MULTIPLIER, STARTING_SHIELDS, MAX_SHIELDS, SHIELD_BURN_ROWS, BALL_BONUS_SCALE_TURNS, BALL_BONUS_MAX_VALUE, HP_LOG_FACTOR, DEFAULT_AIM_SCATTER, AIM_ANGLE_MIN, AIM_ANGLE_MAX, MAX_BALL_INVENTORY } from './config.js';
 import { addToInventory, clampInventory } from './js/systems/BallInventory.js';
 import { getWidth, getHeight, getCellSize, getLeftBorder, getRightBorder, getTopOffset, getBottomLine, getScale, getBallRadius } from './rendering.js';
 import { updateBalls, updateParticles, createParticles, addFloatingText, physicsHelpers } from './physics.js';
@@ -379,7 +379,7 @@ function findEmptyColumn() {
 
 export function moveBricksDown() {
     const cellSize = getCellSize();
-    const dangerLine = getBottomLine() - 10;
+    const dangerLine = getBottomLine() - DANGER_LINE_GAP;
 
     for (let brick of gameState.bricks) {
         brick.y += cellSize;

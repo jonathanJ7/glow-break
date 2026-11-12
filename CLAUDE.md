@@ -401,6 +401,26 @@ que tenés se dispara). Lógica en `js/systems/BallInventory.js`
 - `resumeGame` y `calculateStartingBalls` recortan inventarios excedidos
   (primero se descartan normales).
 
+### Tablero de tamaño fijo (v2.12.2)
+
+La cantidad de filas hasta la línea de peligro es **la misma en cualquier
+pantalla**: `BOARD_ROWS` (8) filas de bloques + `LAUNCH_ZONE_ROWS` (0,6) de
+aire sobre la línea (`config.js`). Antes salía del alto de la ventana: la
+vista principal del jugador (pantalla dividida, ~390x541) daba ~8,6 filas y
+pantalla completa ~13,7, así que la misma partida era mucho más difícil en
+dividida. Los valores actuales reproducen exactamente esa vista dividida.
+
+- `getCellSize()` = mín(ancho / `COLS`, alto disponible / filas fijas).
+- El tablero se ancla **abajo**: `getBottomLine()` queda donde siempre y
+  `getTopOffset()` se calcula desde ella. Si la pantalla es más alta, el
+  espacio sobrante queda libre arriba del tablero.
+- `DANGER_LINE_GAP` (10px) es la distancia entre la línea de peligro y la del
+  lanzador; usala en vez de un `10` suelto.
+- Nunca derives filas del alto de la pantalla en código nuevo. Test:
+  `tests/integration/board-size.spec.js`.
+- Ojo al calibrar dificultad: el viewport de los tests (iPhone 13, 390x664)
+  antes daba ~10,7 filas; ahora da las mismas 8,6 que el jugador.
+
 ### Superficies fusionadas de bloques (v2.10.0)
 
 `js/systems/BrickSurfaces.js` fusiona los bloques adyacentes en **una sola

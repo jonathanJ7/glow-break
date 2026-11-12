@@ -2,6 +2,19 @@
 // CONSTANTES DEL JUEGO
 // ====================================
 export const COLS = 7;
+// Tablero de tamaño fijo (v2.12.2): la cantidad de filas hasta la línea de
+// peligro es la MISMA en cualquier pantalla. Antes salía del alto de la
+// ventana, así que en pantalla dividida (la vista principal) entraban ~8,6
+// filas y en pantalla completa ~13,7: la misma partida era mucho más
+// difícil en dividida. Ahora la celda se ajusta para que entren exactamente
+// BOARD_ROWS filas de bloques + LAUNCH_ZONE_ROWS de aire sobre la línea; si
+// la pantalla es más alta, el espacio sobrante queda libre ARRIBA del
+// tablero (el lanzador y el HUD inferior siguen pegados abajo).
+// Valores medidos en la vista dividida de referencia (390x541 CSS px).
+export const BOARD_ROWS = 8;
+export const LAUNCH_ZONE_ROWS = 0.6;
+// Distancia entre la línea de peligro y la línea del lanzador (px)
+export const DANGER_LINE_GAP = 10;
 export const BASE_BALL_RADIUS = 6;
 export const BALL_SPEED = 10;
 export const FAST_SPEED_MULTIPLIER = 5;

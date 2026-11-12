@@ -10,7 +10,7 @@
 
 import { gameState, difficultyConfig } from './game.js';
 import { isInventoryFull } from './js/systems/BallInventory.js';
-import { COLS, BRICK_COLORS, BASE_BALL_RADIUS, OVERDRIVE_MAX } from './config.js';
+import { COLS, BOARD_ROWS, LAUNCH_ZONE_ROWS, DANGER_LINE_GAP, BRICK_COLORS, BASE_BALL_RADIUS, OVERDRIVE_MAX } from './config.js';
 import { calculateTrajectory } from './physics.js';
 import { BrickRegistry, BallRegistry, BonusRegistry } from './js/behaviors/index.js';
 import { getSlowdownProgress } from './input.js';
@@ -115,10 +115,23 @@ export function getScale() {
     return Math.min(getHeight() / 700, getWidth() / 400);
 }
 
+// Franja vertical disponible para el tablero (deja lugar al HUD de arriba y
+// a las píldoras de inventario de abajo).
+function getAreaTop() {
+    return Math.max(40, getHeight() * 0.07);
+}
+
+function getAreaBottom() {
+    return getHeight() - Math.max(35, getHeight() * 0.06);
+}
+
+// Filas (en celdas) entre el techo del tablero y la línea de peligro.
+const BOARD_ROWS_TO_LINE = BOARD_ROWS + LAUNCH_ZONE_ROWS;
+
 export function getCellSize() {
     const maxCellWidth = (getWidth() - 20) / COLS;
-    const availableHeight = getBottomLine() - getTopOffset() - 40;
-    const maxCellHeight = availableHeight / 7;
+    const availableHeight = getAreaBottom() - getAreaTop() - DANGER_LINE_GAP;
+    const maxCellHeight = availableHeight / BOARD_ROWS_TO_LINE;
     return Math.min(maxCellWidth, maxCellHeight);
 }
 
@@ -132,12 +145,15 @@ export function getRightBorder() {
     return getWidth() - getLeftBorder();
 }
 
+// El tablero se ancla ABAJO: el techo se calcula desde la línea, así siempre
+// hay exactamente BOARD_ROWS_TO_LINE celdas hasta la línea de peligro y lo
+// que sobre de alto queda libre arriba.
 export function getTopOffset() {
-    return Math.max(40, getHeight() * 0.07);
+    return getBottomLine() - DANGER_LINE_GAP - BOARD_ROWS_TO_LINE * getCellSize();
 }
 
 export function getBottomLine() {
-    return getHeight() - Math.max(35, getHeight() * 0.06);
+    return getAreaBottom();
 }
 
 export function getBallRadius() {
