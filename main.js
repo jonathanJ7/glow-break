@@ -1,6 +1,7 @@
 import { initCanvas, resizeCanvas, handleResize, draw } from './rendering.js';
 import { setupEventListeners } from './input.js';
-import { gameLoop } from './game.js';
+import { gameLoop, events } from './game.js';
+import { setupVillain } from './js/ui/villain/Villain.js';
 import { setupGuide } from './js/ui/Guide.js';
 import { setupDropPanel } from './js/ui/DropPanel.js';
 import { setupThreatPanel } from './js/ui/ThreatPanel.js';
@@ -23,6 +24,9 @@ setupDropPanel();
 
 // Panel de amenazas de la era (se abre tocando el chip de amenazas del HUD)
 setupThreatPanel();
+
+// Villano del espacio libre: reacciona a los eventos del juego
+setupVillain(events);
 
 // Game loop
 function animate() {

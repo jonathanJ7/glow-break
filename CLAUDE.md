@@ -62,7 +62,8 @@ glow-break/
     │   ├── CollisionSystem.js   # CCD (swept sphere)
     │   ├── BrickSurfaces.js     # Fusión de bloques adyacentes
     │   ├── Eras.js              # Era y niveles de amenaza por turno (puro)
-    │   └── ThreatSystem.js      # Ejecuta los hooks de las amenazas activas
+    │   ├── ThreatSystem.js      # Ejecuta los hooks de las amenazas activas
+    │   └── VillainDirector.js   # Poses del villano (máquina de estados pura)
     │
     ├── entities/
     │   ├── Brick.js
@@ -401,6 +402,64 @@ que tenés se dispara). Lógica en `js/systems/BallInventory.js`
 - `resumeGame` y `calculateStartingBalls` recortan inventarios excedidos
   (primero se descartan normales).
 
+### Tablero de tamaño fijo (v2.12.2)
+
+La cantidad de filas hasta la línea de peligro es **la misma en cualquier
+pantalla**: `BOARD_ROWS` (8) filas de bloques + `LAUNCH_ZONE_ROWS` (0,6) de
+aire sobre la línea (`config.js`). Antes salía del alto de la ventana: la
+vista principal del jugador (pantalla dividida, ~390x541) daba ~8,6 filas y
+pantalla completa ~13,7, así que la misma partida era mucho más difícil en
+dividida. Los valores actuales reproducen exactamente esa vista dividida.
+
+- `getCellSize()` = mín(ancho / `COLS`, alto disponible / filas fijas).
+- El tablero se ancla **abajo**: `getBottomLine()` queda donde siempre y
+  `getTopOffset()` se calcula desde ella. Si la pantalla es más alta, el
+  espacio sobrante queda libre arriba del tablero.
+- `DANGER_LINE_GAP` (10px) es la distancia entre la línea de peligro y la del
+  lanzador; usala en vez de un `10` suelto.
+- Nunca derives filas del alto de la pantalla en código nuevo. Test:
+  `tests/integration/board-size.spec.js`.
+- Ojo al calibrar dificultad: el viewport de los tests (iPhone 13, 390x664)
+  antes daba ~10,7 filas; ahora da las mismas 8,6 que el jugador.
+
+### Villano del espacio libre (v2.13.0)
+
+Cuando la pantalla es más alta que el tablero fijo (ver "Tablero de tamaño
+fijo"), en el espacio libre de arriba aparece **el Arquitecto**: un villano
+neón que "arroja" cada fila nueva y reacciona a la partida. Es **puramente
+cosmético**: no toca la física ni el estado del juego. En la vista dividida
+(la principal) no hay espacio y no se dibuja nada.
+
+| Archivo | Rol |
+|---------|-----|
+| `js/systems/VillainDirector.js` | Máquina de estados **pura** (recibe `now`): pose base en bucle + pose actual con duración + cola, con prioridades |
+| `js/ui/villain/Villain.js` | Controlador: suscribe eventos, layout, caché, `drawVillainBackdrop` / `drawVillainForeground` / `isNewRowHidden` |
+| `js/ui/villain/ArquitectoSprite.js` | Dibujo del personaje (poses, `POSE_FRAMES`), determinista |
+| `js/ui/villain/NeonPainter.js` | Primitivas neón (tubo, extremidad, bloque de luz…) |
+| `js/ui/villain/VillainSpriteCache.js` | Caché LRU de cuadros pre-dibujados |
+
+**Eventos** (emisor `events` de `game.js`; el motor no conoce al villano):
+`gameStarted` (initGame/resumeGame), `shootingStarted`, `bricksDestroyed
+{count}` (physics), `shieldUsed`, `turnEnded {turn, eraChanged}` (fin de
+`endTurn`, sin game over) y `gameOver`. Reacciones: fin de turno →
+prepara + lanza (+ furia si cambió la era, + burla si se gastó un escudo);
+`VILLAIN.golpeKills` bloques rotos en un turno → golpe (una vez por turno).
+
+**Buenas prácticas aplicadas** — mantenelas al tocar esto:
+- `shadowBlur` es caro: los cuadros se **pre-dibujan una vez** en un canvas
+  fuera de pantalla (LRU, tope `VILLAIN.cacheMaxFrames`, resolución con tope
+  `cacheScaleMax`) y se pre-calientan con `requestIdleCallback`. Medido con
+  CPU x4: 2,9 ms dibujando en vivo vs 0,13 ms desde la caché. Nunca llames
+  a `drawArquitecto` por frame.
+- Animación por **tiempo** (`performance.now()`), no por cuadros.
+- `prefers-reduced-motion: reduce` → poses quietas, sin bloque cayendo y la
+  fila nueva aparece al instante. Las interferencias son estáticas (sin
+  destellos que alternen).
+- La fila nueva solo se **oculta visualmente** (`isNewRowHidden`) hasta que
+  cae el bloque, y solo si el villano se ve; la física la tiene desde el
+  fin del turno.
+- Constantes en `config.js` → `VILLAIN`. Tests: `tests/integration/villain.spec.js`.
+
 ### Superficies fusionadas de bloques (v2.10.0)
 
 `js/systems/BrickSurfaces.js` fusiona los bloques adyacentes en **una sola
@@ -504,3 +563,5 @@ The `guide.spec.js` test fails if any registered type is missing from the guide.
 | `js/behaviors/ThreatBehaviors.js` | Amenazas de las eras (corrupción, oleadas, adaptación, reptadores, niebla) |
 | `js/systems/Eras.js` | Era y niveles de amenaza de cada turno (puro) |
 | `js/systems/ThreatSystem.js` | Hooks de amenazas activas + `buildGrid` |
+| `js/systems/VillainDirector.js` | Poses del villano (máquina de estados pura) |
+| `js/ui/villain/Villain.js` | Villano del espacio libre: eventos, caché y dibujo |

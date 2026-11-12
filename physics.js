@@ -375,6 +375,7 @@ export function updateBalls() {
 
         // Combo + carga de overdrive por ladrillo destruido
         if (totalDead > 0) {
+            events.emit('bricksDestroyed', { count: totalDead });
             const before = gameState.combo;
             gameState.combo += totalDead;
             gameState.overdriveCharge = Math.min(

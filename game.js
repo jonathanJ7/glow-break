@@ -8,7 +8,7 @@
  * solo necesitas registrar nuevos behaviors.
  */
 
-import { DIFFICULTY_SETTINGS, SPAWN_SCHEDULE, COLS, SHOOT_DELAY, MAX_BALLS_ON_SCREEN, FAST_SPEED_MULTIPLIER, BASE_BALL_RADIUS, BALL_SPEED, COMBO_BALLS_PER, COMBO_MAX_REWARD, OVERDRIVE_MAX, BOSS_INTERVAL, BOSS_HP_MULTIPLIER, STARTING_SHIELDS, MAX_SHIELDS, SHIELD_BURN_ROWS, BALL_BONUS_SCALE_TURNS, BALL_BONUS_MAX_VALUE, HP_LOG_FACTOR, DEFAULT_AIM_SCATTER, AIM_ANGLE_MIN, AIM_ANGLE_MAX, MAX_BALL_INVENTORY } from './config.js';
+import { DIFFICULTY_SETTINGS, SPAWN_SCHEDULE, COLS, DANGER_LINE_GAP, SHOOT_DELAY, MAX_BALLS_ON_SCREEN, FAST_SPEED_MULTIPLIER, BASE_BALL_RADIUS, BALL_SPEED, COMBO_BALLS_PER, COMBO_MAX_REWARD, OVERDRIVE_MAX, BOSS_INTERVAL, BOSS_HP_MULTIPLIER, STARTING_SHIELDS, MAX_SHIELDS, SHIELD_BURN_ROWS, BALL_BONUS_SCALE_TURNS, BALL_BONUS_MAX_VALUE, HP_LOG_FACTOR, DEFAULT_AIM_SCATTER, AIM_ANGLE_MIN, AIM_ANGLE_MAX, MAX_BALL_INVENTORY } from './config.js';
 import { addToInventory, clampInventory } from './js/systems/BallInventory.js';
 import { getWidth, getHeight, getCellSize, getLeftBorder, getRightBorder, getTopOffset, getBottomLine, getScale, getBallRadius } from './rendering.js';
 import { updateBalls, updateParticles, createParticles, addFloatingText, physicsHelpers } from './physics.js';
@@ -379,7 +379,7 @@ function findEmptyColumn() {
 
 export function moveBricksDown() {
     const cellSize = getCellSize();
-    const dangerLine = getBottomLine() - 10;
+    const dangerLine = getBottomLine() - DANGER_LINE_GAP;
 
     for (let brick of gameState.bricks) {
         brick.y += cellSize;
@@ -392,6 +392,7 @@ export function moveBricksDown() {
     if (crossing.length > 0) {
         if (gameState.shieldCharges > 0) {
             gameState.shieldCharges--;
+            events.emit('shieldUsed');
             // Se cuenta desde la fila más baja que cruzó hacia arriba. El
             // medio cell de margen absorbe el ruido de coma flotante sin
             // llegar a alcanzar la fila siguiente.
@@ -428,6 +429,7 @@ export function startShooting() {
     if (gameState.isShooting || gameState.gameOver) return;
 
     gameState.isShooting = true;
+    events.emit('shootingStarted');
     gameState.shootingTime = 0;
     gameState.ballsLanded = 0;
     gameState.firstBallLanded = false;
@@ -625,10 +627,11 @@ export function endTurn() {
     if (!gameState.gameOver) {
         generateNewRow();
         refreshThreatLevels();
-        announceEraChange(endedTurn);
+        const eraChanged = announceEraChange(endedTurn);
         updateUI();
         // Punto de guardado: inicio de turno, sin bolas en vuelo.
         saveGame();
+        events.emit('turnEnded', { turn: gameState.turn, eraChanged });
     }
 }
 
@@ -647,7 +650,7 @@ export function refreshThreatLevels() {
  */
 function announceEraChange(prevTurn) {
     const change = getEraChange(prevTurn, gameState.turn, currentDifficulty);
-    if (!change) return;
+    if (!change) return false;
     const lines = [
         ...change.added.map(({ type }) => {
             const b = ThreatRegistry.get(type);
@@ -659,6 +662,7 @@ function announceEraChange(prevTurn) {
         }),
     ];
     showEraBanner(change.era, lines);
+    return true;
 }
 
 function showEraBanner(era, lines) {
@@ -688,6 +692,7 @@ function saveBestTurn(difficulty, turn) {
 
 export function endGame() {
     gameState.gameOver = true;
+    events.emit('gameOver');
     gameState.speedMultiplier = 1;
     // Una partida terminada no se puede resumir
     clearSavedGame();
@@ -905,6 +910,7 @@ export function initGame(difficulty) {
 
     updateUI();
     saveGame();
+    events.emit('gameStarted');
 }
 
 /** Al empezar o reanudar en una era con amenazas, recordar cuáles hay. */
@@ -1075,6 +1081,7 @@ export function resumeGame() {
     refreshThreatLevels();
     announceCurrentEra();
     updateUI();
+    events.emit('gameStarted');
     return true;
 }
 
