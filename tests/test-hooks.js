@@ -24,6 +24,8 @@ import * as ballInventory from '../js/systems/BallInventory.js';
 import * as eras from '../js/systems/Eras.js';
 import * as threatSystem from '../js/systems/ThreatSystem.js';
 import * as dropPanel from '../js/ui/DropPanel.js';
+import * as villain from '../js/ui/villain/Villain.js';
+import * as villainDirector from '../js/systems/VillainDirector.js';
 import { DIFFICULTY_SETTINGS } from '../config.js';
 
 window.__game = {
@@ -42,6 +44,8 @@ window.__game = {
     eras,
     threatSystem,
     dropPanel,
+    villain,
+    villainDirector,
     DIFFICULTY_SETTINGS,
     ready: true,
 };

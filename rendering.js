@@ -10,12 +10,13 @@
 
 import { gameState, difficultyConfig } from './game.js';
 import { isInventoryFull } from './js/systems/BallInventory.js';
-import { COLS, BOARD_ROWS, LAUNCH_ZONE_ROWS, DANGER_LINE_GAP, BRICK_COLORS, BASE_BALL_RADIUS, OVERDRIVE_MAX } from './config.js';
+import { COLS, BOARD_ROWS, LAUNCH_ZONE_ROWS, DANGER_LINE_GAP, VILLAIN, BRICK_COLORS, BASE_BALL_RADIUS, OVERDRIVE_MAX } from './config.js';
 import { calculateTrajectory } from './physics.js';
 import { BrickRegistry, BallRegistry, BonusRegistry } from './js/behaviors/index.js';
 import { getSlowdownProgress } from './input.js';
 import { getBrickSurfaces, brickRectFromSurface, BRICK_CELL_GAP } from './js/systems/BrickSurfaces.js';
 import { isBrickHidden, renderBrickOverlays, renderBoardOverlays } from './js/systems/ThreatSystem.js';
+import { drawVillainBackdrop, drawVillainForeground, isNewRowHidden } from './js/ui/villain/Villain.js';
 
 export let canvas;
 export let ctx;
@@ -356,24 +357,36 @@ function drawBrickSeams(brick, surface) {
     ctx.stroke();
 }
 
-function drawBricks() {
+/**
+ * Filtro de la fila nueva: mientras el villano todavía no la arrojó
+ * (bloque en el aire), la fila superior no se dibuja. Solo es visual: la
+ * física la tiene desde que termina el turno.
+ */
+function isInPendingRow(y, pending) {
+    return pending && y < getTopOffset() + getCellSize() * 0.5;
+}
+
+function drawBricks(pendingRow = false) {
     // Sin pasar cellSize: se deriva del propio bloque, igual que en la
     // física, para que ambos usen SIEMPRE la misma geometría (y para que la
     // caché no se invalide alternando entre dos valores).
     const surfaces = getBrickSurfaces(gameState.bricks);
+    const bricks = pendingRow
+        ? gameState.bricks.filter(b => !isInPendingRow(b.y, true))
+        : gameState.bricks;
 
     // Las sombras van en una pasada aparte: con bloques fusionados, la
     // sombra de un bloque caería encima del cuerpo de su vecino.
-    for (const brick of gameState.bricks) {
+    for (const brick of bricks) {
         drawBrickShadow(brick, surfaces.get(brick));
     }
 
-    for (const brick of gameState.bricks) {
+    for (const brick of bricks) {
         drawBrick(brick, surfaces.get(brick));
     }
 
     // La costura se dibuja al final para que ningún vecino la tape
-    for (const brick of gameState.bricks) {
+    for (const brick of bricks) {
         drawBrickSeams(brick, surfaces.get(brick));
     }
 
@@ -440,8 +453,9 @@ function drawBonus(bonus) {
     if (blocked) ctx.globalAlpha = 1;
 }
 
-function drawBonuses() {
+function drawBonuses(pendingRow = false) {
     for (const bonus of gameState.bonuses) {
+        if (isInPendingRow(bonus.y, pendingRow)) continue;
         drawBonus(bonus);
     }
 }
@@ -886,12 +900,19 @@ export function draw() {
         );
     }
 
+    // Villano del espacio libre (solo si sobra alto arriba del tablero)
+    const now = performance.now();
+    const villainArea = { width, top: VILLAIN.hudReserved, bottom: getTopOffset() - 15 };
+    drawVillainBackdrop(ctx, villainArea, now, window.devicePixelRatio || 1);
+    const pendingRow = isNewRowHidden(now);
+
     drawPlayArea(leftBorder, rightBorder);
     drawOverdriveActiveFrame(leftBorder, rightBorder);
     drawBottomLine(leftBorder, rightBorder);
     drawGrid(leftBorder);
-    drawBricks();
-    drawBonuses();
+    drawBricks(pendingRow);
+    drawBonuses(pendingRow);
+    drawVillainForeground(ctx, getTopOffset() + getCellSize() / 2, now);
     drawParticles();
     drawLaserEffect(leftBorder, rightBorder);
     drawBalls();

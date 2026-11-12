@@ -392,6 +392,7 @@ export function moveBricksDown() {
     if (crossing.length > 0) {
         if (gameState.shieldCharges > 0) {
             gameState.shieldCharges--;
+            events.emit('shieldUsed');
             // Se cuenta desde la fila más baja que cruzó hacia arriba. El
             // medio cell de margen absorbe el ruido de coma flotante sin
             // llegar a alcanzar la fila siguiente.
@@ -428,6 +429,7 @@ export function startShooting() {
     if (gameState.isShooting || gameState.gameOver) return;
 
     gameState.isShooting = true;
+    events.emit('shootingStarted');
     gameState.shootingTime = 0;
     gameState.ballsLanded = 0;
     gameState.firstBallLanded = false;
@@ -625,10 +627,11 @@ export function endTurn() {
     if (!gameState.gameOver) {
         generateNewRow();
         refreshThreatLevels();
-        announceEraChange(endedTurn);
+        const eraChanged = announceEraChange(endedTurn);
         updateUI();
         // Punto de guardado: inicio de turno, sin bolas en vuelo.
         saveGame();
+        events.emit('turnEnded', { turn: gameState.turn, eraChanged });
     }
 }
 
@@ -647,7 +650,7 @@ export function refreshThreatLevels() {
  */
 function announceEraChange(prevTurn) {
     const change = getEraChange(prevTurn, gameState.turn, currentDifficulty);
-    if (!change) return;
+    if (!change) return false;
     const lines = [
         ...change.added.map(({ type }) => {
             const b = ThreatRegistry.get(type);
@@ -659,6 +662,7 @@ function announceEraChange(prevTurn) {
         }),
     ];
     showEraBanner(change.era, lines);
+    return true;
 }
 
 function showEraBanner(era, lines) {
@@ -688,6 +692,7 @@ function saveBestTurn(difficulty, turn) {
 
 export function endGame() {
     gameState.gameOver = true;
+    events.emit('gameOver');
     gameState.speedMultiplier = 1;
     // Una partida terminada no se puede resumir
     clearSavedGame();
@@ -905,6 +910,7 @@ export function initGame(difficulty) {
 
     updateUI();
     saveGame();
+    events.emit('gameStarted');
 }
 
 /** Al empezar o reanudar en una era con amenazas, recordar cuáles hay. */
@@ -1075,6 +1081,7 @@ export function resumeGame() {
     refreshThreatLevels();
     announceCurrentEra();
     updateUI();
+    events.emit('gameStarted');
     return true;
 }
 

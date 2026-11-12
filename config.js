@@ -15,6 +15,18 @@ export const BOARD_ROWS = 8;
 export const LAUNCH_ZONE_ROWS = 0.6;
 // Distancia entre la línea de peligro y la línea del lanzador (px)
 export const DANGER_LINE_GAP = 10;
+
+// Villano del espacio libre (v2.13.0, ver js/ui/villain/). Puramente
+// cosmético: solo aparece si sobra alto arriba del tablero (pantallas más
+// altas que la vista dividida) y nunca afecta la física.
+export const VILLAIN = {
+    minSpace: 150,        // alto libre mínimo (px CSS) para mostrarlo
+    hudReserved: 50,      // franja superior que ocupa el HUD
+    maxSize: 300,         // lado máximo del sprite (px CSS)
+    cacheScaleMax: 1.5,   // resolución de la caché de cuadros (tope de devicePixelRatio)
+    cacheMaxFrames: 48,   // cuadros pre-dibujados como máximo (LRU)
+    golpeKills: 5,        // bloques rotos en un turno para que acuse el golpe
+};
 export const BASE_BALL_RADIUS = 6;
 export const BALL_SPEED = 10;
 export const FAST_SPEED_MULTIPLIER = 5;
