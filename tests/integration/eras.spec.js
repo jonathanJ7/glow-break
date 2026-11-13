@@ -109,6 +109,29 @@ test.describe('Glow-Break - eras y amenazas', () => {
         expect(r.diag).toEqual({ corrupt: false, hp: 999 });
     });
 
+    test('corrupción: elige solo entre vecinos sanos, así en 4 turnos contagia a los 4', async ({ page }) => {
+        await startAt(page, 20);
+        const r = await page.evaluate(placeBrickScript() + `;
+            const G = window.__game;
+            const results = [];
+            for (let trial = 0; trial < 20; trial++) {
+                G.gameState.bricks = [];
+                G.gameState.turn = 20;
+                __place(2, 3, 100, { corrupt: true });
+                const neighbors = [__place(1, 3, 10), __place(3, 3, 10), __place(2, 2, 10), __place(2, 4, 10)];
+                const perTurn = [];
+                for (let t = 0; t < 4; t++) {
+                    G.game.endTurn();
+                    perTurn.push(neighbors.filter(b => b.corrupt).length);
+                }
+                results.push(perTurn.join(','));
+            }
+            results;
+        `);
+        // Cada turno exactamente uno nuevo, nunca repite uno ya contagiado
+        expect(new Set(r)).toEqual(new Set(['1,2,3,4']));
+    });
+
     test('corrupción: los grupos se unen al tocarse y se parten al romper el del medio', async ({ page }) => {
         await startAt(page, 20);
         const r = await page.evaluate(placeBrickScript() + `;
