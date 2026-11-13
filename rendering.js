@@ -192,7 +192,12 @@ const threatRenderHelpers = {
     getBottomLine,
     getLeftBorder,
     getRightBorder,
+    // Bloques que se están dibujando este cuadro (la fila nueva puede estar
+    // oculta esperando al villano) y si una amenaza oculta un bloque
+    getDrawnBricks: () => drawnBricks,
+    isBrickHidden: (brick) => isBrickHidden(gameState.threatLevels, gameState, brick, threatRenderHelpers),
 };
+let drawnBricks = [];
 
 /**
  * Rect de un bloque YA FUSIONADO con sus vecinos: es exactamente la
@@ -374,6 +379,7 @@ function drawBricks(pendingRow = false) {
     const bricks = pendingRow
         ? gameState.bricks.filter(b => !isInPendingRow(b.y, true))
         : gameState.bricks;
+    drawnBricks = bricks;
 
     // Las sombras van en una pasada aparte: con bloques fusionados, la
     // sombra de un bloque caería encima del cuerpo de su vecino.

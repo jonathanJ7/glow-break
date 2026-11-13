@@ -314,7 +314,7 @@ turno N o reanudar da las mismas amenazas.
 
 | Orden | Amenaza | Efecto | Niveles (`levels`) |
 |-------|---------|--------|--------------------|
-| 1 | ☣️ `corruption` | Cada `seedEvery` turnos un bloque nuevo nace corrupto; al fin de turno cada corrupto contagia a TODOS sus vecinos (`diagonal`: también diagonales) y el grupo entero (él + vecinos) se iguala al HP del más fuerte. Jefes inmunes y fuera del grupo | 6 · 4 · 3+diag |
+| 1 | ☣️ `corruption` | Cada `seedEvery` turnos un bloque nuevo nace corrupto; al fin de turno cada corrupto contagia a UN vecino sano al azar (`diagonal`: también diagonales). Los corruptos pegados forman grupos (componentes conexas, recalculados cada turno: se parten y se unen) y cada grupo se iguala al HP del más fuerte. `renderBoard` dibuja un solo contorno por grupo + `×N`. Jefes inmunes y fuera del grupo | 6 · 4 · 3+diag |
 | 2 | 🌊 `waves` | En turnos múltiplos de `every`, al terminar el tablero baja 2 filas (fila extra sin bonus, `generateNewRow({extraRow:true})`) | 6 · 5 · 4 |
 | 3 | 🧬 `adaptation` | Daño de ÁREA (`bomb`, `explosion`, `laser`) deja caparazón (`brick.shellUntil`): inmune a área ese turno + `shellTurns`. Bola directa siempre pega. N3: bloques nacen con caparazón | 1 · 2 · 2+nacen |
 | 4 | 🐛 `crawlers` | Por fila se eligen `perRow` bloques con `chance` de ser reptador; al fin de turno baja 1 fila extra si la celda de abajo está libre (aplasta bonuses) | 50%/1 · 75%/1 · 75%/2 |

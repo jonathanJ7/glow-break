@@ -40,15 +40,18 @@ function isBoss(brick) {
 // ============================================
 // ☣️ CORRUPCIÓN - bloques que contagian a sus vecinos
 // ============================================
+// Contagio LENTO pero en GRUPO: cada corrupto contagia a UN solo vecino por
+// turno, y los corruptos pegados forman un grupo que se iguala al HP del más
+// fuerte. Los grupos se recalculan cada turno desde la grilla, así que se
+// PARTEN si rompés un corrupto del medio y se UNEN si dos grupos se tocan.
 const CorruptionThreat = {
     type: 'corruption',
     order: 1,
     displayName: 'Corrupción',
     icon: '☣️',
     color: '#c026d3',
-    // Contagio TOTAL: cada corrupto contagia a TODOS sus vecinos y el grupo
-    // (él + vecinos) se iguala al HP del más fuerte. Los niveles cambian
-    // cada cuánto nace un corrupto y si cuentan las diagonales.
+    // Los niveles cambian cada cuánto nace un corrupto y si cuentan las
+    // diagonales (para contagiar Y para formar grupo).
     levels: [
         { seedEvery: 6, diagonal: false },
         { seedEvery: 4, diagonal: false },
@@ -58,13 +61,47 @@ const CorruptionThreat = {
     describe(level) {
         const p = this.levels[level - 1];
         const reach = p.diagonal
-            ? 'TODOS sus vecinos pegados, incluidas las diagonales (hasta 8)'
-            : 'TODOS sus vecinos pegados arriba, abajo y a los lados (hasta 4)';
-        return `Cada ${p.seedEvery} turnos, un bloque de la fila nueva nace corrupto (borde violeta, ☣). `
-            + `Al final de cada turno, cada corrupto vivo contagia a ${reach}, y el grupo entero (el `
-            + 'corrupto y esos vecinos) se iguala al HP del más fuerte del grupo: todos quedan con ese HP. '
-            + 'Los contagiados contagian a su vez desde el turno siguiente. Los jefes no se corrompen ni '
-            + 'cuentan para el grupo. Si no los matás rápido, se comen el tablero.';
+            ? 'pegados, incluidas las diagonales'
+            : 'pegados arriba, abajo o a los lados (no en diagonal)';
+        return `Cada ${p.seedEvery} turnos, un bloque de la fila nueva nace corrupto (violeta, ☣). `
+            + `Al final de cada turno, cada corrupto vivo contagia a UN solo vecino sano al azar (vecinos ${reach}). `
+            + `Después, los corruptos ${reach} forman un GRUPO (rodeado por un único borde violeta) y todo `
+            + 'el grupo se iguala al HP del más fuerte. Los grupos se recalculan cada turno: si rompés un '
+            + 'corrupto del medio el grupo se parte, y si dos grupos se tocan se unen. Los recién '
+            + 'contagiados contagian desde el turno siguiente. Los jefes no se corrompen ni cuentan para el grupo.';
+    },
+
+    canCorrupt(brick) {
+        return !isBoss(brick) && brick.hp > 0;
+    },
+
+    /**
+     * Grupos de corruptos conectados (componentes conexas en la grilla).
+     * Puro: solo lee. `filter` permite dejar afuera bloques (ej. ocultos).
+     * @returns {Array<Array<object>>}
+     */
+    getGroups(bricks, grid, diagonal, filter = () => true) {
+        const isMember = (b) => b.corrupt && this.canCorrupt(b) && filter(b);
+        const seen = new Set();
+        const groups = [];
+        for (const start of bricks) {
+            if (seen.has(start) || !isMember(start)) continue;
+            const group = [];
+            const stack = [start];
+            seen.add(start);
+            while (stack.length > 0) {
+                const b = stack.pop();
+                group.push(b);
+                for (const n of grid.neighbors(b, { diagonal })) {
+                    if (!seen.has(n) && isMember(n)) {
+                        seen.add(n);
+                        stack.push(n);
+                    }
+                }
+            }
+            groups.push(group);
+        }
+        return groups;
     },
 
     onRowGenerated(newBricks, ctx) {
@@ -75,25 +112,31 @@ const CorruptionThreat = {
 
     onTurnEnd(ctx) {
         const { gameState, grid, helpers, params } = ctx;
-        // Snapshot: los recién contagiados recién contagian el turno que viene.
-        // Los grupos se procesan uno tras otro, así que un grupo que comparte
-        // bloques con otro ya igualado propaga ese HP (el racimo "se habla").
-        const sources = gameState.bricks.filter(b => b.corrupt && b.hp > 0 && !isBoss(b));
+        // 1) Contagio: snapshot de los corruptos, así los recién contagiados
+        //    recién contagian el turno que viene. Cada uno elige UN vecino
+        //    sano al azar (dos corruptos no gastan su contagio en el mismo).
+        const sources = gameState.bricks.filter(b => b.corrupt && this.canCorrupt(b));
         let infected = 0;
         for (const src of sources) {
-            const group = [src, ...grid.neighbors(src, { diagonal: params.diagonal })
-                .filter(n => !isBoss(n) && n.hp > 0)];
+            const healthy = grid.neighbors(src, { diagonal: params.diagonal })
+                .filter(n => this.canCorrupt(n) && !n.corrupt);
+            const [target] = pickRandom(healthy, 1);
+            if (!target) continue;
+            target.corrupt = true;
+            infected++;
+            helpers.createParticles(target.x + target.width / 2, target.y + target.height / 2, this.color, 6);
+        }
+
+        // 2) Grupos: cada racimo conectado de corruptos se iguala al más fuerte
+        for (const group of this.getGroups(gameState.bricks, grid, params.diagonal)) {
+            if (group.length < 2) continue;
             const strongest = Math.max(...group.map(b => b.hp));
             for (const b of group) {
-                if (!b.corrupt) {
-                    b.corrupt = true;
-                    infected++;
-                    helpers.createParticles(b.x + b.width / 2, b.y + b.height / 2, this.color, 6);
-                }
                 b.hp = strongest;
                 b.maxHp = Math.max(b.maxHp, strongest);
             }
         }
+
         if (infected > 0) {
             const cell = helpers.getCellSize();
             helpers.addFloatingText(helpers.getWidth() / 2, helpers.getTopOffset() + cell * 0.5,
@@ -101,20 +144,19 @@ const CorruptionThreat = {
         }
     },
 
+    pulse() {
+        return 0.55 + Math.sin(performance.now() * 0.006) * 0.3;
+    },
+
+    // Tinte + ícono por bloque; el borde lo dibuja renderBoard por GRUPO
     renderBrick(ctx2d, brick, rect, ctx) {
         if (!brick.corrupt) return;
         const { getFontSize } = ctx.helpers;
-        const pulse = 0.55 + Math.sin(performance.now() * 0.006) * 0.3;
         ctx2d.save();
-        ctx2d.fillStyle = `rgba(192, 38, 211, ${0.18 + pulse * 0.12})`;
+        ctx2d.fillStyle = `rgba(192, 38, 211, ${0.18 + this.pulse() * 0.12})`;
         ctx2d.beginPath();
         ctx2d.roundRect(rect.x, rect.y, rect.width, rect.height, rect.radii);
         ctx2d.fill();
-        ctx2d.strokeStyle = `rgba(232, 121, 249, ${pulse})`;
-        ctx2d.lineWidth = 2;
-        ctx2d.beginPath();
-        ctx2d.roundRect(rect.x + 1, rect.y + 1, rect.width - 2, rect.height - 2, rect.radii);
-        ctx2d.stroke();
         ctx2d.fillStyle = '#f5d0fe';
         ctx2d.font = `bold ${getFontSize(10)}px Arial`;
         ctx2d.textAlign = 'left';
@@ -123,6 +165,91 @@ const CorruptionThreat = {
         ctx2d.restore();
     },
 
+    /**
+     * Un solo contorno alrededor de cada grupo: se dibujan solo las aristas
+     * que NO tocan a otro miembro del mismo grupo, así el racimo se ve como
+     * una pieza. Se recalcula cada cuadro, por eso al romper un corrupto del
+     * medio el contorno se parte en el acto.
+     */
+    renderBoard(ctx2d, ctx) {
+        const { gameState, helpers, params } = ctx;
+        const drawn = helpers.getDrawnBricks ? new Set(helpers.getDrawnBricks()) : null;
+        const visible = (b) => (!drawn || drawn.has(b)) && !(helpers.isBrickHidden && helpers.isBrickHidden(b));
+        if (!gameState.bricks.some(b => b.corrupt && b.hp > 0 && visible(b))) return;
+
+        const grid = ctx.grid;
+        const groups = this.getGroups(gameState.bricks, grid, params.diagonal, visible);
+        const inset = 1.5;
+        const pulse = this.pulse();
+
+        ctx2d.save();
+        ctx2d.lineCap = 'round';
+        ctx2d.lineJoin = 'round';
+        for (const group of groups) {
+            const members = new Set(group);
+            const inGroup = (col, row) => members.has(grid.get(col, row));
+            const path = new Path2D();
+            const bridges = [];
+            for (const b of group) {
+                const rect = helpers.getBrickRect(b);
+                const col = b.col;
+                const row = grid.rowOf(b);
+                const L = inGroup(col - 1, row), R = inGroup(col + 1, row);
+                const U = inGroup(col, row - 1), D = inGroup(col, row + 1);
+                // Extremo de una arista: esquina convexa → hacia adentro;
+                // sigue en el vecino → al borde; esquina cóncava → hacia afuera
+                const ext = (side, diag) => (!side ? inset : diag ? -inset : 0);
+                const x0 = rect.x, x1 = rect.x + rect.width;
+                const y0 = rect.y, y1 = rect.y + rect.height;
+                if (!U) {
+                    path.moveTo(x0 + ext(L, inGroup(col - 1, row - 1)), y0 + inset);
+                    path.lineTo(x1 - ext(R, inGroup(col + 1, row - 1)), y0 + inset);
+                }
+                if (!D) {
+                    path.moveTo(x0 + ext(L, inGroup(col - 1, row + 1)), y1 - inset);
+                    path.lineTo(x1 - ext(R, inGroup(col + 1, row + 1)), y1 - inset);
+                }
+                if (!L) {
+                    path.moveTo(x0 + inset, y0 + ext(U, inGroup(col - 1, row - 1)));
+                    path.lineTo(x0 + inset, y1 - ext(D, inGroup(col - 1, row + 1)));
+                }
+                if (!R) {
+                    path.moveTo(x1 - inset, y0 + ext(U, inGroup(col + 1, row - 1)));
+                    path.lineTo(x1 - inset, y1 - ext(D, inGroup(col + 1, row + 1)));
+                }
+                // Unión solo por la diagonal (nivel 3): un nudo en la esquina
+                if (params.diagonal) {
+                    if (!R && !D && inGroup(col + 1, row + 1) && !inGroup(col + 1, row) && !inGroup(col, row + 1)) bridges.push([x1, y1]);
+                    if (!L && !D && inGroup(col - 1, row + 1) && !inGroup(col - 1, row) && !inGroup(col, row + 1)) bridges.push([x0, y1]);
+                }
+            }
+            // Halo ancho + línea brillante (sin shadowBlur: se dibuja cada cuadro)
+            ctx2d.strokeStyle = `rgba(192, 38, 211, ${0.25 + pulse * 0.2})`;
+            ctx2d.lineWidth = 5;
+            ctx2d.stroke(path);
+            ctx2d.strokeStyle = `rgba(240, 171, 252, ${0.6 + pulse * 0.4})`;
+            ctx2d.lineWidth = 2;
+            ctx2d.stroke(path);
+            ctx2d.fillStyle = `rgba(240, 171, 252, ${0.6 + pulse * 0.4})`;
+            for (const [x, y] of bridges) {
+                ctx2d.beginPath();
+                ctx2d.arc(x, y, 4, 0, Math.PI * 2);
+                ctx2d.fill();
+            }
+
+            // Tamaño del grupo, en la esquina de arriba a la derecha del bloque más alto
+            if (group.length >= 2) {
+                const top = group.reduce((a, b) => (b.y < a.y || (b.y === a.y && b.x > a.x) ? b : a));
+                const rect = helpers.getBrickRect(top);
+                ctx2d.font = `bold ${helpers.getFontSize(9)}px Arial`;
+                ctx2d.textAlign = 'right';
+                ctx2d.textBaseline = 'top';
+                ctx2d.fillStyle = '#f5d0fe';
+                ctx2d.fillText(`×${group.length}`, rect.x + rect.width - 4, rect.y + 3);
+            }
+        }
+        ctx2d.restore();
+    },
 };
 
 // ============================================

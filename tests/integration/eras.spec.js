@@ -7,7 +7,8 @@ import { loadGameWithHooks, setStartingTurn, startGame } from './helpers/game.js
  *  - Las eras ACUMULAN amenazas: cada era suma una y las anteriores siguen
  *    activas; con todas activas, cada era sube de nivel una de ellas.
  *  - Cada amenaza hace exactamente lo que dice:
- *      ☣️ corrupción contagia a todos los vecinos y el grupo copia el HP más alto,
+ *      ☣️ corrupción contagia a UN vecino por turno y cada grupo de corruptos
+ *         pegados copia el HP más alto (los grupos se parten y se unen),
  *      🌊 oleada baja el tablero 2 filas,
  *      🧬 adaptación bloquea el 2º daño de área (no el de bola),
  *      🐛 reptador baja una fila extra si tiene lugar,
@@ -81,27 +82,79 @@ test.describe('Glow-Break - eras y amenazas', () => {
         expect(Object.values(r.far)).toEqual([3, 3, 3, 3, 3]);
     });
 
-    test('corrupción: contagia a TODOS sus vecinos y el grupo copia el HP del más fuerte', async ({ page }) => {
+    test('corrupción: cada corrupto contagia a UN solo vecino y el grupo copia el HP del más fuerte', async ({ page }) => {
         // Turno 20, medio: corrupción nivel 1 (solo vecinos ortogonales)
         await startAt(page, 20);
         const r = await page.evaluate(placeBrickScript() + `;
             const src = __place(2, 2, 100, { corrupt: true });
-            const group = [src, __place(1, 2, 300), __place(3, 2, 50), __place(2, 1, 700), __place(2, 3, 20)];
+            const neighbors = [__place(1, 2, 300), __place(3, 2, 50), __place(2, 1, 700), __place(2, 3, 20)];
             const diag = __place(3, 3, 999);
-            const far = __place(6, 6, 10);
             window.__game.game.endTurn();
+            const infected = neighbors.filter(b => b.corrupt);
             ({
-                groupCorrupt: group.map(b => !!b.corrupt),
-                groupHp: group.map(b => b.hp),
+                infectedCount: infected.length,
+                srcHp: src.hp,
+                expectedHp: Math.max(100, ...infected.map(b => b.maxHp)),
+                infectedHp: infected.map(b => b.hp),
+                healthyHp: neighbors.filter(b => !b.corrupt).map(b => b.hp).sort((a, b) => a - b),
                 diag: { corrupt: !!diag.corrupt, hp: diag.hp },
-                far: !!far.corrupt,
             });
         `);
-        expect(r.groupCorrupt).toEqual([true, true, true, true, true]);
-        expect(r.groupHp).toEqual([700, 700, 700, 700, 700]);
-        // La diagonal no cuenta en nivel 1 (ni para contagiarse ni como "más fuerte")
+        expect(r.infectedCount).toBe(1);
+        expect(r.srcHp).toBe(r.expectedHp);
+        expect(r.infectedHp).toEqual([r.expectedHp]);
+        // Los sanos no cambian de HP
+        expect(r.healthyHp.every(hp => [300, 50, 700, 20].includes(hp))).toBe(true);
+        // La diagonal no cuenta en nivel 1
         expect(r.diag).toEqual({ corrupt: false, hp: 999 });
-        expect(r.far).toBe(false);
+    });
+
+    test('corrupción: elige solo entre vecinos sanos, así en 4 turnos contagia a los 4', async ({ page }) => {
+        await startAt(page, 20);
+        const r = await page.evaluate(placeBrickScript() + `;
+            const G = window.__game;
+            const results = [];
+            for (let trial = 0; trial < 20; trial++) {
+                G.gameState.bricks = [];
+                G.gameState.turn = 20;
+                __place(2, 3, 100, { corrupt: true });
+                const neighbors = [__place(1, 3, 10), __place(3, 3, 10), __place(2, 2, 10), __place(2, 4, 10)];
+                const perTurn = [];
+                for (let t = 0; t < 4; t++) {
+                    G.game.endTurn();
+                    perTurn.push(neighbors.filter(b => b.corrupt).length);
+                }
+                results.push(perTurn.join(','));
+            }
+            results;
+        `);
+        // Cada turno exactamente uno nuevo, nunca repite uno ya contagiado
+        expect(new Set(r)).toEqual(new Set(['1,2,3,4']));
+    });
+
+    test('corrupción: los grupos se unen al tocarse y se parten al romper el del medio', async ({ page }) => {
+        await startAt(page, 20);
+        const r = await page.evaluate(placeBrickScript() + `;
+            // Unidos: A-B-C pegados en la fila 2 → todos copian al más fuerte
+            const a = __place(0, 2, 10, { corrupt: true });
+            const b = __place(1, 2, 500, { corrupt: true });
+            const c = __place(2, 2, 20, { corrupt: true });
+            // Partidos: D _ F (el del medio ya no está) → cada uno conserva su HP
+            const d = __place(4, 4, 30, { corrupt: true });
+            const f = __place(6, 4, 40, { corrupt: true });
+            window.__game.game.endTurn();
+            const merged = [a.hp, b.hp, c.hp];
+            const split = [d.hp, f.hp];
+            // Ahora se rompe B: A y C quedan en grupos separados
+            const G = window.__game;
+            G.gameState.bricks = G.gameState.bricks.filter(x => x !== b);
+            a.hp = 1; c.hp = 2;
+            G.game.endTurn();
+            ({ merged, split, afterBreak: [a.hp, c.hp] });
+        `);
+        expect(r.merged).toEqual([500, 500, 500]);
+        expect(r.split).toEqual([30, 40]);
+        expect(r.afterBreak).toEqual([1, 2]);
     });
 
     test('corrupción nivel 3: también contagia en diagonal', async ({ page }) => {
@@ -109,6 +162,7 @@ test.describe('Glow-Break - eras y amenazas', () => {
         await startAt(page, 165);
         const r = await page.evaluate(placeBrickScript() + `;
             const level = window.__game.gameState.threatLevels.corruption;
+            // Su único vecino está en diagonal: lo contagia y forman grupo
             const src = __place(2, 2, 100, { corrupt: true });
             const diag = __place(3, 3, 999);
             window.__game.game.endTurn();
