@@ -14,7 +14,7 @@ import { gameState, endTurn, events } from './game.js';
 import { COLS, FAST_SPEED_MULTIPLIER, BALL_SPEED, OVERDRIVE_MAX, OVERDRIVE_MULTIPLIER, MAX_SHIELDS, LASER_MAXHP_RATIO, LASER_CURRENT_HP_RATIO } from './config.js';
 import { getWidth, getHeight, getLeftBorder, getRightBorder, getTopOffset, getBottomLine, getCellSize, getBallRadius, getScale, getBrickColor, getBrickRect } from './rendering.js';
 import { BrickRegistry, BallRegistry, BonusRegistry } from './js/behaviors/index.js';
-import { processPhysicsStep, simulateTrajectory } from './js/systems/CollisionSystem.js';
+import { processPhysicsStep, simulateTrajectory, getHitFaces } from './js/systems/CollisionSystem.js';
 import { addToInventory, isInventoryFull } from './js/systems/BallInventory.js';
 import { modifyDamage as threatModifyDamage, DAMAGE_SOURCES } from './js/systems/ThreatSystem.js';
 
@@ -148,13 +148,19 @@ export const physicsHelpers = Object.freeze({
  * Adaptación, que depende de la FUENTE del daño) y lo marca como revelado
  * (Niebla). Devuelve el daño efectivo.
  *
+ * El behavior recibe un contexto con la fuente y, en golpes de bola, las
+ * caras del bloque que tocó (`hitFaces`: una para una cara, dos para una
+ * esquina; vacío para daño de área). Así un tipo puede reaccionar a DÓNDE
+ * le pegaron (ej: punto débil).
+ *
  * @param {object} brick
  * @param {number} amount
  * @param {string} source - una de DAMAGE_SOURCES
+ * @param {string[]} [hitFaces=[]] - caras tocadas ('left','right','top','bottom')
  */
-export function damageBrick(brick, amount, source) {
+export function damageBrick(brick, amount, source, hitFaces = []) {
     const behavior = BrickRegistry.get(brick.type);
-    let damage = behavior.onDamage(brick, amount, gameState);
+    let damage = behavior.onDamage(brick, amount, gameState, { source, hitFaces, helpers: physicsHelpers });
     damage = threatModifyDamage(gameState.threatLevels, gameState, brick, damage, source, physicsHelpers);
     brick.revealed = true;
     brick.hp -= damage;
@@ -279,7 +285,7 @@ export function updateBalls() {
                 const result = ballBehavior.onCollision(ball, brick, gameState, physicsHelpers);
                 // En turnos OVERDRIVE todo el daño se multiplica
                 const overdrive = gameState.overdriveActive ? OVERDRIVE_MULTIPLIER : 1;
-                const damage = damageBrick(brick, result.damage * overdrive, DAMAGE_SOURCES.BALL);
+                const damage = damageBrick(brick, result.damage * overdrive, DAMAGE_SOURCES.BALL, getHitFaces(collision));
 
                 // Daño en área devuelto por el behavior (ej: bola bomba)
                 if (result.damagedBricks) {

@@ -242,7 +242,7 @@ export function invalidateBrickSurfaces() {
  * Es la MISMA geometría que usa la física, con radio 0 en las esquinas
  * fusionadas para que los vecinos se vean como una sola pieza.
  *
- * @returns {{x, y, width, height, radii: number[], centerX, centerY}}
+ * @returns {{x, y, width, height, radii: number[], centerX, centerY, exposed}}
  */
 export function brickRectFromSurface(brick, surface) {
     if (!surface) {
@@ -257,7 +257,8 @@ export function brickRectFromSurface(brick, surface) {
             height: brick.height,
             radii: [r, r, r, r],
             centerX: brick.x + margin + brick.width / 2,
-            centerY: brick.y + margin + brick.height / 2
+            centerY: brick.y + margin + brick.height / 2,
+            exposed: { left: true, right: true, top: true, bottom: true }
         };
     }
 
@@ -272,7 +273,14 @@ export function brickRectFromSurface(brick, surface) {
         // roundRect: [top-left, top-right, bottom-right, bottom-left]
         radii: [c.tl ? r : 0, c.tr ? r : 0, c.br ? r : 0, c.bl ? r : 0],
         centerX: (surface.x0 + surface.x1) / 2,
-        centerY: (surface.y0 + surface.y1) / 2
+        centerY: (surface.y0 + surface.y1) / 2,
+        // Caras que una bola puede tocar (las tapadas por un vecino no)
+        exposed: {
+            left: surface.leftExposed,
+            right: surface.rightExposed,
+            top: surface.topSegments.length > 0,
+            bottom: surface.bottomSegments.length > 0
+        }
     };
 }
 

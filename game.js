@@ -281,7 +281,7 @@ export function generateNewRow({ extraRow = false } = {}) {
                     hp = Math.max(1, Math.floor(hp * hpFactor));
                 }
 
-                gameState.bricks.push({
+                const brick = {
                     x: leftBorder + col * cellSize,
                     y: topOffset,
                     width: cellSize - 4,
@@ -291,7 +291,10 @@ export function generateNewRow({ extraRow = false } = {}) {
                     col: col,
                     type: type,
                     isReinforced: isReinforcedRow
-                });
+                };
+                // Estado propio del tipo al nacer (ej: cara del punto débil)
+                BrickRegistry.get(type).onCreate(brick, gameState);
+                gameState.bricks.push(brick);
             }
         }
 
@@ -977,7 +980,8 @@ export function saveGame() {
                 corrupt: b.corrupt || undefined,
                 crawler: b.crawler || undefined,
                 shellUntil: Number.isFinite(b.shellUntil) ? b.shellUntil : undefined,
-                revealed: b.revealed || undefined
+                revealed: b.revealed || undefined,
+                weakSide: b.weakSide || undefined
             })),
             bonuses: gameState.bonuses.map(b => ({
                 col: Math.floor((b.x - leftBorder) / cellSize),
@@ -1061,7 +1065,8 @@ export function resumeGame() {
                 corrupt: !!b.corrupt,
                 crawler: !!b.crawler,
                 shellUntil: Number.isFinite(b.shellUntil) ? b.shellUntil : undefined,
-                revealed: !!b.revealed
+                revealed: !!b.revealed,
+                weakSide: b.weakSide || undefined
             };
         });
 

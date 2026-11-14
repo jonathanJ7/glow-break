@@ -12,6 +12,7 @@
  */
 
 import { getBrickSurfaces, BRICK_CELL_GAP } from './BrickSurfaces.js';
+import { MIN_BOUNCE_ANGLE } from '../../config.js';
 
 // Epsilon para comparaciones de punto flotante
 const EPSILON = 1e-6;
@@ -350,6 +351,77 @@ export function reflectVelocity(vx, vy, nx, ny) {
 }
 
 /**
+ * Garantiza que una velocidad forme al menos `minAngle` con la horizontal.
+ *
+ * Las paredes y las caras de los bloques son horizontales o verticales: un
+ * rebote ahí solo invierte el signo de vx o vy y el ángulo se conserva. Las
+ * esquinas, en cambio, reflejan contra una normal radial y pueden devolver
+ * la bola casi plana. Una bola plana avanza casi nada en vertical por cada
+ * cruce del tablero y queda rebotando de lado a lado muchísimo tiempo; por
+ * eso pegarle al borde de un bloque era siempre el mejor tiro.
+ *
+ * La corrección mantiene la rapidez y el sentido (izquierda/derecha,
+ * arriba/abajo) y solo levanta la inclinación hasta el mínimo. Si la
+ * velocidad es exactamente horizontal, o si al enderezarla quedaría
+ * apuntando hacia dentro de la superficie, el sentido vertical lo decide la
+ * normal del choque.
+ *
+ * @param {number} vx
+ * @param {number} vy
+ * @param {number} [nx=0] - Normal del choque (0,0 si no hay superficie)
+ * @param {number} [ny=0]
+ * @param {number} [minAngle=MIN_BOUNCE_ANGLE] - En radianes
+ * @returns {{vx: number, vy: number}}
+ */
+export function clampMinBounceAngle(vx, vy, nx = 0, ny = 0, minAngle = MIN_BOUNCE_ANGLE) {
+    const speed = Math.hypot(vx, vy);
+    if (speed < EPSILON) return { vx, vy };
+
+    const angle = Math.atan2(Math.abs(vy), Math.abs(vx));
+    if (angle >= minAngle - EPSILON) return { vx, vy };
+
+    const sx = vx < 0 ? -1 : 1;
+    let sy;
+    if (Math.abs(vy) > EPSILON) sy = Math.sign(vy);
+    else if (Math.abs(ny) > EPSILON) sy = Math.sign(ny);
+    else sy = -1; // sin información: hacia arriba (lejos de la línea)
+
+    let outVx = sx * speed * Math.cos(minAngle);
+    let outVy = sy * speed * Math.sin(minAngle);
+
+    // Nunca devolver la bola hacia dentro de la superficie que acaba de tocar
+    if (outVx * nx + outVy * ny <= 0 && Math.abs(ny) > EPSILON) {
+        outVy = Math.sign(ny) * speed * Math.sin(minAngle);
+    }
+
+    return { vx: outVx, vy: outVy };
+}
+
+/**
+ * Caras del bloque que tocó una colisión: una para un impacto de cara
+ * ('left', 'right', 'top', 'bottom') y las dos adyacentes para una esquina,
+ * deducidas de la normal (normal hacia la izquierda = cara izquierda, etc.).
+ *
+ * @param {SweptCollisionResult} collision
+ * @returns {string[]}
+ */
+export function getHitFaces(collision) {
+    if (!collision) return [];
+    const side = collision.side;
+    if (side === 'left' || side === 'right' || side === 'top' || side === 'bottom') {
+        return [side];
+    }
+    if (side !== 'corner') return [];
+    const faces = [];
+    const CORNER_FACE_MIN = 0.05;
+    if (collision.normalX < -CORNER_FACE_MIN) faces.push('left');
+    if (collision.normalX > CORNER_FACE_MIN) faces.push('right');
+    if (collision.normalY < -CORNER_FACE_MIN) faces.push('top');
+    if (collision.normalY > CORNER_FACE_MIN) faces.push('bottom');
+    return faces;
+}
+
+/**
  * Encuentra la primera colisión de una bola moviéndose contra múltiples rectángulos
  *
  * @param {number} x - Posición X de la bola
@@ -536,6 +608,14 @@ export function simulateTrajectory(startX, startY, angle, speed, radius, bricks,
         dirX = dirX - 2 * dot * collision.normalX;
         dirY = dirY - 2 * dot * collision.normalY;
 
+        // Misma corrección que la física real: la mira muestra la salida
+        // enderezada, no la que daría la reflexión pura en la esquina
+        if (collision.side === 'corner') {
+            const clamped = clampMinBounceAngle(dirX, dirY, collision.normalX, collision.normalY);
+            dirX = clamped.vx;
+            dirY = clamped.vy;
+        }
+
         // Renormalizar para evitar acumulación de errores
         const len = Math.hypot(dirX, dirY);
         if (len > EPSILON) {
@@ -654,6 +734,13 @@ export function processPhysicsStep(ball, radius, bricks, bounds, onBrickHit) {
             vx = reflected.vx;
             vy = reflected.vy;
 
+            // Una esquina no puede devolver la bola casi plana
+            if (collision.side === 'corner') {
+                const clamped = clampMinBounceAngle(vx, vy, collision.normalX, collision.normalY);
+                vx = clamped.vx;
+                vy = clamped.vy;
+            }
+
             // Pequeño empuje para evitar quedarse atascado
             x += collision.normalX * 0.5;
             y += collision.normalY * 0.5;
@@ -677,6 +764,8 @@ export default {
     fullSurface,
     circleRectOverlap,
     reflectVelocity,
+    clampMinBounceAngle,
+    getHitFaces,
     findFirstCollision,
     simulateTrajectory,
     processPhysicsStep

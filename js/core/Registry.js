@@ -89,6 +89,7 @@ const brickBase = {
     render() {},
     onDestroy() { return null; },
     onDamage(brick, damage) { return damage; },
+    onCreate() {},
     onTurnStart() {},
     onTurnEnd() {},
     getConfig() { return {}; },
