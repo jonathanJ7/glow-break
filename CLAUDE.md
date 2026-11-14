@@ -25,6 +25,14 @@ This ensures that:
 - Users can see the new version
 - The update banner shows when there are changes
 
+### Funcionamiento sin conexión
+
+El juego tiene que andar en modo avión. `service-worker.js` precachea todo en
+`urlsToCache` (**todo módulo JS nuevo debe agregarse ahí**, si no el juego no
+carga offline) y sirve network-first con fallback a caché: timeout de
+`NETWORK_TIMEOUT_MS`, las respuestas de error no se guardan, las navegaciones
+con query caen a `index.html`. Test: `tests/integration/offline.spec.js`.
+
 ---
 
 ## Architecture Overview

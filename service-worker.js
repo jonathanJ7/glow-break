@@ -1,5 +1,5 @@
 // Version: Update this when deploying new versions
-const APP_VERSION = '2.14.0';
+const APP_VERSION = '2.14.1';
 const CACHE_NAME = `ballz-${APP_VERSION}`;
 
 const urlsToCache = [
@@ -41,12 +41,15 @@ const urlsToCache = [
   './icon-512.png'
 ];
 
-// Install: cache all files
+// Install: cache all files.
+// `cache: 'reload'` saltea la caché HTTP del navegador: sin esto, addAll
+// podía guardar archivos de una versión anterior y, sin conexión, el juego
+// corría con módulos de versiones mezcladas.
 self.addEventListener('install', event => {
   console.log(`[SW] Installing version ${APP_VERSION}`);
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(urlsToCache))
+      .then(cache => cache.addAll(urlsToCache.map(url => new Request(url, { cache: 'reload' }))))
       .then(() => {
         console.log(`[SW] Version ${APP_VERSION} installed`);
         self.skipWaiting();
@@ -81,61 +84,102 @@ self.addEventListener('activate', event => {
   );
 });
 
-// Fetch: Network-first for HTML, Cache-first for assets
-self.addEventListener('fetch', event => {
-  const url = new URL(event.request.url);
+// ====================================
+// FETCH — el juego tiene que andar sin conexión (modo avión)
+// ====================================
 
-  // Network-first for HTML (to get updates faster)
-  if (event.request.mode === 'navigate' || url.pathname.endsWith('.html') || url.pathname === '/' || url.pathname.endsWith('/')) {
-    event.respondWith(
-      fetch(event.request)
-        .then(response => {
-          // Clone and cache the new response
-          const responseClone = response.clone();
-          caches.open(CACHE_NAME).then(cache => {
-            cache.put(event.request, responseClone);
-          });
-          return response;
-        })
-        .catch(() => {
-          // Fallback to cache if offline
-          return caches.match(event.request);
-        })
-    );
+// Con señal mala la red puede tardar muchísimo sin fallar nunca; pasado este
+// tiempo se sirve la copia en caché (si existe) en vez de dejar la pantalla
+// en blanco.
+const NETWORK_TIMEOUT_MS = 3000;
+
+/** Guarda la respuesta solo si es buena: un 404/500 nunca pisa la copia que funciona. */
+function cacheIfOk(request, response) {
+  if (response && response.ok && response.type !== 'opaque') {
+    const clone = response.clone();
+    caches.open(CACHE_NAME).then(cache => cache.put(request, clone));
+  }
+  return response;
+}
+
+/** Copia en caché: exacta, después ignorando la query (?source=pwa, ?v=...). */
+async function fromCache(request) {
+  return (await caches.match(request)) || (await caches.match(request, { ignoreSearch: true }));
+}
+
+/** Página del juego en caché para cualquier navegación, tenga la URL que tenga. */
+async function cachedPage(request) {
+  return (await fromCache(request))
+    || (await caches.match('./index.html'))
+    || (await caches.match('./'));
+}
+
+/**
+ * Network-first con red de seguridad: intenta la red (para recibir
+ * actualizaciones rápido), pero si falla, devuelve un error HTTP o tarda más
+ * de NETWORK_TIMEOUT_MS y hay copia en caché, usa la copia.
+ */
+function networkFirst(request, networkRequest, fallback) {
+  return new Promise(resolve => {
+    let settled = false;
+    const finish = response => {
+      if (!settled && response) {
+        settled = true;
+        resolve(response);
+      }
+    };
+    const useFallback = () => fallback().then(cached => {
+      if (cached) finish(cached);
+      return cached;
+    });
+
+    const timer = setTimeout(useFallback, NETWORK_TIMEOUT_MS);
+
+    fetch(networkRequest)
+      .then(response => {
+        clearTimeout(timer);
+        cacheIfOk(request, response);
+        if (response.ok) {
+          finish(response);
+        } else {
+          // Error del servidor: preferir la copia buena si la hay
+          useFallback().then(cached => finish(cached || response));
+        }
+      })
+      .catch(() => {
+        clearTimeout(timer);
+        useFallback().then(cached => finish(cached || Response.error()));
+      });
+  });
+}
+
+self.addEventListener('fetch', event => {
+  if (event.request.method !== 'GET') return;
+  const url = new URL(event.request.url);
+  if (url.origin !== self.location.origin) return;
+
+  // HTML / navegación
+  if (event.request.mode === 'navigate' || url.pathname.endsWith('.html') || url.pathname.endsWith('/')) {
+    event.respondWith(networkFirst(event.request, event.request, () => cachedPage(event.request)));
     return;
   }
 
-  // Network-first for JS/CSS with cache busting
+  // JS/CSS: network-first con cache busting (param de versión para saltear
+  // la caché HTTP del navegador); la copia se guarda con la URL original
   if (url.pathname.endsWith('.js') || url.pathname.endsWith('.css')) {
-    // Add version param to bust browser's HTTP cache
     const bustUrl = new URL(event.request.url);
     bustUrl.searchParams.set('v', APP_VERSION);
-
-    event.respondWith(
-      fetch(bustUrl.toString(), {
-        cache: 'no-cache',
-        headers: event.request.headers
-      })
-        .then(response => {
-          // Clone and cache the new response (using original URL as key)
-          const responseClone = response.clone();
-          caches.open(CACHE_NAME).then(cache => {
-            cache.put(event.request, responseClone);
-          });
-          return response;
-        })
-        .catch(() => {
-          // Fallback to cache if offline
-          return caches.match(event.request);
-        })
-    );
+    const networkRequest = new Request(bustUrl.toString(), {
+      cache: 'no-cache',
+      headers: event.request.headers
+    });
+    event.respondWith(networkFirst(event.request, networkRequest, () => fromCache(event.request)));
     return;
   }
 
-  // Cache-first for other assets (images, etc.)
+  // Resto (imágenes, manifest...): cache-first
   event.respondWith(
-    caches.match(event.request)
-      .then(response => response || fetch(event.request))
+    fromCache(event.request).then(cached => cached || fetch(event.request).then(r => cacheIfOk(event.request, r)))
   );
 });
 

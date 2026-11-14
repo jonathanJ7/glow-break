@@ -75,11 +75,11 @@ if ('serviceWorker' in navigator) {
 
             // Check for updates periodically (every 5 minutes)
             setInterval(() => {
-                reg.update();
+                reg.update().catch(() => {}); // sin conexión: se reintenta después
             }, 5 * 60 * 1000);
 
             // Check for updates on page load
-            reg.update();
+            reg.update().catch(() => {});
 
             // Handle waiting service worker
             if (reg.waiting) {
