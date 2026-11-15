@@ -4,7 +4,10 @@
  * Cada tipo de bloque define:
  * - render(ctx, brick, helpers): Cómo se dibuja
  * - onDestroy(brick, gameState, helpers): Qué pasa al destruirse
- * - onDamage(brick, damage, gameState): Modificador de daño recibido
+ * - onCreate(brick, gameState): Estado propio al nacer (opcional)
+ * - onDamage(brick, damage, gameState, context): Modificador de daño recibido.
+ *   context = { source, hitFaces, helpers }; hitFaces son las caras que tocó
+ *   la bola (vacío para daño de área)
  * - onTurnEnd(brick, gameState): Qué pasa al final del turno
  * - getConfig(): Configuración del tipo (turno mínimo, probabilidad, etc.)
  *
@@ -509,6 +512,113 @@ const MysteryBrickBehavior = {
 };
 
 // ============================================
+// WEAKPOINT BRICK - Una cara débil que recibe x3
+// ============================================
+const FACE_NAMES = { left: 'izquierda', right: 'derecha', top: 'de arriba', bottom: 'de abajo' };
+
+const WeakpointBrickBehavior = {
+    type: 'weakpoint',
+    displayName: 'Punto débil',
+    guideIcon: '🎯',
+    weakMultiplier: 3,
+    color: '#22d3ee',
+    // Probabilidad de cada cara al nacer. Abajo pesa menos porque es la que
+    // se alcanza con un tiro directo; arriba obliga a colarse por un hueco.
+    sideWeights: { left: 3, right: 3, top: 2, bottom: 2 },
+
+    describe() {
+        const total = Object.values(this.sideWeights).reduce((a, b) => a + b, 0);
+        const odds = Object.entries(this.sideWeights)
+            .map(([side, w]) => `${FACE_NAMES[side]} ${Math.round((w / total) * 100)}%`)
+            .join(', ');
+        const hpFactor = this.getConfig().hpFactor;
+        return `Tiene una cara marcada con una barra celeste: cada golpe de bola en esa cara hace `
+            + `×${this.weakMultiplier} de daño (un golpe en una esquina cuenta para sus dos caras). `
+            + `Las otras caras y el daño de área (bombas, explosiones, láser) hacen el daño normal. `
+            + `Nace con el ${Math.round(hpFactor * 100)}% del HP normal. La cara débil se elige al azar `
+            + `(${odds}); si un vecino la tapa, la barra se ve apagada y hay que romper al vecino primero.`;
+    },
+
+    onCreate(brick) {
+        const entries = Object.entries(this.sideWeights);
+        const total = entries.reduce((sum, [, w]) => sum + w, 0);
+        let roll = Math.random() * total;
+        for (const [side, w] of entries) {
+            roll -= w;
+            if (roll < 0) {
+                brick.weakSide = side;
+                return;
+            }
+        }
+        brick.weakSide = entries[entries.length - 1][0];
+    },
+
+    render(ctx, brick, helpers) {
+        const side = brick.weakSide;
+        if (!side) return;
+        const { getBrickRect, getScale } = helpers;
+        const rect = getBrickRect(brick);
+        const exposed = rect.exposed ? rect.exposed[side] : true;
+
+        const thick = Math.max(3, 4 * getScale());
+        const inset = 2;
+        const horizontal = side === 'top' || side === 'bottom';
+        const span = (horizontal ? rect.width : rect.height) * 0.7;
+        let x, y, w, h;
+        if (horizontal) {
+            w = span;
+            h = thick;
+            x = rect.centerX - span / 2;
+            y = side === 'top' ? rect.y + inset : rect.y + rect.height - inset - thick;
+        } else {
+            w = thick;
+            h = span;
+            y = rect.centerY - span / 2;
+            x = side === 'left' ? rect.x + inset : rect.x + rect.width - inset - thick;
+        }
+
+        ctx.save();
+        ctx.globalAlpha = exposed ? 1 : 0.3;
+        if (exposed) {
+            ctx.shadowColor = this.color;
+            ctx.shadowBlur = 8;
+        }
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.roundRect(x, y, w, h, thick / 2);
+        ctx.fill();
+        ctx.restore();
+    },
+
+    onDamage(brick, damage, gameState, context) {
+        if (!brick.weakSide || !context || context.source !== 'ball') return damage;
+        if (!context.hitFaces || !context.hitFaces.includes(brick.weakSide)) return damage;
+
+        const helpers = context.helpers;
+        if (helpers) {
+            const cx = brick.x + brick.width / 2;
+            const cy = brick.y + brick.height / 2;
+            const off = brick.width / 2;
+            const fx = cx + (brick.weakSide === 'left' ? -off : brick.weakSide === 'right' ? off : 0);
+            const fy = cy + (brick.weakSide === 'top' ? -off : brick.weakSide === 'bottom' ? off : 0);
+            helpers.createParticles(fx, fy, this.color, 4);
+            helpers.addFloatingText(fx, fy, `🎯×${this.weakMultiplier}`, { color: this.color, size: 13 });
+        }
+        return damage * this.weakMultiplier;
+    },
+
+    getConfig() {
+        return {
+            minTurn: 5,
+            category: 'challenging',
+            baseChance: 0.10,
+            hpFactor: 1.5, // Más duro que un normal: pegarle a la cara débil es lo que conviene
+            difficultyMultiplier: { easy: 1.0, medium: 1.2, hard: 1.4 },
+        };
+    }
+};
+
+// ============================================
 // BOSS BRICK - Jefe de 3 columnas cada 15 turnos
 // ============================================
 const BossBrickBehavior = {
@@ -620,6 +730,7 @@ BrickRegistry
     .register('regenerator', RegeneratorBrickBehavior)
     .register('gold', GoldBrickBehavior)
     .register('mystery', MysteryBrickBehavior)
+    .register('weakpoint', WeakpointBrickBehavior)
     .register('boss', BossBrickBehavior);
 
 // Exportar para uso directo si es necesario
@@ -631,6 +742,7 @@ export {
     RegeneratorBrickBehavior,
     GoldBrickBehavior,
     MysteryBrickBehavior,
+    WeakpointBrickBehavior,
     BossBrickBehavior
 };
 

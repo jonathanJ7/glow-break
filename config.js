@@ -86,6 +86,14 @@ export const BALL_BONUS_MAX_VALUE = 2;
 export const AIM_ANGLE_MAX = -0.2;                // casi horizontal a la derecha
 export const AIM_ANGLE_MIN = -Math.PI + 0.2;      // casi horizontal a la izquierda
 
+// Ángulo mínimo de una bola respecto de la horizontal DESPUÉS de rebotar en
+// una esquina (o al nacer de una división). Paredes y caras de bloques no
+// cambian el ángulo de la bola; las esquinas sí, y sin este tope devolvían
+// la bola casi plana: quedaba rebotando de lado a lado durante muchísimo
+// tiempo y "pegarle al borde de un bloque" era siempre el mejor tiro.
+// Ver clampMinBounceAngle en CollisionSystem.js.
+export const MIN_BOUNCE_ANGLE = 15 * Math.PI / 180;
+
 // Dispersión de puntería: en las dificultades con `assists.aimScatter`,
 // al empezar el turno se tira un dado POR TIPO de bola. El tipo al que le
 // toca desvía TODAS sus bolas el mismo ángulo aleatorio dentro de

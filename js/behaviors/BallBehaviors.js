@@ -17,7 +17,7 @@
  */
 
 import { BallRegistry } from '../core/Registry.js';
-import { circleRectOverlap } from '../systems/CollisionSystem.js';
+import { circleRectOverlap, clampMinBounceAngle } from '../systems/CollisionSystem.js';
 
 // ============================================
 // NORMAL BALL - Bola básica
@@ -250,12 +250,12 @@ const SplitterBehavior = {
 
             const newBalls = this.splitAngles.map(offset => {
                 const newAngle = currentAngle + offset;
-                return SplitterBehavior.createBall(
-                    ball.x,
-                    ball.y,
+                // Las hijas tampoco pueden salir casi planas (ver MIN_BOUNCE_ANGLE)
+                const v = clampMinBounceAngle(
                     Math.cos(newAngle) * speed,
                     Math.sin(newAngle) * speed
                 );
+                return SplitterBehavior.createBall(ball.x, ball.y, v.vx, v.vy);
             });
 
             // Heredar hasGoneUp

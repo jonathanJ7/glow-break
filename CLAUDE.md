@@ -25,6 +25,14 @@ This ensures that:
 - Users can see the new version
 - The update banner shows when there are changes
 
+### Funcionamiento sin conexión
+
+El juego tiene que andar en modo avión. `service-worker.js` precachea todo en
+`urlsToCache` (**todo módulo JS nuevo debe agregarse ahí**, si no el juego no
+carga offline) y sirve network-first con fallback a caché: timeout de
+`NETWORK_TIMEOUT_MS`, las respuestas de error no se guardan, las navegaciones
+con query caen a `index.html`. Test: `tests/integration/offline.spec.js`.
+
 ---
 
 ## Architecture Overview
@@ -270,6 +278,7 @@ BonusRegistry.register('shield', ShieldBonusBehavior);
 | `regenerator` | 💚 | Heals to 90% at turn end | `regeneratorChance` |
 | `gold` | 🪙 | Half HP; grants +1 normal ball on destroy | (baseChance in behavior) |
 | `mystery` | 🎁 | Random reward on destroy (balls or laser) | (baseChance in behavior) |
+| `weakpoint` | 🎯 (guía) | 1.5× HP; una cara al azar (`brick.weakSide`, barra celeste) recibe ×3 de los golpes de bola (esquina cuenta para sus 2 caras); área y otras caras, normal | (baseChance in behavior) |
 | `boss` | 👑 | 3 columns wide, spawned every 15 turns by `generateNewRow` (never random); shockwave + loot (+2 balls, +1 shield) on destroy | - |
 
 ### Ball Types
@@ -299,6 +308,31 @@ BonusRegistry.register('shield', ShieldBonusBehavior);
 - **Ball AoE contract**: a ball behavior's `onCollision` may return `damagedBricks: [{brick, damage}]` — the engine applies it (used by `bomb`, mirrors brick `onDestroy`).
 - **Feedback helpers** in `physicsHelpers`: `addFloatingText(x, y, text, {color, size})`, `addScreenShake(intensity)`, `addBallsToInventory(type, count)`, `addShieldCharge()`.
 - **Records**: best turn per difficulty stored in `localStorage` (`glowbreak_best_<difficulty>`), only counted when starting from turn 1.
+
+### Tiros al borde y punto débil (v2.14.0)
+
+**Problema**: paredes y caras de bloques solo invierten el signo de `vx`/`vy`,
+así que el ángulo de la bola se conserva; las **esquinas** (normal radial) eran
+lo único que lo cambiaba y podían devolverla casi plana, saltándose el tope de
+`AIM_ANGLE_MAX`. Una bola plana rebotaba de lado a lado muchísimo tiempo:
+"pegarle al borde de un bloque" era siempre el mejor tiro.
+
+- **Ángulo mínimo**: `MIN_BOUNCE_ANGLE` (15°, `config.js`). Tras un rebote en
+  esquina, `clampMinBounceAngle` (`CollisionSystem.js`) levanta la inclinación
+  hasta el mínimo conservando rapidez y sentido. Se aplica en
+  `processPhysicsStep` **y** en `simulateTrajectory` (la mira muestra la salida
+  enderezada) y a las hijas de la divisora. No toques una sin la otra.
+- **Punto débil** (`weakpoint`): da un motivo para apuntar distinto según el
+  tablero. Una cara marcada recibe ×`weakMultiplier` de bola; si un vecino la
+  tapa, la barra se dibuja apagada (`rect.exposed`).
+- **Contrato de daño por cara**: `damageBrick(brick, amount, source, hitFaces)`
+  pasa al behavior `onDamage(brick, damage, gameState, { source, hitFaces,
+  helpers })`. `getHitFaces(collision)` da `['left']` para una cara y dos caras
+  para una esquina. Nuevo hook de bloque `onCreate(brick, gameState)` (llamado
+  en `generateNewRow`) para estado propio al nacer. `getBrickRect` ahora
+  incluye `exposed: {left, right, top, bottom}`.
+- Guardado: `weakSide` se guarda por bloque. Tests:
+  `tests/integration/edge-shots.spec.js`.
 
 ### Eras y amenazas (v2.12.0)
 
@@ -527,7 +561,7 @@ The `guide.spec.js` test fails if any registered type is missing from the guide.
 - `getScale()` - Current scale factor
 - `getBallRadius()` - Current ball radius
 - `getBrickColor(hp, maxHp)` - Color based on HP
-- `getBrickRect(brick)` - **Rect fusionado del bloque** (ver "Superficies fusionadas"). Devuelve `{x, y, width, height, radii, centerX, centerY}`. Los behaviors de bloque DEBEN dibujar con esto, nunca con `brick.x + 2` / `brick.width`
+- `getBrickRect(brick)` - **Rect fusionado del bloque** (ver "Superficies fusionadas"). Devuelve `{x, y, width, height, radii, centerX, centerY, exposed}`. Los behaviors de bloque DEBEN dibujar con esto, nunca con `brick.x + 2` / `brick.width`
 
 ### Physics Helpers (in `onCollision()`, `onDestroy()`, etc.)
 - `getCellSize()` - Grid cell size
