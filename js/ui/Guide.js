@@ -26,6 +26,7 @@ import {
 } from '../../config.js';
 import { FREEZE_TIME_MS, UNFREEZE_DISTANCE } from '../../input.js';
 import { MIN_BALLS_KEPT } from '../systems/BallInventory.js';
+import { describeWeakSpot } from '../systems/WeakSpots.js';
 
 // Formatea una probabilidad 0..1 como porcentaje sin decimales de sobra
 function pct(p) {
@@ -316,6 +317,7 @@ function buildMechanicsSection() {
         + `dorado). Al llegar a ${OVERDRIVE_MAX} puntos, tu siguiente disparo activa OVERDRIVE: `
         + `TODO el daño de ese turno se multiplica ×${OVERDRIVE_MULTIPLIER} (bolas, bombas y ondas `
         + `expansivas incluidas) y el medidor vuelve a 0. La carga sobrante no se pierde entre turnos.`);
+    html += item('🎯', 'Zona débil', describeWeakSpot());
     html += item('🛡️', 'Escudos',
         `Empiezas cada partida con ${STARTING_SHIELDS} (máximo ${MAX_SHIELDS}; cada jefe derrotado `
         + `da +1${MAX_SHIELDS === 1 ? ', pero como solo puedes tener 1 a la vez, únicamente te lo repone si ya lo gastaste' : ''}`

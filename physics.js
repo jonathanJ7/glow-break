@@ -17,6 +17,7 @@ import { BrickRegistry, BallRegistry, BonusRegistry } from './js/behaviors/index
 import { processPhysicsStep, simulateTrajectory, getHitFaces } from './js/systems/CollisionSystem.js';
 import { addToInventory, isInventoryFull } from './js/systems/BallInventory.js';
 import { modifyDamage as threatModifyDamage, DAMAGE_SOURCES } from './js/systems/ThreatSystem.js';
+import { applyWeakSpot, ensureWeakSide } from './js/systems/WeakSpots.js';
 
 // ====================================
 // SISTEMA DE PARTÍCULAS
@@ -144,14 +145,14 @@ export const physicsHelpers = Object.freeze({
 
 /**
  * Única vía para dañar un bloque: aplica el modificador de su behavior
- * (ej: blindado), después el de las amenazas activas (ej: caparazón de la
+ * (ej: blindado), después la zona débil (WeakSpots), después el de las amenazas activas (ej: caparazón de la
  * Adaptación, que depende de la FUENTE del daño) y lo marca como revelado
  * (Niebla). Devuelve el daño efectivo.
  *
  * El behavior recibe un contexto con la fuente y, en golpes de bola, las
  * caras del bloque que tocó (`hitFaces`: una para una cara, dos para una
  * esquina; vacío para daño de área). Así un tipo puede reaccionar a DÓNDE
- * le pegaron (ej: punto débil).
+ * le pegaron.
  *
  * @param {object} brick
  * @param {number} amount
@@ -161,6 +162,7 @@ export const physicsHelpers = Object.freeze({
 export function damageBrick(brick, amount, source, hitFaces = []) {
     const behavior = BrickRegistry.get(brick.type);
     let damage = behavior.onDamage(brick, amount, gameState, { source, hitFaces, helpers: physicsHelpers });
+    damage = applyWeakSpot(brick, damage, source, hitFaces, physicsHelpers);
     damage = threatModifyDamage(gameState.threatLevels, gameState, brick, damage, source, physicsHelpers);
     brick.revealed = true;
     brick.hp -= damage;
@@ -189,7 +191,7 @@ function processBrickDestruction(brick) {
 
         // Procesar spawned bricks
         if (result.spawnedBricks) {
-            gameState.bricks.push(...result.spawnedBricks);
+            gameState.bricks.push(...result.spawnedBricks.map(ensureWeakSide));
         }
     }
 }
