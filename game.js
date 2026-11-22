@@ -15,6 +15,7 @@ import { updateBalls, updateParticles, createParticles, addFloatingText, physics
 import { BrickRegistry, BallRegistry, BonusRegistry, ThreatRegistry } from './js/behaviors/index.js';
 import { getEra, getThreatLevels, getEraChange, toRoman } from './js/systems/Eras.js';
 import { runRowGenerated, runTurnEnd, getExtraAdvance, getHudThreats } from './js/systems/ThreatSystem.js';
+import { ensureWeakSide } from './js/systems/WeakSpots.js';
 
 // ====================================
 // EVENT EMITTER
@@ -231,7 +232,7 @@ export function generateNewRow({ extraRow = false } = {}) {
         // La fila queda libre alrededor para dar respiro al jugador.
         const startCol = Math.floor(Math.random() * (COLS - 2));
         const bossHp = Math.max(10, Math.floor(baseHP * BOSS_HP_MULTIPLIER));
-        gameState.bricks.push({
+        gameState.bricks.push(ensureWeakSide({
             x: leftBorder + startCol * cellSize,
             y: topOffset,
             width: cellSize * 3 - 4,
@@ -241,7 +242,7 @@ export function generateNewRow({ extraRow = false } = {}) {
             col: startCol,
             type: 'boss',
             isReinforced: false
-        });
+        }));
     } else {
         const isReinforcedRow = config.reinforcedRows && turn % 10 === 0;
         const rowHpMultiplier = isReinforcedRow ? 2.0 : 1.0;
@@ -292,9 +293,10 @@ export function generateNewRow({ extraRow = false } = {}) {
                     type: type,
                     isReinforced: isReinforcedRow
                 };
-                // Estado propio del tipo al nacer (ej: cara del punto débil)
+                // Estado propio del tipo al nacer
                 BrickRegistry.get(type).onCreate(brick, gameState);
-                gameState.bricks.push(brick);
+                // Zona débil: todo bloque nace con una cara débil (ver WeakSpots.js)
+                gameState.bricks.push(ensureWeakSide(brick));
             }
         }
 
@@ -1068,7 +1070,9 @@ export function resumeGame() {
                 revealed: !!b.revealed,
                 weakSide: b.weakSide || undefined
             };
-        });
+        })
+        // Guardados de antes de la zona débil universal: se les sortea una
+        .map(ensureWeakSide);
 
     gameState.bonuses = (save.bonuses || [])
         .filter(b => Number.isFinite(b.col) && Number.isFinite(b.row) && BonusRegistry.has(b.type))

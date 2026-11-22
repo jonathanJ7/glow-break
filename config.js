@@ -94,6 +94,17 @@ export const AIM_ANGLE_MIN = -Math.PI + 0.2;      // casi horizontal a la izquie
 // Ver clampMinBounceAngle en CollisionSystem.js.
 export const MIN_BOUNCE_ANGLE = 15 * Math.PI / 180;
 
+// Zona débil: TODOS los bloques nacen con una cara débil al azar
+// (brick.weakSide). Un golpe de BOLA en esa cara hace ×multiplier de daño
+// (una esquina cuenta para sus dos caras); el daño de área no. Da un motivo
+// para elegir el ángulo según el tablero. Abajo pesa menos porque es la cara
+// que se alcanza con un tiro directo. Ver js/systems/WeakSpots.js.
+export const WEAK_SPOT = {
+    multiplier: 3,
+    sideWeights: { left: 3, right: 3, top: 2, bottom: 2 },
+    color: '#22d3ee',
+};
+
 // Dispersión de puntería: en las dificultades con `assists.aimScatter`,
 // al empezar el turno se tira un dado POR TIPO de bola. El tipo al que le
 // toca desvía TODAS sus bolas el mismo ángulo aleatorio dentro de

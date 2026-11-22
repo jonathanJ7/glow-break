@@ -1,5 +1,5 @@
 // Version: Update this when deploying new versions
-const APP_VERSION = '2.14.1';
+const APP_VERSION = '2.15.0';
 const CACHE_NAME = `ballz-${APP_VERSION}`;
 
 const urlsToCache = [
@@ -27,6 +27,7 @@ const urlsToCache = [
   './js/systems/BallInventory.js',
   './js/systems/Eras.js',
   './js/systems/ThreatSystem.js',
+  './js/systems/WeakSpots.js',
   './js/systems/VillainDirector.js',
   // UI
   './js/ui/Guide.js',

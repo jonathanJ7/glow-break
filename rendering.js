@@ -16,6 +16,7 @@ import { BrickRegistry, BallRegistry, BonusRegistry } from './js/behaviors/index
 import { getSlowdownProgress } from './input.js';
 import { getBrickSurfaces, brickRectFromSurface, BRICK_CELL_GAP } from './js/systems/BrickSurfaces.js';
 import { isBrickHidden, renderBrickOverlays, renderBoardOverlays } from './js/systems/ThreatSystem.js';
+import { drawWeakSpot } from './js/systems/WeakSpots.js';
 import { drawVillainBackdrop, drawVillainForeground, isNewRowHidden } from './js/ui/villain/Villain.js';
 
 export let canvas;
@@ -311,6 +312,9 @@ function drawBrick(brick, surface) {
     // Renderizado específico del tipo (usando Strategy pattern)
     const behavior = BrickRegistry.get(brick.type);
     behavior.render(ctx, brick, renderHelpers);
+
+    // Zona débil (todos los bloques)
+    drawWeakSpot(ctx, brick, rect, getScale());
 
     // Marcas de las amenazas de la era (corrupto, reptador, caparazón...)
     renderBrickOverlays(gameState.threatLevels, ctx, gameState, brick, rect, threatRenderHelpers);

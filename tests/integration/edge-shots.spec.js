@@ -8,8 +8,8 @@ import { loadGameWithHooks, startGame } from './helpers/game.js';
  * 1. Ángulo mínimo tras una esquina (MIN_BOUNCE_ANGLE): una esquina ya no
  *    puede devolver la bola casi plana. Antes era el mejor tiro siempre:
  *    la bola quedaba rebotando de lado a lado muchísimo tiempo.
- * 2. Bloque "Punto débil": una cara marcada recibe ×3 de los golpes de bola,
- *    así que el ángulo óptimo depende del tablero.
+ * 2. Zona débil: TODOS los bloques tienen una cara marcada que recibe ×3 de
+ *    los golpes de bola, así que el ángulo óptimo depende del tablero.
  */
 
 const DEG = Math.PI / 180;
@@ -128,20 +128,20 @@ test.describe('Ángulo mínimo tras rebotar en una esquina', () => {
     });
 });
 
-test.describe('Bloque Punto débil', () => {
+test.describe('Zona débil (todos los bloques)', () => {
     test('la cara débil recibe ×3 de bola; otras caras y el área, daño normal', async ({ page }) => {
         await loadGameWithHooks(page);
         await startGame(page, 'easy');
 
         const r = await page.evaluate(() => {
-            const { physics, BrickRegistry } = window.__game;
-            const mult = BrickRegistry.get('weakpoint').weakMultiplier;
-            const make = () => ({ x: 50, y: 50, width: 36, height: 36, hp: 100, maxHp: 100, col: 1, type: 'weakpoint', weakSide: 'left' });
-            const a = make(); physics.damageBrick(a, 2, 'ball', ['left']);
-            const b = make(); physics.damageBrick(b, 2, 'ball', ['right']);
-            const c = make(); physics.damageBrick(c, 2, 'ball', ['left', 'bottom']);
-            const d = make(); physics.damageBrick(d, 2, 'bomb');
-            return { mult, a: a.hp, b: b.hp, c: c.hp, d: d.hp };
+            const { physics, config } = window.__game;
+            const make = (type) => ({ x: 50, y: 50, width: 36, height: 36, hp: 100, maxHp: 100, col: 1, type, weakSide: 'left' });
+            const a = make('normal'); physics.damageBrick(a, 2, 'ball', ['left']);
+            const b = make('normal'); physics.damageBrick(b, 2, 'ball', ['right']);
+            const c = make('normal'); physics.damageBrick(c, 2, 'ball', ['left', 'bottom']);
+            const d = make('normal'); physics.damageBrick(d, 2, 'bomb');
+            const e = make('armored'); physics.damageBrick(e, 4, 'ball', ['left']);
+            return { mult: config.WEAK_SPOT.multiplier, a: a.hp, b: b.hp, c: c.hp, d: d.hp, e: e.hp };
         });
 
         expect(r.mult).toBe(3);
@@ -149,31 +149,51 @@ test.describe('Bloque Punto débil', () => {
         expect(r.b).toBe(98);
         expect(r.c).toBe(100 - 2 * 3); // esquina pegada a la cara débil
         expect(r.d).toBe(98);
+        expect(r.e).toBe(100 - 4 * 0.5 * 3); // blindado: primero el tipo, después la zona débil
     });
 
-    test('al nacer elige una cara y la cara se guarda en la partida', async ({ page }) => {
+    test('todo bloque nace con cara débil (jefes y spawner incluidos) y se guarda', async ({ page }) => {
         await loadGameWithHooks(page);
         await startGame(page, 'easy');
 
         const r = await page.evaluate(() => {
-            const { BrickRegistry, game, gameState } = window.__game;
-            const behavior = BrickRegistry.get('weakpoint');
+            const { game, gameState, weakSpots } = window.__game;
             const sides = new Set();
-            for (let i = 0; i < 200; i++) {
-                const b = {};
-                behavior.onCreate(b, gameState);
-                sides.add(b.weakSide);
-            }
-            const target = gameState.bricks[0];
-            target.type = 'weakpoint';
-            target.weakSide = 'top';
+            for (let i = 0; i < 200; i++) sides.add(weakSpots.rollWeakSide());
+            const { config } = window.__game;
+            for (let t = 10; t <= 30; t++) { gameState.turn = t; game.generateNewRow(); }
+            gameState.turn = config.BOSS_INTERVAL;
+            game.generateNewRow();
+            const hasBoss = gameState.bricks.some(b => b.type === 'boss');
+            const allHave = hasBoss && gameState.bricks.length > 0
+                && gameState.bricks.every(b => weakSpots.WEAK_FACES.includes(b.weakSide));
+            gameState.bricks[0].weakSide = 'top';
             game.saveGame();
             const save = JSON.parse(localStorage.getItem('glowbreak_save'));
-            return { sides: [...sides].sort(), savedSide: save.bricks[0].weakSide };
+            return { sides: [...sides].sort(), allHave, savedSide: save.bricks[0].weakSide };
         });
 
         expect(r.sides).toEqual(['bottom', 'left', 'right', 'top']);
+        expect(r.allHave).toBe(true);
         expect(r.savedSide).toBe('top');
+    });
+
+    test('un guardado sin caras débiles las recibe al reanudar', async ({ page }) => {
+        await loadGameWithHooks(page);
+        await startGame(page, 'easy');
+
+        const r = await page.evaluate(() => {
+            const { game, gameState, weakSpots } = window.__game;
+            game.saveGame();
+            const save = JSON.parse(localStorage.getItem('glowbreak_save'));
+            for (const b of save.bricks) delete b.weakSide;
+            localStorage.setItem('glowbreak_save', JSON.stringify(save));
+            game.resumeGame();
+            return gameState.bricks.length > 0
+                && gameState.bricks.every(b => weakSpots.WEAK_FACES.includes(b.weakSide));
+        });
+
+        expect(r).toBe(true);
     });
 
     test('la física real aplica el ×3 al pegarle a la cara débil', async ({ page }) => {
@@ -185,23 +205,26 @@ test.describe('Bloque Punto débil', () => {
             const cell = rendering.getCellSize();
             const left = rendering.getLeftBorder();
             const top = rendering.getTopOffset();
-            const brick = {
+            const make = (weakSide) => ({
                 x: left + 3 * cell, y: top + 3 * cell, width: cell - 4, height: cell - 4,
-                hp: 1000, maxHp: 1000, col: 3, type: 'weakpoint', weakSide: 'bottom'
+                hp: 1000, maxHp: 1000, col: 3, type: 'normal', weakSide
+            });
+            const hitFromBelow = (brick) => {
+                gameState.bricks = [brick];
+                gameState.bonuses = [];
+                gameState.overdriveActive = false;
+                gameState.balls = [{
+                    x: brick.x + cell / 2, y: brick.y + cell + 20, vx: 0, vy: -10,
+                    active: true, hasGoneUp: true, ballType: 'normal', damage: 1, state: {}
+                }];
+                gameState.isShooting = false;
+                for (let i = 0; i < 5; i++) physics.updateBalls();
+                return brick.hp;
             };
-            gameState.bricks = [brick];
-            gameState.bonuses = [];
-            gameState.overdriveActive = false;
-            // Bola que sube recto contra la cara de abajo
-            gameState.balls = [{
-                x: brick.x + cell / 2, y: brick.y + cell + 20, vx: 0, vy: -10,
-                active: true, hasGoneUp: true, ballType: 'normal', damage: 1, state: {}
-            }];
-            gameState.isShooting = false;
-            for (let i = 0; i < 5; i++) physics.updateBalls();
-            return brick.hp;
+            return { weak: hitFromBelow(make('bottom')), other: hitFromBelow(make('top')) };
         });
 
-        expect(r).toBe(1000 - 3);
+        expect(r.weak).toBe(1000 - 3);
+        expect(r.other).toBe(1000 - 1);
     });
 });
