@@ -69,6 +69,7 @@ glow-break/
     │   ├── BrickGenerator.js
     │   ├── CollisionSystem.js   # CCD (swept sphere)
     │   ├── BrickSurfaces.js     # Fusión de bloques adyacentes
+    │   ├── WeakSpots.js         # Zona débil de todos los bloques
     │   ├── Eras.js              # Era y niveles de amenaza por turno (puro)
     │   ├── ThreatSystem.js      # Ejecuta los hooks de las amenazas activas
     │   └── VillainDirector.js   # Poses del villano (máquina de estados pura)
@@ -278,7 +279,6 @@ BonusRegistry.register('shield', ShieldBonusBehavior);
 | `regenerator` | 💚 | Heals to 90% at turn end | `regeneratorChance` |
 | `gold` | 🪙 | Half HP; grants +1 normal ball on destroy | (baseChance in behavior) |
 | `mystery` | 🎁 | Random reward on destroy (balls or laser) | (baseChance in behavior) |
-| `weakpoint` | 🎯 (guía) | 1.5× HP; una cara al azar (`brick.weakSide`, barra celeste) recibe ×3 de los golpes de bola (esquina cuenta para sus 2 caras); área y otras caras, normal | (baseChance in behavior) |
 | `boss` | 👑 | 3 columns wide, spawned every 15 turns by `generateNewRow` (never random); shockwave + loot (+2 balls, +1 shield) on destroy | - |
 
 ### Ball Types
@@ -322,14 +322,23 @@ lo único que lo cambiaba y podían devolverla casi plana, saltándose el tope d
   hasta el mínimo conservando rapidez y sentido. Se aplica en
   `processPhysicsStep` **y** en `simulateTrajectory` (la mira muestra la salida
   enderezada) y a las hijas de la divisora. No toques una sin la otra.
-- **Punto débil** (`weakpoint`): da un motivo para apuntar distinto según el
-  tablero. Una cara marcada recibe ×`weakMultiplier` de bola; si un vecino la
-  tapa, la barra se dibuja apagada (`rect.exposed`).
+- **Zona débil — TODOS los bloques (v2.15.0)**: da un motivo para apuntar
+  distinto según el tablero. Ya no es un tipo de bloque (el tipo `weakpoint`
+  se eliminó; guardados viejos lo cargan como `normal`): es una mecánica del
+  motor en `js/systems/WeakSpots.js`, constantes en `config.js` → `WEAK_SPOT`
+  (`multiplier` 3, `sideWeights`, `color`). Cada bloque (jefes y los que
+  suelta el spawner incluidos) nace con `brick.weakSide` vía `ensureWeakSide`
+  (`generateNewRow`, `processBrickDestruction`, `resumeGame` para guardados
+  sin cara). `damageBrick` aplica `applyWeakSpot` DESPUÉS del `onDamage` del
+  tipo (blindado ×0,5 × 3 = ×1,5) y antes de las amenazas. `drawBrick` dibuja
+  la barra (`drawWeakSpot`) después del `render` del tipo; si un vecino la
+  tapa, se dibuja apagada (`rect.exposed`). La niebla la oculta. La guía la
+  explica en Mecánicas (`describeWeakSpot`).
 - **Contrato de daño por cara**: `damageBrick(brick, amount, source, hitFaces)`
   pasa al behavior `onDamage(brick, damage, gameState, { source, hitFaces,
   helpers })`. `getHitFaces(collision)` da `['left']` para una cara y dos caras
   para una esquina. Nuevo hook de bloque `onCreate(brick, gameState)` (llamado
-  en `generateNewRow`) para estado propio al nacer. `getBrickRect` ahora
+  en `generateNewRow`) para estado propio del tipo al nacer. `getBrickRect` ahora
   incluye `exposed: {left, right, top, bottom}`.
 - Guardado: `weakSide` se guarda por bloque. Tests:
   `tests/integration/edge-shots.spec.js`.
@@ -592,6 +601,7 @@ The `guide.spec.js` test fails if any registered type is missing from the guide.
 | `js/core/Registry.js` | Type registration system |
 | `js/systems/CollisionSystem.js` | CCD swept sphere, trayectoria de puntería |
 | `js/systems/BrickSurfaces.js` | Fusión de bloques adyacentes (geometría compartida física/render) |
+| `js/systems/WeakSpots.js` | Zona débil de todos los bloques (sorteo, daño ×3, dibujo) |
 | `js/systems/BallInventory.js` | Tope del inventario de bolas (agregar/tirar/recortar) |
 | `js/ui/DropPanel.js` | Panel 🎒 para tirar bolas entre turnos |
 | `js/behaviors/ThreatBehaviors.js` | Amenazas de las eras (corrupción, oleadas, adaptación, reptadores, niebla) |
