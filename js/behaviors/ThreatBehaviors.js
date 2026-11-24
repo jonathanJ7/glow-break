@@ -296,12 +296,15 @@ const WavesThreat = {
         const pulse = 0.5 + Math.sin(performance.now() * 0.008) * 0.4;
 
         ctx2d.save();
+        // Halo = trazo ancho translúcido debajo (sin shadowBlur: se dibuja
+        // cada cuadro y abarca todo el tablero)
+        const frameH = getBottomLine() - top + 10;
+        ctx2d.strokeStyle = `rgba(56, 189, 248, ${pulse * 0.3})`;
+        ctx2d.lineWidth = 9;
+        ctx2d.strokeRect(left, top, right - left, frameH);
         ctx2d.strokeStyle = `rgba(56, 189, 248, ${pulse})`;
         ctx2d.lineWidth = 3;
-        ctx2d.shadowColor = '#38bdf8';
-        ctx2d.shadowBlur = 10;
-        ctx2d.strokeRect(left, top, right - left, getBottomLine() - top + 10);
-        ctx2d.shadowBlur = 0;
+        ctx2d.strokeRect(left, top, right - left, frameH);
         if (!ctx.gameState.isShooting) {
             ctx2d.fillStyle = `rgba(125, 211, 252, ${0.6 + pulse * 0.4})`;
             ctx2d.font = `bold ${getFontSize(12)}px Arial`;
@@ -364,14 +367,17 @@ const AdaptationThreat = {
     renderBrick(ctx2d, brick, rect, ctx) {
         if (!this.hasShell(brick, ctx.turn)) return;
         ctx2d.save();
-        ctx2d.strokeStyle = 'rgba(45, 212, 191, 0.85)';
-        ctx2d.lineWidth = 2;
-        ctx2d.setLineDash([4, 3]);
-        ctx2d.shadowColor = '#2dd4bf';
-        ctx2d.shadowBlur = 6;
         const radii = rect.radii.map(r => (r > 0 ? 3 : 0));
         ctx2d.beginPath();
         ctx2d.roundRect(rect.x + 4, rect.y + 4, rect.width - 8, rect.height - 8, radii);
+        // Halo = trazo ancho translúcido debajo. Sin shadowBlur: en el nivel
+        // 3 TODOS los bloques nacen con caparazón y se dibujan cada cuadro.
+        ctx2d.strokeStyle = 'rgba(45, 212, 191, 0.25)';
+        ctx2d.lineWidth = 5;
+        ctx2d.stroke();
+        ctx2d.strokeStyle = 'rgba(45, 212, 191, 0.85)';
+        ctx2d.lineWidth = 2;
+        ctx2d.setLineDash([4, 3]);
         ctx2d.stroke();
         ctx2d.restore();
     },

@@ -27,6 +27,15 @@ export const VILLAIN = {
     cacheMaxFrames: 48,   // cuadros pre-dibujados como máximo (LRU)
     golpeKills: 5,        // bloques rotos en un turno para que acuse el golpe
 };
+// Rendimiento (v2.15.1). Tope de resolución del canvas: en pantallas DPR 3
+// el canvas se rasteriza con DPR 2 (ver getCanvasDpr en rendering.js).
+export const CANVAS_MAX_DPR = 2;
+// La lógica (física, partículas) avanza un paso por cuadro. Si un cuadro
+// tarda más de LOGIC_STEP_MS (el cuadro de 60 Hz), se dan pasos extra para
+// que el juego no vaya en cámara lenta, hasta MAX_CATCHUP_STEPS por cuadro.
+// En pantallas de 60 Hz o más el comportamiento es el de siempre (1 paso).
+export const LOGIC_STEP_MS = 1000 / 60;
+export const MAX_CATCHUP_STEPS = 3;
 export const BASE_BALL_RADIUS = 6;
 export const BALL_SPEED = 10;
 export const FAST_SPEED_MULTIPLIER = 5;

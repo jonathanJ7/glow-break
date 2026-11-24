@@ -12,6 +12,7 @@
  */
 
 import { BonusRegistry } from '../core/Registry.js';
+import { drawGlowCircle } from '../ui/Glow.js';
 import { BALL_BONUS_SCALE_TURNS, BALL_BONUS_MAX_VALUE, LASER_MAXHP_RATIO, LASER_CURRENT_HP_RATIO, SPAWN_SCHEDULE, DIFFICULTY_SETTINGS } from '../../config.js';
 import { addToInventory } from '../systems/BallInventory.js';
 
@@ -71,13 +72,8 @@ const BallBonusBehavior = {
     render(ctx, bonus, helpers) {
         const { getFontSize } = helpers;
 
-        ctx.shadowColor = this.color;
-        ctx.shadowBlur = 10;
-        ctx.fillStyle = this.color;
-        ctx.beginPath();
-        ctx.arc(bonus.x, bonus.y, bonus.radius, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.shadowBlur = 0;
+        // Círculo con halo pre-dibujado (sin shadowBlur por cuadro)
+        drawGlowCircle(ctx, bonus.x, bonus.y, bonus.radius, { color: this.color, blur: 10 });
 
         // Texto
         ctx.fillStyle = 'white';
@@ -120,13 +116,8 @@ const FireballBonusBehavior = {
     render(ctx, bonus, helpers) {
         const { getFontSize } = helpers;
 
-        ctx.shadowColor = this.color;
-        ctx.shadowBlur = 10;
-        ctx.fillStyle = this.color;
-        ctx.beginPath();
-        ctx.arc(bonus.x, bonus.y, bonus.radius, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.shadowBlur = 0;
+        // Círculo con halo pre-dibujado (sin shadowBlur por cuadro)
+        drawGlowCircle(ctx, bonus.x, bonus.y, bonus.radius, { color: this.color, blur: 10 });
 
         // Icono
         ctx.fillStyle = 'white';
@@ -170,13 +161,8 @@ const SplitterBonusBehavior = {
     render(ctx, bonus, helpers) {
         const { getFontSize } = helpers;
 
-        ctx.shadowColor = this.color;
-        ctx.shadowBlur = 10;
-        ctx.fillStyle = this.color;
-        ctx.beginPath();
-        ctx.arc(bonus.x, bonus.y, bonus.radius, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.shadowBlur = 0;
+        // Círculo con halo pre-dibujado (sin shadowBlur por cuadro)
+        drawGlowCircle(ctx, bonus.x, bonus.y, bonus.radius, { color: this.color, blur: 10 });
 
         // Icono
         ctx.fillStyle = 'white';
@@ -222,13 +208,8 @@ const HorizontalLaserBehavior = {
     render(ctx, bonus, helpers) {
         const { getFontSize } = helpers;
 
-        ctx.shadowColor = this.color;
-        ctx.shadowBlur = 10;
-        ctx.fillStyle = this.color;
-        ctx.beginPath();
-        ctx.arc(bonus.x, bonus.y, bonus.radius, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.shadowBlur = 0;
+        // Círculo con halo pre-dibujado (sin shadowBlur por cuadro)
+        drawGlowCircle(ctx, bonus.x, bonus.y, bonus.radius, { color: this.color, blur: 10 });
 
         // Icono
         ctx.fillStyle = 'white';
@@ -277,13 +258,8 @@ const StrengthBonusBehavior = {
     render(ctx, bonus, helpers) {
         const { getFontSize } = helpers;
 
-        ctx.shadowColor = this.color;
-        ctx.shadowBlur = 10;
-        ctx.fillStyle = this.color;
-        ctx.beginPath();
-        ctx.arc(bonus.x, bonus.y, bonus.radius, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.shadowBlur = 0;
+        // Círculo con halo pre-dibujado (sin shadowBlur por cuadro)
+        drawGlowCircle(ctx, bonus.x, bonus.y, bonus.radius, { color: this.color, blur: 10 });
 
         // Icono
         ctx.fillStyle = 'white';
@@ -326,13 +302,8 @@ const BombBonusBehavior = {
     render(ctx, bonus, helpers) {
         const { getFontSize } = helpers;
 
-        ctx.shadowColor = this.color;
-        ctx.shadowBlur = 10;
-        ctx.fillStyle = this.color;
-        ctx.beginPath();
-        ctx.arc(bonus.x, bonus.y, bonus.radius, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.shadowBlur = 0;
+        // Círculo con halo pre-dibujado (sin shadowBlur por cuadro)
+        drawGlowCircle(ctx, bonus.x, bonus.y, bonus.radius, { color: this.color, blur: 10 });
 
         // Icono
         ctx.fillStyle = 'white';

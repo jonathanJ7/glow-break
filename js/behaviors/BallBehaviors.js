@@ -17,6 +17,7 @@
  */
 
 import { BallRegistry } from '../core/Registry.js';
+import { drawGlowCircle } from '../ui/Glow.js';
 import { circleRectOverlap, clampMinBounceAngle } from '../systems/CollisionSystem.js';
 
 // ============================================
@@ -115,13 +116,12 @@ const FireballBehavior = {
     render(ctx, ball, helpers) {
         const { getBallRadius } = helpers;
 
-        ctx.shadowColor = this.glowColor;
-        ctx.shadowBlur = 8;
+        // Halo pre-dibujado (shadowBlur en vivo por bola era muy caro)
+        drawGlowCircle(ctx, ball.x, ball.y, getBallRadius(), { color: this.color, glowColor: this.glowColor, blur: 8 });
         ctx.fillStyle = this.color;
         ctx.beginPath();
         ctx.arc(ball.x, ball.y, getBallRadius(), 0, Math.PI * 2);
         ctx.fill();
-        ctx.shadowBlur = 0;
     },
 
     onCollision(ball, brick, gameState, helpers) {
@@ -226,13 +226,12 @@ const SplitterBehavior = {
     render(ctx, ball, helpers) {
         const { getBallRadius } = helpers;
 
-        ctx.shadowColor = this.glowColor;
-        ctx.shadowBlur = 8;
+        // Halo pre-dibujado (shadowBlur en vivo por bola era muy caro)
+        drawGlowCircle(ctx, ball.x, ball.y, getBallRadius(), { color: this.color, glowColor: this.glowColor, blur: 8 });
         ctx.fillStyle = this.color;
         ctx.beginPath();
         ctx.arc(ball.x, ball.y, getBallRadius(), 0, Math.PI * 2);
         ctx.fill();
-        ctx.shadowBlur = 0;
     },
 
     onCollision(ball, brick, gameState, helpers) {
@@ -330,13 +329,12 @@ const StrengthBallBehavior = {
     render(ctx, ball, helpers) {
         const { getBallRadius } = helpers;
 
-        ctx.shadowColor = this.glowColor;
-        ctx.shadowBlur = 8;
+        // Halo pre-dibujado (shadowBlur en vivo por bola era muy caro)
+        drawGlowCircle(ctx, ball.x, ball.y, getBallRadius(), { color: this.color, glowColor: this.glowColor, blur: 8 });
         ctx.fillStyle = this.color;
         ctx.beginPath();
         ctx.arc(ball.x, ball.y, getBallRadius(), 0, Math.PI * 2);
         ctx.fill();
-        ctx.shadowBlur = 0;
     },
 
     onCollision(ball, brick, gameState, helpers) {
@@ -401,13 +399,12 @@ const BombBallBehavior = {
     render(ctx, ball, helpers) {
         const { getBallRadius } = helpers;
 
-        ctx.shadowColor = this.glowColor;
-        ctx.shadowBlur = 10;
+        // Halo pre-dibujado (shadowBlur en vivo por bola era muy caro)
+        drawGlowCircle(ctx, ball.x, ball.y, getBallRadius(), { color: this.color, glowColor: this.glowColor, blur: 10 });
         ctx.fillStyle = this.color;
         ctx.beginPath();
         ctx.arc(ball.x, ball.y, getBallRadius(), 0, Math.PI * 2);
         ctx.fill();
-        ctx.shadowBlur = 0;
 
         // Mecha: parpadea más rápido cuanto más cerca está de detonar
         const fuseCost = ball.state.fuseCost || this.hitsPerFuse;
