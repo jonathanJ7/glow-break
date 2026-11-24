@@ -74,6 +74,9 @@ glow-break/
     │   ├── ThreatSystem.js      # Ejecuta los hooks de las amenazas activas
     │   └── VillainDirector.js   # Poses del villano (máquina de estados pura)
     │
+    ├── ui/
+    │   └── Glow.js              # Halos neón pre-dibujados (sin shadowBlur por cuadro)
+    │
     ├── entities/
     │   ├── Brick.js
     │   ├── Ball.js
@@ -308,6 +311,28 @@ BonusRegistry.register('shield', ShieldBonusBehavior);
 - **Ball AoE contract**: a ball behavior's `onCollision` may return `damagedBricks: [{brick, damage}]` — the engine applies it (used by `bomb`, mirrors brick `onDestroy`).
 - **Feedback helpers** in `physicsHelpers`: `addFloatingText(x, y, text, {color, size})`, `addScreenShake(intensity)`, `addBallsToInventory(type, count)`, `addShieldCharge()`.
 - **Records**: best turn per difficulty stored in `localStorage` (`glowbreak_best_<difficulty>`), only counted when starting from turn 1.
+
+### Rendimiento (v2.15.1)
+
+El juego se ponía lento a los pocos niveles incluso en celulares de alta gama.
+El costo no estaba en la lógica (<1 ms por cuadro) sino en el **rasterizado**:
+
+- **Nada de `ctx.shadowBlur` por entidad y por cuadro** (bolas, bonuses,
+  bloques, zona débil, caparazón). Usá `js/ui/Glow.js`: `drawGlowCircle` /
+  `drawGlowRoundRect` pre-dibujan la figura con su brillo una vez (caché LRU)
+  y la copian con `drawImage`. Para bordes que cambian de tamaño, un trazo
+  ancho translúcido debajo. `shadowBlur` en vivo solo para efectos únicos
+  (láser, cartel de era, mira). Antes: ~46 blurs por cuadro con bolas
+  especiales; cuadro mediano con CPU ×4: 75 ms → 31 ms.
+- **`getWidth()`/`getHeight()` están cacheados** (se miden en `resizeCanvas`,
+  que corre con `resize` y con un `ResizeObserver` del contenedor). No
+  llames a `getBoundingClientRect()` en código que corre por cuadro.
+- **Tope de resolución**: el canvas usa `getCanvasDpr()` = mín(DPR,
+  `CANVAS_MAX_DPR` = 2). En DPR 3 se rasterizaba un 56% más.
+- **Bucle con recuperación** (`main.js`): la lógica da 1 paso por cuadro
+  como siempre, pero si un cuadro tarda más que `LOGIC_STEP_MS` (60 Hz) da
+  pasos extra (hasta `MAX_CATCHUP_STEPS`) para no ir en cámara lenta.
+- Test: `tests/integration/performance.spec.js`.
 
 ### Tiros al borde y punto débil (v2.14.0)
 

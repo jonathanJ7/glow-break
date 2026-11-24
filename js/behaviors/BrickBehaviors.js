@@ -18,6 +18,7 @@
  */
 
 import { BrickRegistry } from '../core/Registry.js';
+import { drawGlowRoundRect } from '../ui/Glow.js';
 import { BOSS_INTERVAL, BOSS_HP_MULTIPLIER, MAX_SHIELDS } from '../../config.js';
 
 // ============================================
@@ -395,14 +396,9 @@ const GoldBrickBehavior = {
         const { getFontSize, getScale, getBrickRect } = helpers;
         const rect = getBrickRect(brick);
 
-        // Overlay dorado con brillo
-        ctx.shadowColor = '#fbbf24';
-        ctx.shadowBlur = 8;
-        ctx.fillStyle = this.overlayColor;
-        ctx.beginPath();
-        ctx.roundRect(rect.x, rect.y, rect.width, rect.height, rect.radii);
-        ctx.fill();
-        ctx.shadowBlur = 0;
+        // Overlay dorado con brillo (pre-dibujado: sin shadowBlur por cuadro)
+        drawGlowRoundRect(ctx, rect.x, rect.y, rect.width, rect.height, rect.radii,
+            { color: this.overlayColor, glowColor: '#fbbf24', blur: 8 });
 
         ctx.fillStyle = 'rgba(255,255,255,0.9)';
         ctx.font = `${getFontSize(12)}px Arial`;
@@ -539,13 +535,13 @@ const BossBrickBehavior = {
 
         // Aura pulsante
         const pulse = 0.5 + Math.sin(performance.now() * 0.004) * 0.3;
-        ctx.shadowColor = '#e94560';
-        ctx.shadowBlur = 18 * pulse;
-        ctx.fillStyle = 'rgba(233, 69, 96, 0.35)';
-        ctx.beginPath();
-        ctx.roundRect(rect.x, rect.y, rect.width, rect.height, rect.radii);
-        ctx.fill();
-        ctx.shadowBlur = 0;
+        // El aura es un sprite pre-dibujado; el pulso va en la opacidad en
+        // vez de en el radio del blur (cambiar shadowBlur cada cuadro
+        // impediría reutilizarlo)
+        ctx.globalAlpha = 0.5 + pulse * 0.6;
+        drawGlowRoundRect(ctx, rect.x, rect.y, rect.width, rect.height, rect.radii,
+            { color: 'rgba(233, 69, 96, 0.35)', glowColor: '#e94560', blur: 14 });
+        ctx.globalAlpha = 1;
 
         ctx.strokeStyle = `rgba(255, 215, 0, ${0.5 + pulse * 0.4})`;
         ctx.lineWidth = 2;

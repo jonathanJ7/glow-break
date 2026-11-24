@@ -5,13 +5,26 @@ import { setupVillain } from './js/ui/villain/Villain.js';
 import { setupGuide } from './js/ui/Guide.js';
 import { setupDropPanel } from './js/ui/DropPanel.js';
 import { setupThreatPanel } from './js/ui/ThreatPanel.js';
+import { LOGIC_STEP_MS, MAX_CATCHUP_STEPS } from './config.js';
 
 // Initialize canvas
 initCanvas();
 resizeCanvas();
 
-// Setup resize handler
+// Setup resize handler. El tamaño del contenedor se cachea (ver
+// resizeCanvas), así que también escuchamos cambios del propio contenedor.
 window.addEventListener('resize', handleResize);
+if (typeof ResizeObserver !== 'undefined') {
+    const container = document.getElementById('gameContainer');
+    let lastW = container.clientWidth;
+    let lastH = container.clientHeight;
+    new ResizeObserver(() => {
+        if (container.clientWidth === lastW && container.clientHeight === lastH) return;
+        lastW = container.clientWidth;
+        lastH = container.clientHeight;
+        handleResize();
+    }).observe(container);
+}
 
 // Setup event listeners
 setupEventListeners();
@@ -28,15 +41,32 @@ setupThreatPanel();
 // Villano del espacio libre: reacciona a los eventos del juego
 setupVillain(events);
 
-// Game loop
-function animate() {
-    gameLoop();
+// Game loop. La lógica avanza por pasos fijos del cuadro de 60 Hz: si un
+// cuadro se atrasa (celular ocupado, ahorro de batería), se dan pasos extra
+// para no ir en cámara lenta. Nunca menos de 1 paso por cuadro, así en
+// pantallas rápidas el juego se comporta como siempre.
+let lastFrameTime = null;
+let stepDebt = 0;
+
+function animate(now) {
+    if (lastFrameTime === null) lastFrameTime = now;
+    // Tope de 250 ms: al volver de segundo plano no se intenta recuperar todo
+    stepDebt += Math.min(now - lastFrameTime, 250);
+    lastFrameTime = now;
+
+    const steps = Math.min(MAX_CATCHUP_STEPS, Math.max(1, Math.floor(stepDebt / LOGIC_STEP_MS)));
+    stepDebt = Math.max(0, stepDebt - steps * LOGIC_STEP_MS);
+    // Lo que no se alcanzó a recuperar se descarta: mejor un tirón que una
+    // espiral de cuadros cada vez más lentos.
+    if (stepDebt > LOGIC_STEP_MS) stepDebt = 0;
+
+    for (let i = 0; i < steps; i++) gameLoop();
     draw();
     requestAnimationFrame(animate);
 }
 
 // Start
-animate();
+requestAnimationFrame(animate);
 
 // Register Service Worker for PWA with update detection
 if ('serviceWorker' in navigator) {

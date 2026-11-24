@@ -13,6 +13,7 @@
  */
 
 import { WEAK_SPOT } from '../../config.js';
+import { drawGlowRoundRect } from '../ui/Glow.js';
 
 export const WEAK_FACES = ['left', 'right', 'top', 'bottom'];
 
@@ -87,12 +88,14 @@ export function drawWeakSpot(ctx, brick, rect, scale) {
         x = side === 'left' ? rect.x + inset : rect.x + rect.width - inset - thick;
     }
 
-    ctx.save();
-    ctx.globalAlpha = exposed ? 1 : 0.3;
     if (exposed) {
-        ctx.shadowColor = WEAK_SPOT.color;
-        ctx.shadowBlur = 8;
+        // Barra con brillo pre-dibujada: la tienen TODOS los bloques, un
+        // shadowBlur por bloque y por cuadro era muy caro en celulares
+        drawGlowRoundRect(ctx, x, y, w, h, thick / 2, { color: WEAK_SPOT.color, blur: 8 });
+        return;
     }
+    ctx.save();
+    ctx.globalAlpha = 0.3;
     ctx.fillStyle = WEAK_SPOT.color;
     ctx.beginPath();
     ctx.roundRect(x, y, w, h, thick / 2);

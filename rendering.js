@@ -10,13 +10,14 @@
 
 import { gameState, difficultyConfig } from './game.js';
 import { isInventoryFull } from './js/systems/BallInventory.js';
-import { COLS, BOARD_ROWS, LAUNCH_ZONE_ROWS, DANGER_LINE_GAP, VILLAIN, BRICK_COLORS, BASE_BALL_RADIUS, OVERDRIVE_MAX } from './config.js';
+import { COLS, BOARD_ROWS, LAUNCH_ZONE_ROWS, DANGER_LINE_GAP, VILLAIN, CANVAS_MAX_DPR, BRICK_COLORS, BASE_BALL_RADIUS, OVERDRIVE_MAX } from './config.js';
 import { calculateTrajectory } from './physics.js';
 import { BrickRegistry, BallRegistry, BonusRegistry } from './js/behaviors/index.js';
 import { getSlowdownProgress } from './input.js';
 import { getBrickSurfaces, brickRectFromSurface, BRICK_CELL_GAP } from './js/systems/BrickSurfaces.js';
 import { isBrickHidden, renderBrickOverlays, renderBoardOverlays } from './js/systems/ThreatSystem.js';
 import { drawWeakSpot } from './js/systems/WeakSpots.js';
+import { drawGlowCircle } from './js/ui/Glow.js';
 import { drawVillainBackdrop, drawVillainForeground, isNewRowHidden } from './js/ui/villain/Villain.js';
 
 export let canvas;
@@ -36,11 +37,32 @@ export function initCanvas() {
     container = document.getElementById('gameContainer');
 }
 
+// Tamaño del contenedor en caché. getWidth()/getHeight() se llaman cientos
+// de veces por cuadro (getScale, getCellSize, getFontSize por bloque...) y
+// getBoundingClientRect() fuerza un layout síncrono cada vez que el DOM del
+// HUD cambió. Solo se vuelve a medir en resizeCanvas (resize de la ventana o
+// del contenedor).
+let containerWidth = 0;
+let containerHeight = 0;
+
+/**
+ * Resolución del canvas: devicePixelRatio con tope CANVAS_MAX_DPR. Los
+ * celulares de alta gama tienen DPR 3: un canvas de 1170x2532 que se pinta
+ * entero 60-120 veces por segundo. Con tope 2 se rasteriza ~56% menos y la
+ * diferencia a la vista es mínima.
+ */
+export function getCanvasDpr() {
+    return Math.min(window.devicePixelRatio || 1, CANVAS_MAX_DPR);
+}
+
 export function resizeCanvas() {
     const rect = container.getBoundingClientRect();
-    canvas.width = rect.width * window.devicePixelRatio;
-    canvas.height = rect.height * window.devicePixelRatio;
-    ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+    containerWidth = rect.width;
+    containerHeight = rect.height;
+    const dpr = getCanvasDpr();
+    canvas.width = Math.round(rect.width * dpr);
+    canvas.height = Math.round(rect.height * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 
 export function handleResize() {
@@ -106,11 +128,11 @@ export function handleResize() {
 // ====================================
 
 export function getWidth() {
-    return container.getBoundingClientRect().width;
+    return containerWidth;
 }
 
 export function getHeight() {
-    return container.getBoundingClientRect().height;
+    return containerHeight;
 }
 
 export function getScale() {
@@ -517,14 +539,9 @@ function drawBall(ball) {
 
     // En OVERDRIVE todas las bolas llevan un anillo dorado
     if (gameState.overdriveActive) {
-        ctx.strokeStyle = 'rgba(251, 191, 36, 0.9)';
-        ctx.lineWidth = 2;
-        ctx.shadowColor = '#fbbf24';
-        ctx.shadowBlur = 6;
-        ctx.beginPath();
-        ctx.arc(ball.x, ball.y, getBallRadius() + 3, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.shadowBlur = 0;
+        // Anillo pre-dibujado: hasta 100 bolas, sin shadowBlur por bola
+        drawGlowCircle(ctx, ball.x, ball.y, getBallRadius() + 3,
+            { color: 'rgba(251, 191, 36, 0.9)', glowColor: '#fbbf24', blur: 6, lineWidth: 2 });
     }
 }
 
@@ -545,10 +562,12 @@ function drawFloatingTexts() {
         ctx.font = `bold ${getFontSize(t.size)}px Arial`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.shadowColor = 'rgba(0,0,0,0.8)';
-        ctx.shadowBlur = 4;
+        // Contorno oscuro en vez de shadowBlur (mucho más barato)
+        ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+        ctx.lineWidth = 3;
+        ctx.lineJoin = 'round';
+        ctx.strokeText(t.text, t.x, t.y);
         ctx.fillText(t.text, t.x, t.y);
-        ctx.shadowBlur = 0;
     }
     ctx.globalAlpha = 1;
 }
@@ -563,18 +582,21 @@ function drawOverdriveMeter(leftBorder, rightBorder) {
     const full = ratio >= 1;
     const pulse = full ? 0.6 + Math.sin(performance.now() * 0.008) * 0.4 : 0.85;
 
-    ctx.globalAlpha = pulse;
+    // Se dibuja casi todos los cuadros: el halo es un trazo ancho
+    // translúcido debajo en vez de shadowBlur
+    const endX = leftBorder + (rightBorder - leftBorder) * ratio;
     ctx.strokeStyle = '#fbbf24';
-    ctx.lineWidth = 3;
-    ctx.shadowColor = '#fbbf24';
-    ctx.shadowBlur = full ? 12 : 5;
     ctx.setLineDash(full ? [] : [5, 5]);
     ctx.beginPath();
     ctx.moveTo(leftBorder, y);
-    ctx.lineTo(leftBorder + (rightBorder - leftBorder) * ratio, y);
+    ctx.lineTo(endX, y);
+    ctx.globalAlpha = pulse * (full ? 0.35 : 0.2);
+    ctx.lineWidth = full ? 9 : 6;
+    ctx.stroke();
+    ctx.globalAlpha = pulse;
+    ctx.lineWidth = 3;
     ctx.stroke();
     ctx.setLineDash([]);
-    ctx.shadowBlur = 0;
     ctx.globalAlpha = 1;
 
     if (full && !gameState.isShooting) {
@@ -594,10 +616,11 @@ function drawComboCounter() {
     ctx.font = `bold ${Math.round(getFontSize(16) * pop)}px Arial`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    ctx.shadowColor = 'rgba(0,0,0,0.7)';
-    ctx.shadowBlur = 4;
+    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+    ctx.lineWidth = 3;
+    ctx.lineJoin = 'round';
+    ctx.strokeText(`Combo x${gameState.combo}`, getWidth() / 2, getTopOffset() + 4);
     ctx.fillText(`Combo x${gameState.combo}`, getWidth() / 2, getTopOffset() + 4);
-    ctx.shadowBlur = 0;
 }
 
 function drawOverdriveActiveFrame(leftBorder, rightBorder) {
@@ -913,7 +936,7 @@ export function draw() {
     // Villano del espacio libre (solo si sobra alto arriba del tablero)
     const now = performance.now();
     const villainArea = { width, top: VILLAIN.hudReserved, bottom: getTopOffset() - 15 };
-    drawVillainBackdrop(ctx, villainArea, now, window.devicePixelRatio || 1);
+    drawVillainBackdrop(ctx, villainArea, now, getCanvasDpr());
     const pendingRow = isNewRowHidden(now);
 
     drawPlayArea(leftBorder, rightBorder);
